@@ -126,7 +126,10 @@ export class Game {
   onMenu: () => void = () => {};
   /** UI hook: a match (TH or a PvP round) is starting → hide menus */
   onMatchStart: () => void = () => {};
-  readonly stats = { stepMs: 0, renderMs: 0, frames: 0 };
+  readonly stats = { stepMs: 0, renderMs: 0, frames: 0, frameMs: 16 };
+  /** auto-downgrade quality on slow GPUs unless the player chose one explicitly */
+  autoQuality = true;
+  private slowFor = 0;
   onLobby: (s: RoomState, selfId: string) => void = () => {};
   onToast: (msg: string) => void = () => {};
   ready = false;
@@ -203,6 +206,7 @@ export class Game {
   setQuality(q: Quality) {
     this.quality = q;
     this.bloom.enabled = q === 'high';
+    this.lighting.flashlightShadows = q === 'high';
     this.renderer.shadowMap.enabled = q !== 'low';
     this.lighting.key.shadow.mapSize.set(q === 'high' ? 2048 : 1024, q === 'high' ? 2048 : 1024);
     this.lighting.key.shadow.map?.dispose();
@@ -513,7 +517,8 @@ export class Game {
     this.world.mode = 'pvp';
     this.world.friendlyFire = true;
     this.world.phase = 'lobby';
-    this.world.emit = (ev) => room.sendEvent(ev);
+    // shots go over the low-latency DataChannel path; everything else is reliable & ordered (WS → DO)
+    this.world.emit = (ev) => (ev.t === 'fire' ? room.sendFast([], [ev]) : room.sendEvent(ev));
     room.onState = (s) => this.onRoomState(s);
     room.onWelcome = (log) => { for (const ev of log) this.applyEvent('', ev); };
     room.onSnapshots = (from, snaps) => this.onSnapshots(from, snaps);
@@ -732,6 +737,15 @@ export class Game {
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
     if (!this.ready) return;
+    this.stats.frameMs = this.stats.frameMs * 0.95 + dt * 1000 * 0.05;
+    if (this.autoQuality && this.mode !== 'menu' && this.quality !== 'low') {
+      this.slowFor = this.stats.frameMs > (this.quality === 'high' ? 26 : 38) ? this.slowFor + dt : 0;
+      if (this.slowFor > 4) {
+        this.slowFor = 0;
+        this.setQuality(this.quality === 'high' ? 'medium' : 'low');
+        this.onToast(`Performance: quality lowered to ${this.quality.toUpperCase()} (Settings to override)`);
+      }
+    }
     if (this.mode === 'menu') {
       const t = now * 0.00004;
       this.camera.position.set(Math.sin(t) * 30, 8 + Math.sin(t * 3) * 1.5, Math.cos(t) * 30);

@@ -1,6 +1,6 @@
 // Constants shared by the browser client and the Cloudflare Durable Object.
 
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 export type Squad = 'A' | 'B';
 export type Team = 'attack' | 'defend';

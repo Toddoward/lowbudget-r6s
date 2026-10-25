@@ -54,9 +54,12 @@ npm run test:e2e       # browser smoke test against `vite preview` (Playwright, 
   day/night), phase timers and round outcomes.
 * **Destruction sync** — damage is `(panelId, cellIndices[], dmg)`; HP subtraction is commutative, so
   any ordering converges. The DO keeps the round's cell/barricade/reinforcement log for late joiners.
-* **Snapshots** — 20 Hz over unordered/unreliable DataChannels (`maxRetransmits: 0`); peers without a
-  channel (strict NAT, no TURN) automatically fall back to the WS relay. Remote characters render
-  ~100 ms in the past (snapshot interpolation).
+* **Low-latency path** — 20 Hz position/rotation/stance snapshots **and shot events** (tracer, muzzle,
+  gunshot audio) go over unordered/unreliable DataChannels (`maxRetransmits: 0`); peers without a
+  channel (strict NAT, no TURN) automatically fall back to one WS relay, de-duplicated by sequence
+  number. Remote characters render ~100 ms in the past (snapshot interpolation).
+* **Reliable path** — WebSocket to the DO: room state, hits/deaths, destruction cell deltas,
+  barricades, reinforcements, gadget spawn/trigger/remove, objective events.
 * **Offline rooms** — choose *Local* transport: tabs of the same browser share a room over
   `BroadcastChannel`; the first tab (Web Lock) runs the exact same `RoomLogic` as the DO.
 
@@ -135,6 +138,13 @@ webmcp.subscribe((o) => {
 
 Manual: `npx wrangler login && npm run deploy`. To point a static build at a separately hosted worker,
 build with `VITE_SIGNAL_URL=wss://r6-matchmaker.<account>.workers.dev`.
+
+## Performance
+
+Quality presets (Settings): High = bloom + 2k sun shadows + flashlight shadows, Medium = 1k shadows,
+Low = no shadows, 0.75 render scale. On slow GPUs the game steps down automatically (High → Medium →
+Low) unless a preset was picked manually. Destruction rebuilds only dirty panels (greedy-merged boxes)
+once per frame; perception (bots 10 Hz staggered, WebMCP 10 Hz) uses Rapier ray casts.
 
 ## Controls
 

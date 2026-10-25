@@ -123,7 +123,7 @@ export class RoomLogic {
         return;
       }
       case 'relay': {
-        this.io.broadcast({ type: 'relay', from: connId, snaps: msg.snaps }, connId);
+        this.io.broadcast({ type: 'relay', from: connId, snaps: msg.snaps, fast: msg.fast }, connId);
         return;
       }
       case 'event': {

@@ -334,7 +334,7 @@ export class Soldier implements Actor {
 
   /* ------------------------------------------------------------ rappel */
   /** Try to hook a rope: from a roof/ledge edge (facing the drop) or from the ground (facing an exterior wall). */
-  startRappel(): boolean {
+  startRappel(dryRun = false): boolean {
     if (this.mode !== 'normal' || this.stance === Stance.Prone) return false;
     const ph = this.world.physics;
     const fwd = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
@@ -351,6 +351,7 @@ export class Soldier implements Actor {
       const back = this.pos.clone().addScaledVector(fwd, 1.4).add(new THREE.Vector3(0, -1.0, 0));
       const hit = ph.raycast(back, fwd.clone().negate(), 1.6, G_WORLD);
       if (hit && Math.abs(hit.normal.y) < 0.3 && isExterior(hit.tag)) {
+        if (dryRun) return true;
         const n = hit.normal.clone().setY(0).normalize();
         this.enterRappel(n, hit.point.clone().addScaledVector(n, WALL_GAP).setY(this.pos.y - 1.75), this.pos.y);
         return true;
@@ -364,6 +365,7 @@ export class Soldier implements Actor {
         const n = hit.normal.clone().setY(0).normalize();
         const topY = this.findTop(hit.point, n);
         if (topY !== null && topY > this.pos.y + 2.4) {
+          if (dryRun) return true;
           this.enterRappel(n, hit.point.clone().addScaledVector(n, WALL_GAP).setY(this.pos.y + 0.25), topY);
           return true;
         }

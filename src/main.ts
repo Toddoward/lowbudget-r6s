@@ -2,7 +2,7 @@ import './ui/styles.css';
 import agentContext from '../AGENT_CONTEXT.md?raw';
 import { Game } from './game/Game.ts';
 import { OPERATORS } from './game/operators.ts';
-import { ATTACKERS, ATTACK_SPAWNS, DEFENDERS, normalizeRoomCode, randomRoomCode, sanitizeNickname } from '../shared/constants.ts';
+import { ATTACKERS, ATTACK_SPAWNS, DEFENDERS, PVP_TIMINGS, normalizeRoomCode, randomRoomCode, sanitizeNickname } from '../shared/constants.ts';
 import type { RoomState } from '../shared/protocol.ts';
 import { teamOf } from '../shared/protocol.ts';
 import { ACTION_SCHEMA, OBSERVATION_SCHEMA, TOOLS } from './webmcp/schema.ts';
@@ -15,6 +15,8 @@ $('#agent-context-md').textContent = agentContext;
 
 const game = new Game($<HTMLCanvasElement>('#game'));
 (window as unknown as { r6game: Game }).r6game = game;
+// dev/test hook: shorten PvP phases for local-transport rooms hosted by this tab
+if (import.meta.env.DEV || new URLSearchParams(location.search).has('fastrounds')) (window as unknown as { r6timings: typeof PVP_TIMINGS }).r6timings = PVP_TIMINGS;
 
 let toastT = 0;
 game.onToast = (m) => {
@@ -170,7 +172,7 @@ const applySettings = () => {
   localStorage.setItem('r6.vol', vol.value);
 };
 for (const el of [sens, fov, vol]) el.addEventListener('input', applySettings);
-qual.addEventListener('change', () => { applySettings(); game.setQuality(qual.value as 'high'); });
+qual.addEventListener('change', () => { applySettings(); localStorage.setItem('r6.qualityManual', '1'); game.autoQuality = false; game.setQuality(qual.value as 'high'); });
 
 /* ---------------------------------------------------------------- WebMCP guide modal */
 function mdToHtml(md: string): string {
@@ -259,6 +261,7 @@ game.init((msg) => {
   bar.style.width = `${Math.min(100, (parseFloat(bar.style.width) || 0) + 18)}%`;
 }).then(() => {
   applySettings();
+  game.autoQuality = localStorage.getItem('r6.qualityManual') !== '1';
   if (qual.value !== 'high') game.setQuality(qual.value as 'high');
   show('#loading', false);
   // URL automation: ?room=R6-1234&nick=Agent&agent=1&mode=local  |  ?th=1&difficulty=Hard&mission=bomb&agents=2

@@ -24,6 +24,7 @@ const BARRICADE_BASE = 60000;
  */
 export class Interactions {
   private held = new Map<string, { key: string; t: number }>();
+  private rappelHint = new Map<string, { t: number; ok: boolean }>();
 
   constructor(private world: World) {}
 
@@ -77,7 +78,13 @@ export class Interactions {
         return { key: `rf${ph.panel.id}`, label: `Hold [F] Reinforce (${s.reinforcementsLeft} left)`, hold: 2.5, run: () => this.reinforce(s, ph.panel, true) };
       }
     }
-    if (s.side === 'attack') return { key: 'rappel', label: '', hold: 0, run: () => s.startRappel() };
+    if (s.side === 'attack') {
+      // throttled dry-run of the rope hook so the HUD can offer "[F] Rappel"
+      const h = this.rappelHint.get(s.id);
+      let ok = h?.ok ?? false;
+      if (!h || this.world.time - h.t > 0.3) { ok = s.startRappel(true); this.rappelHint.set(s.id, { t: this.world.time, ok }); }
+      return { key: 'rappel', label: ok ? '[F] Rappel' : '', hold: 0, run: () => s.startRappel() };
+    }
     return null;
   }
 
