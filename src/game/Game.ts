@@ -858,6 +858,7 @@ export class Game {
       rig.pose(dt, s.mode === 'rappel' ? Stance.Rappel : s.stance, s.pitch, s.lean, Math.hypot(s.vel.x, s.vel.z), s.mode === 'rappel' && s.inverted);
     }
     // camera
+    for (const r of this.remotes.values()) r.rig.root.visible = true;
     let camSoldier: Soldier | null = p;
     let spectating = '';
     const inDrone = !!(this.drone && w.phase === 'prep' && p);
@@ -874,8 +875,19 @@ export class Game {
         spectating = `SPECTATING ${camSoldier.name} (WebMCP agent view)`;
       } else camSoldier = null;
       if (!camSoldier) {
-        this.camera.position.lerp(p.pos.clone().add(new THREE.Vector3(2.5, 3, 2.5)), Math.min(1, dt * 2));
-        this.camera.lookAt(p.pos);
+        // PvP: watch a living remote teammate through their eyes
+        const remoteMates = [...this.remotes.values()].filter((r) => r.alive && r.side === p.side);
+        if (remoteMates.length) {
+          const r = remoteMates[this.spectateIdx % remoteMates.length];
+          r.rig.root.visible = false;
+          this.camera.position.copy(r.eye());
+          this.camera.rotation.set(r.pitch, r.yaw, -r.lean * 0.21, 'YXZ');
+          this.camera.fov = this.fov;
+          spectating = `SPECTATING ${r.name}`;
+        } else {
+          this.camera.position.lerp(p.pos.clone().add(new THREE.Vector3(2.5, 3, 2.5)), Math.min(1, dt * 2));
+          this.camera.lookAt(p.pos);
+        }
       }
     }
     if (camSoldier && !inDrone) {
