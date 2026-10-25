@@ -5,6 +5,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { Physics, G_WORLD } from '../core/Physics.ts';
+import { preloadGlbAssets, glbStats } from '../assets/library.ts';
 import { Input } from '../core/Input.ts';
 import { Audio } from '../core/Audio.ts';
 import { DestructionSystem } from '../world/Destruction.ts';
@@ -144,8 +145,9 @@ export class Game {
   }
 
   async init(progress: (msg: string) => void) {
-    progress('Initialising Rapier3D WASM physics…');
-    this.physics = await Physics.create();
+    progress('Initialising Rapier3D WASM physics · loading CLI-Anything/Blender GLB assets…');
+    const [physics] = await Promise.all([Physics.create(), preloadGlbAssets()]);
+    this.physics = physics;
     this.destruction = new DestructionSystem(this.physics);
     this.effects = new Effects(this.scene);
     progress('Building the original House (2015)…');
@@ -456,6 +458,7 @@ export class Game {
       room: this.room ? { code: this.room.code, transport: this.room.kind, peers: this.room.peerPaths(), score: this.room.state?.score, round: this.room.state?.round?.index } : null,
       enemiesRemaining: this.mode === 'th' ? this.bots.filter((b) => b.s.alive).length : undefined,
       droneActive: !!this.drone && w.phase === 'prep',
+      assets: glbStats.source,
     };
   }
 

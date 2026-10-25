@@ -1,0 +1,74 @@
+name: Build · Test · Deploy (Cloudflare Workers DO + Pages)
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: 22
+  PAGES_PROJECT: r6s-original-2015
+
+jobs:
+  build:
+    name: Typecheck · unit tests · build · browser e2e
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Typecheck (client + worker) and production build
+        run: npm run build
+      - name: Unit tests (room logic, destruction, hitboxes, spread)
+        run: npm test
+      - name: Browser e2e (SwiftShader WebGL)
+        run: |
+          npx playwright install --with-deps chromium
+          npx vite preview --port 4173 --strictPort &
+          for i in $(seq 1 30); do curl -sf http://localhost:4173 >/dev/null && break; sleep 1; done
+          npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          retention-days: 7
+
+  deploy:
+    name: Deploy Worker (Durable Object) → Pages
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Skip notice (no Cloudflare credentials)
+        if: env.CLOUDFLARE_API_TOKEN == ''
+        run: echo "::notice::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID secrets are not set — build verified, deploy skipped."
+      - name: Deploy matchmaking Worker + RoomDO Durable Object
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        run: npx wrangler deploy -c worker/wrangler.toml
+      - name: Ensure Pages project exists
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        run: npx wrangler pages project create "$PAGES_PROJECT" --production-branch "${GITHUB_REF_NAME}" || true
+      - name: Deploy Pages (static build + Functions bound to the DO)
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        run: npx wrangler pages deploy dist --project-name "$PAGES_PROJECT" --branch "${GITHUB_REF_NAME}" --commit-dirty=true
