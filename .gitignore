@@ -1,0 +1,8 @@
+node_modules
+dist
+.wrangler
+.dev.vars
+tools/cli-anything/.cache
+tools/cli-anything/build
+*.blend1
+.DS_Store

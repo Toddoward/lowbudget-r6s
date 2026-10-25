@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rainbow Six Siege: Original 2015 Edition (Web Tactical FPS)</title>
+  <meta name="description" content="Browser tactical FPS: the original 2015 House, real-time destruction, rappelling, Terrorist Hunt bots, room-code PvP over Cloudflare Durable Objects + WebRTC, and a WebMCP agent bridge." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23111'/%3E%3Ctext x='16' y='22' font-size='15' text-anchor='middle' fill='%23e8c35a' font-family='Arial' font-weight='bold'%3ER6%3C/text%3E%3C/svg%3E" />
+</head>
+<body>
+  <canvas id="game" tabindex="0"></canvas>
+
+  <div id="loading" class="screen">
+    <div class="brand"><span class="r6">R6</span> SIEGE <small>ORIGINAL 2015 EDITION · WEB TACTICAL FPS</small></div>
+    <div id="loading-msg">Loading…</div>
+    <div class="bar"><div id="loading-bar"></div></div>
+  </div>
+
+  <div id="menu" class="screen hidden">
+    <header class="brand"><span class="r6">R6</span> SIEGE <small>ORIGINAL 2015 EDITION · WEB TACTICAL FPS</small></header>
+    <p class="tag">Fan-made, non-commercial tribute. House (2015) · Tactical Low-Poly · E3 2014 lighting · Rapier3D destruction</p>
+    <div class="cols">
+      <section class="card" id="card-th">
+        <h2>TERRORIST HUNT <span class="sub">Single player · FSM bots</span></h2>
+        <label>Difficulty <select id="th-diff"><option>Normal</option><option>Hard</option><option>Realistic</option></select></label>
+        <label>Mission <select id="th-mission"><option value="random">Random</option><option value="elimination">Classic (eliminate)</option><option value="bomb">Disarm Bomb</option><option value="hostage">Hostage Rescue</option><option value="secure">Secure Area</option></select></label>
+        <label>Time of day <select id="th-tod"><option value="random">Random</option><option value="day">Morning</option><option value="night">Night</option></select></label>
+        <label>Spawn <select id="th-spawn"><option value="random">Random</option><option value="construction">Construction Site (N)</option><option value="docks">River Docks (E)</option><option value="apc">APC Area (SW)</option><option value="sidestreet">Side Street (S)</option></select></label>
+        <div class="ops" id="th-ops"></div>
+        <div class="agent-row">
+          <span>WebMCP AI teammates: <b id="th-agents">0</b></span>
+          <button id="th-add-agent" class="ghost">+ 로컬 WebMCP AI 에이전트 슬롯 추가</button>
+          <button id="th-clear-agents" class="ghost small">reset</button>
+        </div>
+        <button id="th-start" class="primary">DEPLOY</button>
+      </section>
+      <section class="card" id="card-pvp">
+        <h2>PVP <span class="sub">Nickname + 6-char room code</span></h2>
+        <label>Nickname <input id="nick" maxlength="16" placeholder="Recruit" /></label>
+        <label>Room code <span class="row"><input id="room-code" maxlength="7" placeholder="R6-8492" /><button id="room-random" class="ghost small">random</button></span></label>
+        <label>Transport <select id="room-mode"><option value="online">Online · Cloudflare Durable Object + WebRTC</option><option value="local">Local · same-browser tabs (no server)</option></select></label>
+        <label class="check"><input type="checkbox" id="join-as-agent" /> Join as WebMCP agent (window.webmcp controls this player)</label>
+        <button id="pvp-join" class="primary">JOIN ROOM</button>
+        <button id="open-agent-guide" class="agent-btn">[AI Agent WebMCP 접속 가이드 &amp; 스키마 보기]</button>
+        <details class="settings">
+          <summary>Settings</summary>
+          <label>Mouse sensitivity <input type="range" id="set-sens" min="0.5" max="4" step="0.1" value="2.2" /></label>
+          <label>Field of view <input type="range" id="set-fov" min="60" max="95" step="1" value="75" /></label>
+          <label>Quality <select id="set-quality"><option value="high">High (bloom, 2k shadows)</option><option value="medium">Medium</option><option value="low">Low</option></select></label>
+          <label>Volume <input type="range" id="set-vol" min="0" max="1" step="0.05" value="0.7" /></label>
+        </details>
+      </section>
+    </div>
+    <footer class="controls">WASD move · Shift sprint · C crouch · Z prone · Q/E lean · LMB fire · RMB ADS · R reload · V melee · F interact/rappel/barricade/reinforce · G detonate · 1-4 slots · Space vault/detach · L flashlight · T tier X-ray · B WebMCP overlay · Tab score · H help</footer>
+  </div>
+
+  <div id="lobby" class="screen hidden">
+    <header class="brand small"><span class="r6">R6</span> ROOM <b id="lobby-code"></b> <small id="lobby-mode"></small></header>
+    <div class="lobby-grid">
+      <div class="squad" id="squad-A"><h3>SQUAD A</h3><div class="members"></div></div>
+      <div class="squad" id="squad-B"><h3>SQUAD B</h3><div class="members"></div></div>
+    </div>
+    <div class="lobby-actions">
+      <button id="lobby-add-agent" class="ghost">+ 로컬 WebMCP AI 에이전트 슬롯 추가</button>
+      <button id="lobby-guide" class="agent-btn">[AI Agent WebMCP 접속 가이드 &amp; 스키마 보기]</button>
+      <button id="lobby-start" class="primary">START MATCH (host)</button>
+      <button id="lobby-leave" class="ghost">Leave</button>
+    </div>
+    <p class="hint" id="lobby-hint">Share the code. Squad A attacks first; sides swap every round. First to 3. Each round: random mission, site and morning/night.</p>
+    <div id="lobby-net" class="netinfo"></div>
+  </div>
+
+  <div id="hud" class="hidden">
+    <div id="crosshair"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i><i class="dot"></i></div>
+    <div id="hitmarker"></div>
+    <div id="damage-dirs"></div>
+    <div id="compass"><div id="compass-strip"></div><div id="heading"></div></div>
+    <div id="topbar"><span id="phase"></span><span id="timer"></span></div>
+    <div id="objbox"><div id="site"></div><div id="objective"></div><div id="obj-progress-wrap" class="hidden"><div id="obj-progress"></div></div><div id="score"></div><div id="extra"></div></div>
+    <div id="killfeed"></div>
+    <div id="locbox"><div id="location"></div><div id="stance"></div></div>
+    <div id="vitals"><div id="op-name"></div><div class="hp"><div id="hp-fill"></div><span id="hp-num"></span></div></div>
+    <div id="weaponbox"><div id="weapon-name"></div><div><span id="ammo"></span> <span id="reserve"></span></div><div id="reload-hint" class="hidden"></div><div id="gadget-1"></div><div id="gadget-2"></div></div>
+    <div id="prompt" class="hidden"></div>
+    <div id="prompt-progress-wrap" class="hidden"><div id="prompt-progress"></div></div>
+    <div id="radar" class="hidden"><div class="ring"></div><div class="me"></div></div>
+    <div id="drone-overlay" class="hidden"><div class="drone-frame"></div><div class="drone-label">DRONE · WASD drive · Space hop · Enter skip prep</div><div id="drone-jammed" class="hidden">SIGNAL JAMMED</div></div>
+    <div id="dead-overlay" class="hidden"><div>YOU ARE DOWN</div><small id="spectating"></small><small>Space: next teammate</small></div>
+    <div id="banner" class="hidden"></div>
+    <div id="scoreboard" class="hidden"></div>
+    <div id="prep-picker" class="hidden"></div>
+  </div>
+
+  <div id="pause" class="screen hidden">
+    <h2>PAUSED</h2>
+    <button id="pause-resume" class="primary">RESUME (click)</button>
+    <button id="pause-guide" class="agent-btn">[AI Agent WebMCP 접속 가이드 &amp; 스키마 보기]</button>
+    <button id="pause-quit" class="ghost">Quit to menu</button>
+  </div>
+
+  <div id="th-result" class="screen hidden">
+    <button id="th-restart" class="primary">REDEPLOY</button>
+    <button id="th-menu" class="ghost">Main menu</button>
+  </div>
+
+  <div id="help-overlay" class="hidden">
+    <h3>Controls</h3>
+    <p>WASD move · Shift sprint · C crouch · Z prone · Q/E lean · LMB fire · RMB ADS · R reload · V melee (murder holes) · F context (barricade · reinforce · vault · hostage · plant/defuse · rappel hook) · G remote detonate · 1 primary · 2 secondary · 3 operator gadget · 4 breach charge/barricades · Space vault / detach rope · L flashlight · T destruction tier X-ray · B WebMCP DOM overlay · Tab scoreboard</p>
+    <p>Rappel: look at an exterior wall (from the ground) or at the roof edge and press F. W/S climb, A/D traverse, Shift fast descent, C invert (upside down), F Breach &amp; Swing through the window in front, Space push off.</p>
+    <p>Walls: <span style="color:#ff5a4a">red soft</span> = holes & breaches · <span style="color:#ffd23a">yellow semi</span> = studs stay (see/shoot through) · white solid = indestructible. Defenders hold F on soft walls/hatches to reinforce (2 each).</p>
+  </div>
+
+  <div id="agent-modal" class="modal hidden">
+    <div class="modal-body">
+      <button id="agent-modal-close" class="close">✕</button>
+      <h2>AI Agent · WebMCP 접속 가이드 &amp; 스키마</h2>
+      <div class="tabs"><button data-tab="guide" class="on">Guide (AGENT_CONTEXT.md)</button><button data-tab="schema">Schema JSON</button><button data-tab="live">Live observation</button><button data-tab="snippet">Quick start</button></div>
+      <div class="tab" id="tab-guide"></div>
+      <pre class="tab hidden" id="tab-schema"></pre>
+      <pre class="tab hidden" id="tab-live"></pre>
+      <pre class="tab hidden" id="tab-snippet"></pre>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+  <div id="webmcp-agent-bridge" aria-live="off"></div>
+  <script type="text/markdown" id="agent-context-md"></script>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
