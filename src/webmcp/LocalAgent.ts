@@ -19,13 +19,15 @@ export class LocalAgent {
   private investigate: { bearing: number; until: number } | null = null;
   private lastEnemyHeading: { h: number; t: number } | null = null;
   private holdYaw = 0;
+  private stuck = { x: 0, z: 0, t: 0, until: 0, dir: 1 };
+  private lastMelee = -1e9;
 
   constructor(private nav: NavGraph, readonly name: string) {}
 
   think(o: Observation, dt: number): AgentAction | null {
     const s = o.self;
     if (!s || !s.alive) return null;
-    const now = performance.now();
+    const now = o.gameTime * 1000;
     const m = o.match as { phase?: string; objectivePos?: [number, number, number]; team?: string };
     const weapon = s.weapon as { ammoInMag?: number; magSize?: number; reserve?: number; reloading?: boolean };
     const act: AgentAction = { durationMs: 260 };
@@ -50,8 +52,10 @@ export class LocalAgent {
     }
     if ((weapon.ammoInMag ?? 99) < (weapon.magSize ?? 30) * 0.35 && (weapon.reserve ?? 0) > 0 && !weapon.reloading) act.reload = true;
 
-    // 2) fresh acoustic cue → turn and investigate
-    const cue = o.acoustic.find((c) => c.ageMs < 1200 && c.intensity > 0.12 && (c.type.includes('gunshot') || c.type === 'footstep' || c.type === 'wall_breach' || c.type === 'explosion'));
+    // 2) fresh acoustic cue → turn and investigate (footsteps only when no teammate could explain them)
+    const allyNear = o.vision.some((v) => v.kind === 'ally' && v.distance < 12);
+    const ownNoise = now - this.lastMelee < 2000; // our own barricade smash / breach
+    const cue = o.acoustic.find((c) => c.ageMs < 1200 && c.intensity > 0.12 && (c.type.includes('gunshot') || (!ownNoise && (c.type === 'wall_breach' || c.type.startsWith('barricade_break'))) || c.type === 'explosion' || (c.type === 'footstep' && !allyNear && s.team !== 'attack')));
     if (cue && cue.vertical === 'Same_Floor' && (!this.investigate || now > this.investigate.until)) this.investigate = { bearing: s.heading + cue.bearingDeg, until: now + 2200 };
     if (this.investigate && now < this.investigate.until) {
       act.lookLerp = { yaw: this.investigate.bearing, pitch: 0, rate: 0.2 };
@@ -78,7 +82,16 @@ export class LocalAgent {
       } else return act;
     }
 
-    // 4) navigate toward the objective (public knowledge) using the static map
+    // 4) an objective hold-action is offered right here (disarm / plant / secure hostage / defuse) → do it
+    if (s.interactPrompt && /Hold \[F\] (Disarm|Plant|Secure|Disable)/.test(s.interactPrompt)) {
+      act.interact = 'hold';
+      act.move = { forward: 0 };
+      act.stance = 'crouch';
+      act.durationMs = 700;
+      return act;
+    }
+
+    // 5) navigate toward the objective (public knowledge) using the static map
     const goal = m.objectivePos ? new THREE.Vector3(...m.objectivePos) : null;
     if (!goal) return act;
     const me = new THREE.Vector3(s.position.x, s.position.y, s.position.z);
@@ -87,8 +100,17 @@ export class LocalAgent {
     if (key !== this.goalKey || this.replanT <= 0 || !this.path.length) {
       this.goalKey = key;
       this.replanT = 3;
-      this.path = this.nav.path(me, goal) ?? [];
+      this.path = this.nav.path(me, goal, true) ?? [goal.clone()];
       this.pathIdx = 0;
+    }
+    // wooden barricade right in front → smash it (melee) like a player would
+    const barricade = o.vision.find((v) => v.kind === 'barricade' && v.distance < 1.6 && Math.abs(v.yawDelta) < 35);
+    if (barricade) {
+      act.lookLerp = { yawDelta: barricade.yawDelta, pitchDelta: barricade.pitchDelta, rate: 0.4 };
+      act.melee = Math.abs(barricade.yawDelta) < 12;
+      if (act.melee) this.lastMelee = now;
+      act.move = { forward: 0 };
+      return act;
     }
     while (this.pathIdx < this.path.length && Math.hypot(this.path[this.pathIdx].x - me.x, this.path[this.pathIdx].z - me.z) < 0.6) this.pathIdx++;
     const wp = this.path[this.pathIdx];
@@ -101,10 +123,21 @@ export class LocalAgent {
       if (s.interactPrompt?.startsWith('Hold')) act.durationMs = 800;
       return act;
     }
+    // stuck recovery: no progress for 2 s → re-plan and side-step for a moment
+    this.stuck.t += dt;
+    if (this.stuck.t > 2) {
+      if (Math.hypot(me.x - this.stuck.x, me.z - this.stuck.z) < 0.4) { this.stuck.until = now + 900; this.stuck.dir = -this.stuck.dir; this.replanT = 0; }
+      this.stuck = { ...this.stuck, x: me.x, z: me.z, t: 0 };
+    }
     const hdg = THREE.MathUtils.radToDeg(Math.atan2(wp.x - me.x, -(wp.z - me.z)));
+    if (now < this.stuck.until) {
+      act.lookLerp = { yaw: hdg, pitch: 0, rate: 0.25 };
+      act.move = { forward: -0.4, strafe: this.stuck.dir };
+      return act;
+    }
     const diff = THREE.MathUtils.euclideanModulo(hdg - s.heading + 180, 360) - 180;
-    act.lookLerp = { yaw: hdg, pitch: wp.y > me.y + 0.5 ? 12 : wp.y < me.y - 0.5 ? -12 : 0, rate: 0.22 };
-    act.move = { forward: Math.abs(diff) < 50 ? 1 : 0.2, sprint: Math.abs(diff) < 20 && me.distanceTo(goal) > 10 };
+    act.lookLerp = { yaw: hdg, pitch: wp.y > me.y + 0.5 ? 12 : wp.y < me.y - 0.5 ? -12 : 0, rate: 0.35 };
+    act.move = { forward: Math.abs(diff) < 45 ? 1 : Math.abs(diff) < 90 ? 0.3 : 0, sprint: Math.abs(diff) < 15 && me.distanceTo(goal) > 10 };
     act.stance = 'stand';
     return act;
   }

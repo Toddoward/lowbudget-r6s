@@ -8,6 +8,8 @@ export interface Observation {
   tick: number;
   agentId: string;
   t: number;
+  /** simulation clock (s) */
+  gameTime: number;
   self: ReturnType<Perception['self']> | null;
   vision: VisionEntry[];
   acoustic: AcousticCue[];
@@ -18,7 +20,7 @@ export interface BridgeHooks {
   soldier(agentId: string): Soldier | null;
   controller(agentId: string): AgentController | null;
   agents(): { id: string; nickname: string; kind: 'player' | 'local-slot'; policy: string }[];
-  match(): Record<string, unknown>;
+  match(agentId: string): Record<string, unknown>;
   join(nickname: string, roomCode: string, mode: 'online' | 'local'): Promise<string>;
   startTH(opts: { difficulty?: string; mission?: string }): void;
   loadout(opts: { squad?: 'A' | 'B'; operator?: string; spawn?: string; ready?: boolean }): void;
@@ -52,7 +54,7 @@ export class WebMcpBridge {
   private last = new Map<string, Observation>();
   private overlay = false;
 
-  constructor(world: World, private hooks: BridgeHooks) {
+  constructor(private world: World, private hooks: BridgeHooks) {
     this.perception = new Perception(world);
     this.root = document.getElementById('webmcp-agent-bridge') ?? Object.assign(document.createElement('div'), { id: 'webmcp-agent-bridge' });
     if (!this.root.isConnected) document.body.appendChild(this.root);
@@ -128,11 +130,11 @@ export class WebMcpBridge {
 
   observe(agentId = 'self'): Observation {
     const s = this.hooks.soldier(agentId);
-    const match = this.hooks.match();
-    if (!s) return { tick: this.tickN, agentId, t: performance.now(), self: null, vision: [], acoustic: [], match };
+    const match = this.hooks.match(agentId);
+    if (!s) return { tick: this.tickN, agentId, t: performance.now(), gameTime: this.world.time, self: null, vision: [], acoustic: [], match };
     const isSelf = agentId === 'self';
     return {
-      tick: this.tickN, agentId, t: Math.round(performance.now()),
+      tick: this.tickN, agentId, t: Math.round(performance.now()), gameTime: Math.round(this.world.time * 1000) / 1000,
       self: this.perception.self(s),
       vision: s.alive ? this.perception.vision(s, isSelf ? this.hooks.aspect() : 16 / 9, isSelf ? this.hooks.fov() : 75) : [],
       acoustic: s.alive ? this.perception.acoustic(s) : [],

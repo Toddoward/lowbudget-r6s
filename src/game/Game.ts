@@ -67,11 +67,13 @@ const GRADE = {
   fragmentShader: `uniform sampler2D tDiffuse; uniform float vignette, sat, contrast, grain, time, hurt, droneFx; varying vec2 vUv;
     float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233)) + time) * 43758.5453); }
     void main(){ vec4 c = texture2D(tDiffuse, vUv); vec3 col = c.rgb;
-      float l = dot(col, vec3(0.299,0.587,0.114)); col = mix(vec3(l), col, sat); col = (col - 0.5) * contrast + 0.5;
+      col = max(col, vec3(0.0));
+      float l = dot(col, vec3(0.2126,0.7152,0.0722)); col = max(mix(vec3(l), col, sat), vec3(0.0));
+      col = 0.18 * pow(col / 0.18, vec3(contrast)); // linear-HDR contrast pivoting on mid-grey
       float d = distance(vUv, vec2(0.5)); col *= 1.0 - vignette * smoothstep(0.35, 0.85, d);
       col = mix(col, vec3(0.55,0.0,0.0), hurt * smoothstep(0.25, 0.75, d));
       if (droneFx > 0.0) { float s = sin(vUv.y * 900.0) * 0.04; col = mix(col, vec3(dot(col, vec3(0.3,0.6,0.1))) * vec3(0.8,1.0,0.85) + s, droneFx * 0.6); }
-      col += (h(vUv * 800.0) - 0.5) * grain;
+      col = max(col + (h(vUv * 800.0) - 0.5) * grain * (0.2 + l), vec3(0.0));
       gl_FragColor = vec4(col, c.a); }`,
 };
 
@@ -171,7 +173,7 @@ export class Game {
       soldier: (id) => this.soldierFor(id),
       controller: (id) => this.controllerFor(id),
       agents: () => this.agentList(),
-      match: () => this.matchState(),
+      match: (id) => this.matchState(id),
       join: (n, c, m) => this.joinRoom(n, c, m, true),
       startTH: (o) => this.startTH({ ...this.defaultTH(), difficulty: (o.difficulty as BotDifficulty['name']) ?? 'Normal', mission: (o.mission as Mission) ?? 'random' }),
       loadout: (o) => this.setLoadout(this.room?.selfId ?? '', o),
@@ -444,17 +446,31 @@ export class Game {
     return out;
   }
 
-  matchState(): Record<string, unknown> {
+  matchState(agentId = 'self'): Record<string, unknown> {
     const w = this.world;
     const st = w.objectives.status();
     const timeLeft = Math.max(0, Math.round(this.timeLeft()));
-    const roomId = w.objectives.mission === 'bomb' ? w.objectives.bombs[0]?.room ?? w.objectives.site : w.objectives.site;
-    const objPos = this.mode === 'menu' ? null : w.objectives.spotOf(roomId).toArray().map((v) => Math.round(v * 10) / 10);
+    const o = w.objectives;
+    const me = this.soldierFor(agentId);
+    // objective position (public knowledge): next armed bomb / extraction zone when carrying the hostage / site spot
+    let target: THREE.Vector3 | null = null;
+    if (this.mode !== 'menu') {
+      if (o.mission === 'bomb') {
+        const armed = o.bombs.filter((b) => b.state === 'armed');
+        target = (me ? armed.sort((a, b) => a.pos.distanceTo(me.pos) - b.pos.distanceTo(me.pos))[0]?.pos : armed[0]?.pos) ?? o.spotOf(o.site);
+        if (o.defuser && me?.side === 'defend') target = o.defuser.pos;
+      } else if (o.mission === 'hostage' && o.hostage && me && o.hostage.carrier === me.id) {
+        const z = [...SPAWN_ZONES].sort((a, b) => me.pos.distanceTo(new THREE.Vector3(...a.center)) - me.pos.distanceTo(new THREE.Vector3(...b.center)))[0];
+        target = new THREE.Vector3(...z.center);
+      } else if (o.mission === 'hostage' && o.hostage) target = o.hostage.pos;
+      else target = o.container?.pos ?? o.spotOf(o.site);
+    }
+    const objPos = target ? target.toArray().map((v) => Math.round(v * 10) / 10) : null;
     return {
       mode: this.mode === 'th' ? 'terrorist_hunt' : this.mode === 'pvp' ? 'pvp' : 'menu',
       phase: w.phase, timeLeft, mission: st.mission, site: st.site, siteLabel: st.siteLabel, objective: st.text,
       objectiveProgress: Math.round(st.progress * 100) / 100, objectivePos: objPos,
-      team: this.player?.side ?? null, timeOfDay: this.lighting.tod,
+      team: me?.side ?? this.player?.side ?? null, timeOfDay: this.lighting.tod,
       room: this.room ? { code: this.room.code, transport: this.room.kind, peers: this.room.peerPaths(), score: this.room.state?.score, round: this.room.state?.round?.index } : null,
       enemiesRemaining: this.mode === 'th' ? this.bots.filter((b) => b.s.alive).length : undefined,
       droneActive: !!this.drone && w.phase === 'prep',
@@ -670,7 +686,10 @@ export class Game {
   private applyTod(tod: TimeOfDay, seed: number) {
     this.lighting.apply(tod, seed);
     this.vm.setTimeOfDay(tod === 'day');
-    this.bloom.strength = tod === 'day' ? 0.3 : 0.55;
+    // night: tight bloom so lamp glows don't smear an orange haze across the frame
+    this.bloom.strength = tod === 'day' ? 0.3 : 0.32;
+    this.bloom.radius = tod === 'day' ? 0.5 : 0.25;
+    this.bloom.threshold = tod === 'day' ? 0.88 : 0.95;
   }
 
   private endDronePhase() {
@@ -828,6 +847,7 @@ export class Game {
     let camSoldier: Soldier | null = p;
     let spectating = '';
     const inDrone = !!(this.drone && w.phase === 'prep' && p);
+    if (this.drone) this.drone.mesh.visible = !inDrone;
     if (inDrone) {
       const d = this.drone!;
       this.camera.position.copy(d.pos).add(new THREE.Vector3(0, 0.08, 0));
