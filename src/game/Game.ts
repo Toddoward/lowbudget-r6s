@@ -539,7 +539,7 @@ export class Game {
   /** QA / E2E: swap the local player to any operator (defenders included) in place */
   qaSwapOperator(operator: string): Soldier | null {
     const old = this.player;
-    if (!old) return null;
+    if (!old || !QA) return null;
     const side = (OPERATORS[operator]?.team === 'defend' ? 'defend' : 'attack') as Side;
     const pos = old.pos.clone();
     const yaw = old.yaw;
