@@ -12,7 +12,6 @@
 // disagreement is listed (a door we blocked, or a gap the model does not have),
 // and with an out-dir, PNG overlays (model walls on our reach map).
 import { readFileSync, writeFileSync } from 'node:fs';
-import { deflateSync } from 'node:zlib';
 import * as THREE from 'three';
 import { Physics } from '../../src/core/Physics.ts';
 import { DestructionSystem } from '../../src/world/Destruction.ts';
@@ -22,6 +21,7 @@ import { decodeHouseDatamap512Headless } from '../../src/map/houseDatamap.ts';
 import { FLOOR_Y, ROOMS, WALLS, type FloorId, type Rect } from '../../src/map/houseLayout.ts';
 const FLOOR_TAG: Record<number, string> = { [-1]: 'B', 0: '1F', 1: '2F' };
 import { BODY_R, buildWalkGrid, surfaceAt } from '../../src/map/walkGrid.ts';
+import { png } from './png.ts';
 
 const S = 2.85; // model plan → metres (houseLayout.ts)
 const CELL = 0.1;
@@ -34,6 +34,21 @@ interface Piece { o: 'h' | 'v'; c0: number; c1: number; a: number; b: number }
 type Diag = [[number, number], [number, number], [number, number], string];
 const faces: Record<string, { pieces: Piece[]; diag: Diag[] }> = JSON.parse(readFileSync(process.argv[2] ?? 'faces.json', 'utf8'));
 const outDir = process.argv[3];
+
+/**
+ * Reviewed differences we keep on purpose (matched by the printed location prefix).
+ * Everything else the audit prints is a defect to fix in houseLayout.ts.
+ */
+const KEEP: Record<string, string> = {
+  'B x=9.7 z≈2.00': 'garage shutter A: the model draws the roll-up door closed (a wall); it opens in game',
+  'B x=7.2 z≈-2.70': 'garage shutter B: same',
+  '1F z=3.75 x≈-7.90': 'an unbarricaded 1.2 m gap in the model\'s back-entrance façade (no door/window box): kept closed — the back door is the barricaded one at x −4.3',
+  'B1 model wall 2.79 m, x -8.92': 'the model\'s B1 corridor west of storage: our NW stairwell follows the datamap (zone 11, from the north) and ends in a pit at the storage door',
+  'B1 model wall 1.32 m, x -8.71': 'same corridor (its north end)',
+  '2F z=-5.5 x≈-5.15': 'the model\'s bathroom/west-hall wall is below the slice height (a low partition in the model); the bathroom keeps its wall and door',
+};
+const kept = (msg: string) => Object.keys(KEEP).find((k) => msg.includes(k));
+const report = (msg: string) => { const k = kept(msg); if (k) { console.log(`ok ${msg}  [kept: ${KEEP[k]}]`); return 0; } console.log(`!! ${msg}`); return 1; };
 
 /** model walls → raw wall cells */
 function modelWalls(fl: string): Uint8Array {
@@ -125,7 +140,9 @@ for (const [fl, floor] of Object.entries(FLOORS)) {
       if (!touches(A.rects, B.rects)) continue;
       const m = connected(modelFree, A.rects, B.rects);
       const o = connected(ours, A.rects, B.rects);
-      const flag = m === o ? '  ' : '!!';
+      // informational: our room rects and the model's walls can sit a few cm apart, which this coarse test cannot tell
+      // from a real difference — the wall-by-wall audit below is the verdict
+      const flag = m === o ? '  ' : ' ?';
       if (m !== o) mismatches++;
       console.log(`${flag} ${A.id.padEnd(13)} ↔ ${B.id.padEnd(13)} model ${m ? 'open ' : 'shut '} ours ${o ? 'open ' : 'shut '}${m !== o ? (m ? '← we block a passage the model has' : '← we have a passage the model does not') : ''}`);
     }
@@ -160,18 +177,18 @@ for (const [fl, floor] of Object.entries(FLOORS)) {
     const ops = (w.openings ?? []).filter((o) => o.kind !== 'vent');
     const where = (u: number) => `${FLOOR_TAG[floor]} ${w.run === 'x' ? `z=${w.c} x≈${u.toFixed(2)}` : `x=${w.c} z≈${u.toFixed(2)}`}`;
     for (const [a, b] of gaps) {
-      if (!ops.some((o) => o.at + o.w / 2 > a && o.at - o.w / 2 < b)) { doorIssues++; console.log(`!! model gap ${(b - a).toFixed(2)} m wide at ${where((a + b) / 2)} — we have a wall there`); }
+      if (!ops.some((o) => o.at + o.w / 2 > a && o.at - o.w / 2 < b)) doorIssues += report(`model gap ${(b - a).toFixed(2)} m wide at ${where((a + b) / 2)} — we have a wall there`);
     }
     for (const o of ops) {
       // windows: the model's wall slices run through them (its barricade boxes mark windows) — only doors are compared here
       if (o.kind === 'window' || o.kind === 'open_window' || o.kind === 'french') continue;
-      if (!gaps.some(([a, b]) => o.at + o.w / 2 > a && o.at - o.w / 2 < b)) { doorIssues++; console.log(`!! our ${o.kind} (${o.w} m) at ${where(o.at)} — the model has a wall there`); }
+      if (!gaps.some(([a, b]) => o.at + o.w / 2 > a && o.at - o.w / 2 < b)) doorIssues += report(`our ${o.kind} (${o.w} m) at ${where(o.at)} — the model has a wall there`);
     }
     // our solid wall where the model has nothing at all (a gap wider than a door)
     for (const [a, b] of gaps) {
       if (b - a < 1.6) continue;
       const covered = ops.filter((o) => o.at + o.w / 2 > a && o.at - o.w / 2 < b).reduce((m, o) => m + o.w, 0);
-      if (b - a - covered > 1.2) { doorIssues++; console.log(`!! our wall ${(b - a - covered).toFixed(2)} m at ${where((a + b) / 2)} — the model is open there (${(b - a).toFixed(2)} m)`); }
+      if (b - a - covered > 1.2) doorIssues += report(`our wall ${(b - a - covered).toFixed(2)} m at ${where((a + b) / 2)} — the model is open there (${(b - a).toFixed(2)} m)`);
     }
   }
 }
@@ -193,19 +210,9 @@ for (const [fl, floor] of Object.entries(FLOORS)) {
       const z = z0 + (z1 - z0) * (x1 - x0 > z1 - z0 ? 0.5 : t);
       if (!ph.overlapsWorld(new THREE.Vector3(x, y, z), 0.22)) { hole++; firstGap ??= [x, z]; }
     }
-    if (hole / (n + 1) > 0.3) { missing++; console.log(`!! ${fl} model wall ${len.toFixed(2)} m, x ${x0.toFixed(2)}..${x1.toFixed(2)} z ${z0.toFixed(2)}..${z1.toFixed(2)}: ${hole}/${n + 1} samples have nothing in ours (e.g. ${firstGap!.map((v) => v.toFixed(2)).join(', ')})`); }
+    if (hole / (n + 1) > 0.3) missing += report(`${fl} model wall ${len.toFixed(2)} m, x ${x0.toFixed(2)}..${x1.toFixed(2)} z ${z0.toFixed(2)}..${z1.toFixed(2)}: ${hole}/${n + 1} samples have nothing in ours (e.g. ${firstGap!.map((v) => v.toFixed(2)).join(', ')})`);
   }
 }
-console.log(`\n${mismatches} room pair(s) disagree with the model, ${doorIssues} opening(s) differ, ${missing} model wall(s) missing`);
-process.exitCode = mismatches || doorIssues || missing ? 1 : 0;
+console.log(`\n${doorIssues} opening(s) differ, ${missing} model wall(s) missing (room pairs to eyeball: ${mismatches})`);
+process.exitCode = doorIssues || missing ? 1 : 0;
 
-/** minimal RGB PNG encoder */
-function png(w: number, h: number, rgb: Buffer): Buffer {
-  const raw = Buffer.alloc((w * 3 + 1) * h);
-  for (let y = 0; y < h; y++) rgb.copy(raw, y * (w * 3 + 1) + 1, y * w * 3, (y + 1) * w * 3);
-  const crcT = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
-  const crc = (b: Buffer) => { let c = 0xffffffff; for (const x of b) c = crcT[(c ^ x) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
-  const chunk = (t: string, d: Buffer) => { const l = Buffer.alloc(4); l.writeUInt32BE(d.length); const td = Buffer.concat([Buffer.from(t), d]); const c = Buffer.alloc(4); c.writeUInt32BE(crc(td)); return Buffer.concat([l, td, c]); };
-  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 2;
-  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
-}

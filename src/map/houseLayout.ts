@@ -127,11 +127,14 @@ export const WALLS: WallDef[] = [
   W(-1, 'z', 0.35, -4.8, -0.95, 'soft'), // training | garage
   W(-1, 'x', -0.95, -2.35, 1.95, 'solid'), // training & garage | basement stairs
   W(-1, 'z', 1.95, -0.95, 0.55, 'solid'), // basement stairs | garage
+  W(-1, 'z', 0.26, -0.95, 0.55, 'solid'), // closes the void under the upper basement steps (model)
+  W(-1, 'x', -0.6, 5.83, 7.2, 'solid'), // garage: stub wall west of the shutter pillar (model)
+  W(-1, 'x', 0.55, -7.95, -5.28, 'solid'), // training | side stairs: the model's wall, open east of x −5.28
   W(-1, 'x', 0.55, -3.6, 1.95, 'solid', [], false, [S(-3.6, -2.15, 'soft')]), // training (NW part soft) & stairs | laundry
-  W(-1, 'z', -3.6, 0.55, 3.7, 'soft', [door(3.05, 0.9)]), // side stairs | laundry
+  W(-1, 'z', -3.6, 0.55, 3.7, 'soft'), // side stairs | laundry (no door in the model)
   W(-1, 'z', 1.95, 0.55, 4.85, 'soft', [door(4.25, 0.9)], false, [S(3.7, 4.85, 'solid')]), // laundry & back hall | garage
   W(-1, 'x', 3.7, -5.45, -3.6, 'solid', [door(-4.5)]), // side stairs | back hall
-  W(-1, 'x', 3.7, -3.6, 1.95, 'solid', [door(-1.0, 1.1)]), // laundry | back hall
+  // laundry ↔ back hall: one open space in the model (no wall)
 
   /* ================================ 1F (0) ================================== */
   // exterior: windows ×10 + front door + back door (matches the guide)
@@ -161,6 +164,7 @@ export const WALLS: WallDef[] = [
   W(0, 'z', 4.3, -4.9, 4.85, 'soft', [arch(2.15, 2.5), vent(4.35)], false, [S(-4.9, -0.6, 'semi')]), // lobby|office (semi) · landing|dining · kitchen|dining
   W(0, 'x', -0.6, 4.3, 8.1, 'soft', [door(6.35, 0.9)]), // office | dining
   W(0, 'z', -3.15, 0.6, 4.85, 'semi', [arch(4.05, 1.5)]), // back entrance | kitchen (semi section on the kitchen's west side)
+  W(0, 'x', 3.28, -3.15, -1.58, 'solid'), // kitchen pantry nook behind the back-entrance arch (model)
 
   /* ================================ 2F (3.5) ================================== */
   // exterior: windows ×12 + the unboardable open window
@@ -179,7 +183,7 @@ export const WALLS: WallDef[] = [
   E(1, 'z', -7.25, 3.75, 6.6, [win(5.1, 1.2)]), // kids W
   E(1, 'x', 3.75, -8.65, -7.25),
   E(1, 'z', -8.65, 3.25, 3.75),
-  E(1, 'z', -9.45, 1.75, 2.65, [win(2.2, 0.8)]),
+  E(1, 'z', -9.45, 1.75, 2.65), // (no 2F bay windows in the model)
   E(1, 'z', -8.65, 0.55, 1.1),
   E(1, 'x', 0.55, -8.65, -7.95),
   E(1, 'z', -7.95, -2.45, 0.55),
@@ -187,13 +191,16 @@ export const WALLS: WallDef[] = [
   E(1, 'z', -7.25, -7.4, -2.45),
   // interior — almost everything up here is soft (the guide's key point)
   W(1, 'x', -5.5, -7.25, -3.15, 'soft', [door(-5.2)]), // bathroom | west hall
-  W(1, 'z', -3.15, -5.5, 2.2, 'soft', [door(-4.6), door(-0.1)]), // bathroom annex & upper hall | west hall
-  W(1, 'x', -2.5, -3.15, -1.7, 'soft'), // bathroom annex | upper hall
-  W(1, 'z', -1.7, -5.5, -2.5, 'soft', [door(-3.05, 0.9), vent(-4.6)]), // bathroom annex | upper hall (+ drone vent)
-  W(1, 'z', 4.35, -5.15, 0.55, 'soft', [door(-1.4)]), // upper hall | workshop · master
-  W(1, 'x', -0.6, 4.35, 8.1, 'soft'), // workshop | master
-  W(1, 'x', 0.55, 1.25, 4.35, 'soft', [door(2.0)]), // upper hall | master
-  W(1, 'z', 1.25, 0.55, 2.2, 'soft'), // upper hall (south arm) | master
+  W(1, 'z', -3.15, -5.5, 2.2, 'soft', [door(-4.6), door(1.4, 1.2)]), // hall annex & upper hall | west hall
+  W(1, 'x', -2.5, -3.15, -1.7, 'soft', [door(-2.43, 0.9)]), // hall annex | upper hall
+  W(1, 'x', -5.5, -3.15, -1.7, 'soft'), // bathroom | hall annex (model)
+  W(1, 'x', 0.55, -7.95, -4.48, 'soft'), // west hall partition (model): north part | south part, open east of x −4.48
+  W(1, 'z', -1.7, -5.5, -2.5, 'soft', [vent(-4.6)]), // hall annex | upper hall (+ drone vent)
+  W(1, 'z', 4.35, -5.15, 0.55, 'soft', [door(-0.08, 0.95)]), // upper hall | workshop · vestibule (the model's door is the vestibule's)
+  W(1, 'x', -0.6, 4.35, 8.1, 'soft', [door(5.12, 1.0), door(6.55, 1.0)]), // workshop | vestibule · master (model: two doors)
+  W(1, 'z', 5.85, -0.6, 0.55, 'soft'), // vestibule | master
+  W(1, 'x', 0.55, 1.25, 5.85, 'soft', [door(2.0)]), // upper hall · vestibule | master
+  W(1, 'z', 1.25, 0.55, 2.2, 'soft', [door(1.2, 1.0)]), // upper hall (south arm) | master
   W(1, 'x', 2.2, -5.55, 1.25, 'soft', [door(-2.55, 0.9)], false, [S(-1.8, 1.25, 'semi')]), // kids | halls · walk-in closet north (semi)
   W(1, 'z', -1.8, 2.2, 4.85, 'solid'), // kids | walk-in closet (bulletproof)
   W(1, 'z', 1.25, 2.2, 4.85, 'solid', [door(3.6, 0.9)]), // walk-in closet | master (bulletproof)
@@ -204,7 +211,7 @@ export const WALLS: WallDef[] = [
 /** bay window + NE chamfer (the model's diagonal walls) */
 export const DIAG_WALLS: DiagWallDef[] = [
   ...([-1, 0, 1] as FloorId[]).flatMap((floor) => [
-    { floor, a: [-8.65, 1.1], b: [-9.45, 1.75], window: floor === -1 ? undefined : { at: 0.5, w: 0.8 } } as DiagWallDef,
+    { floor, a: [-8.65, 1.1], b: [-9.45, 1.75], window: floor === 0 ? { at: 0.5, w: 0.8 } : undefined } as DiagWallDef,
     { floor, a: [-9.45, 2.65], b: [-8.65, 3.25] } as DiagWallDef,
   ]),
   { floor: 0, a: [7.25, -5.15], b: [8.3, -4.1], window: { at: 0.5, w: 0.95 } },
@@ -347,7 +354,7 @@ export const ROOMS: RoomDef[] = [
   { id: 'storage', name: 'Storage Room', floor: -1, rects: [R(-7.25, -7.4, -1.7, -4.8)], spot: [-3.35, -5.6] },
   { id: 'training', name: 'Training Room', floor: -1, rects: [R(-7.95, -4.8, 0.35, -0.95), R(-7.95, -0.95, -2.35, 0.55)], spot: [-3.6, -2.9] },
   // the flight's footprint only: east of x 0.75 is the closed-off void under the upper steps
-  { id: 'bstairs', name: 'Basement Stairs', floor: -1, transit: true, rects: [R(-2.35, -0.95, 0.75, 0.55)], spot: [-2.3, -0.15] },
+  { id: 'bstairs', name: 'Basement Stairs', floor: -1, transit: true, rects: [R(-2.35, -0.95, 0.26, 0.55)], spot: [-2.3, -0.15] },
   { id: 'garage', name: 'Garage', floor: -1, rects: [R(0.35, -4.8, 7.2, -0.6), R(1.95, -0.6, 9.7, 4.85)], spot: [6.6, 1.6] },
   { id: 'laundry', name: 'Laundry Room', floor: -1, rects: [R(-3.6, 0.55, 1.95, 3.7)], spot: [-0.65, 2.85] },
   { id: 'sidestairs_b', name: 'Side Stairs', floor: -1, rects: [R(-8.65, 0.55, -3.6, 3.7), R(-9.45, 1.1, -8.65, 3.25)], spot: [-5.15, 2.7] },
@@ -357,14 +364,14 @@ export const ROOMS: RoomDef[] = [
   { id: 'lobby', name: 'Lobby', floor: 0, rects: [R(-1.75, -4.9, 4.3, -0.95), R(1.8, -0.95, 4.3, 0.6)], spot: [-0.4, -3.4] },
   { id: 'office', name: 'Office', floor: 0, rects: [R(4.3, -5.15, 8.3, -0.6)], spot: [6.2, -4.15] },
   { id: 'dining', name: 'Dining Room', floor: 0, rects: [R(4.3, -0.6, 9.7, 4.85)], spot: [8.5, 3.35] },
-  { id: 'kitchen', name: 'Kitchen', floor: 0, rects: [R(-3.15, 0.6, 4.3, 4.85)], spot: [-1.35, 3.2] },
+  { id: 'kitchen', name: 'Kitchen', floor: 0, rects: [R(-3.15, 0.6, 4.3, 4.85)], spot: [0.6, 3.7] },
   { id: 'backentry', name: 'Back Entrance', floor: 0, rects: [R(-8.65, 0.6, -3.15, 3.75), R(-5.45, 3.75, -3.15, 4.85), R(-9.45, 1.1, -8.65, 3.25)], spot: [-4.75, 3.0] },
   // 2F
-  { id: 'bathroom', name: 'Bathroom', floor: 1, rects: [R(-7.25, -7.4, -1.7, -5.5), R(-3.15, -5.5, -1.7, -2.5)], spot: [-5.6, -6.5] },
+  { id: 'bathroom', name: 'Bathroom', floor: 1, rects: [R(-7.25, -7.4, -1.7, -5.5)], spot: [-5.6, -6.5] },
   { id: 'westhall', name: 'West Hall', floor: 1, rects: [R(-7.25, -5.5, -3.15, -2.45), R(-7.95, -2.45, -3.15, 2.2), R(-8.65, 2.2, -5.55, 3.75), R(-9.45, 1.1, -8.65, 3.25)], spot: [-5.4, -1.0] },
-  { id: 'hallway2', name: 'Upper Hallway', floor: 1, rects: [R(-1.7, -5.5, 4.35, 0.55), R(-3.15, -2.5, -1.7, 0.55), R(-3.15, 0.55, 1.25, 2.2)], spot: [-0.6, -3.2] },
+  { id: 'hallway2', name: 'Upper Hallway', floor: 1, rects: [R(-1.7, -5.5, 4.35, 0.55), R(-3.15, -2.5, -1.7, 0.55), R(-3.15, 0.55, 1.25, 2.2), R(-3.15, -5.5, -1.7, -2.5), R(4.35, -0.6, 5.85, 0.55)], spot: [-0.6, -3.2] },
   { id: 'workshop', name: 'Workshop', floor: 1, rects: [R(4.35, -5.15, 8.3, -0.6)], spot: [6.4, -3.45] },
-  { id: 'master', name: 'Master Bedroom', floor: 1, rects: [R(1.25, 0.55, 9.7, 4.85), R(4.35, -0.6, 9.7, 0.55)], spot: [3.75, 3.0] },
+  { id: 'master', name: 'Master Bedroom', floor: 1, rects: [R(1.25, 0.55, 9.7, 4.85), R(5.85, -0.6, 9.7, 0.55)], spot: [3.75, 3.0] },
   { id: 'closet', name: 'Walk-in Closet', floor: 1, rects: [R(-1.8, 2.2, 1.25, 4.85)], spot: [-0.3, 3.45] },
   { id: 'kids', name: "Kids' Room", floor: 1, rects: [R(-7.25, 3.75, -1.8, 6.6), R(-5.55, 2.2, -1.8, 3.75)], spot: [-4.4, 4.85] },
 ];

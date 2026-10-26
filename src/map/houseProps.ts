@@ -42,7 +42,6 @@ export const PROPS: PropDef[] = [
   P('Treadmill', -1, -7.1, -3.8, [0.8, 1.2, 1.8], 'metal', '#2c2f33', 'appliance'),
   // Garage: black sedan nosed at shutter B + white boat on a trailer (the two big hard covers)
   { ...P('Sedan', -1, 3.4, -2.6, [4.6, 1.45, 1.9], 'vehicle', '#141619', 'car'), rot90: true },
-  P('Boat on Trailer', -1, 4.6, 2.1, [2.1, 1.7, 5.0], 'vehicle', '#e7e3d8', 'boat'),
   P('Shelves', -1, 1.4, -4.4, [1.6, 2.0, 0.5], 'metal', '#7d8186', 'rack'),
   P('Workbench', -1, 8.3, 4.45, [2.0, 0.9, 0.7], 'wood', '#6b4f33', 'desk'),
   P('Oil Drums', -1, 2.4, 1.2, [0.6, 0.9, 0.6], 'metal', '#3e5a7a', 'cylinder'),
@@ -86,10 +85,10 @@ export const PROPS: PropDef[] = [
   P('Ammo Crate', 0, 9.2, 4.3, [0.75, 0.45, 0.45], 'wood', '#4b5a37', 'ammo'),
   // Kitchen: island, fridge, counters + stove along the south wall
   P('Kitchen Island', 0, 0.6, 2.6, [2.2, 0.92, 1.0], 'concrete', '#d9d4c8', 'counter'),
-  P('Fridge', 0, -1.5, 4.45, [0.8, 1.9, 0.7], 'metal', '#c9cbcd', 'appliance'),
+  P('Fridge', 0, 3.75, 4.45, [0.8, 1.9, 0.7], 'metal', '#c9cbcd', 'appliance'),
   P('Counter', 0, -0.2, 4.55, [1.6, 0.92, 0.6], 'concrete', '#d9d4c8', 'counter'),
   P('Stove', 0, 1.0, 4.55, [0.75, 0.92, 0.6], 'metal', '#2c2f33', 'appliance'),
-  P('Counter', 0, 2.5, 4.55, [2.2, 0.92, 0.6], 'concrete', '#d9d4c8', 'counter'),
+  P('Counter', 0, 2.3, 4.55, [1.8, 0.92, 0.6], 'concrete', '#d9d4c8', 'counter'),
   // Back Entrance
   P('Shoe Bench', 0, -7.6, 3.45, [1.2, 0.5, 0.4], 'wood', '#5a4330', 'bench'),
   P('Umbrella Stand', 0, -8.3, 0.9, [0.3, 0.7, 0.3], 'metal', '#2c2f33', 'cylinder'),
@@ -104,7 +103,7 @@ export const PROPS: PropDef[] = [
   P('Toilet', 1, -3.4, -7.05, [0.45, 0.75, 0.65], 'concrete', '#f2f0ea', 'appliance'),
   // West Hall
   P('Dresser', 1, -7.0, -1.0, [0.5, 1.1, 1.5], 'wood', '#5a4330', 'counter'),
-  P('Bench', 1, -5.2, 1.7, [1.4, 0.45, 0.45], 'wood', '#6b4f33', 'bench'),
+  P('Bench', 1, -6.6, 3.45, [1.4, 0.45, 0.45], 'wood', '#6b4f33', 'bench'),
   P('Plant', 1, -7.6, 0.2, [0.45, 1.2, 0.45], 'fabric', '#3f5a2e', 'cylinder'),
   // Upper Hallway
   P('Hall Table', 1, -0.8, -5.1, [1.2, 0.8, 0.4], 'wood', '#4f3a26', 'table'),
@@ -117,7 +116,7 @@ export const PROPS: PropDef[] = [
   P('King Bed', 1, 5.6, 3.3, [2.0, 0.62, 2.2], 'fabric', '#c9c2b2', 'bed'),
   P('Nightstand', 1, 4.25, 4.4, [0.5, 0.55, 0.45], 'wood', '#4f3a26', 'box'),
   P('Nightstand', 1, 6.95, 4.4, [0.5, 0.55, 0.45], 'wood', '#4f3a26', 'box'),
-  P('Cupboard', 1, 3.6, 0.85, [1.6, 1.15, 0.55], 'wood', '#5a4330', 'counter'),
+  P('Cupboard', 1, 3.25, 4.55, [1.4, 1.15, 0.55], 'wood', '#5a4330', 'counter'),
   P('Armchair', 1, 9.0, 0.0, [0.9, 0.9, 0.9], 'fabric', '#7a5a45', 'chair'),
   P('Ammo Crate', 1, 9.2, 4.35, [0.75, 0.45, 0.45], 'wood', '#4b5a37', 'ammo'),
   // Walk-in Closet

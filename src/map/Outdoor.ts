@@ -123,8 +123,8 @@ export function buildOutdoor(physics: Physics, scene: THREE.Scene, map: HouseDat
       F[i] = s.formId;
     }
   }
-  // close slivers: road-level strips under 2 m wide between two zones of the same, higher level are
-  // seams between the datamap's House outline and the yards around it (they sit against the traced House)
+  // close slivers: road-level strips under 2 m wide between two higher zones (levels within 0.6 m of each
+  // other) are seams between the datamap's House outline and the yards around it: they take the lower side's level
   {
     const GAP = 15;
     const fill = (i: number, j: number) => { H[i] = H[j]; Z[i] = Z[j]; };
@@ -141,7 +141,8 @@ export function buildOutdoor(physics: Physics, scene: THREE.Scene, map: HouseDat
             if (a < 0 || b < 0 || Z[a] === ZONE.water || Z[b] === ZONE.water) continue;
             const ua = a % N, va = (a / N) | 0, ub = b % N, vb = (b / N) | 0;
             if (Math.abs(ua - ub) + Math.abs(va - vb) > GAP + 1) continue;
-            if (Math.abs(H[a] - H[b]) < 0.05 && H[a] > H[i] + STEP_OK) fill(i, a);
+            const lower = H[a] <= H[b] ? a : b;
+            if (Math.abs(H[a] - H[b]) <= 0.6 && H[lower] > H[i] + STEP_OK) fill(i, lower);
           }
         }
       }
@@ -166,6 +167,8 @@ export function buildOutdoor(physics: Physics, scene: THREE.Scene, map: HouseDat
   /* ------------------------------------------------------------- stairs between levels */
   const stepable = (i: number) => !cut[i] && Z[i] !== ZONE.water && Z[i] !== ZONE.garageRamp && Z[i] !== ZONE.nwStairs && !UNDER_FLOORS.some((r) => inR(r, px(i % N), pz((i / N) | 0)));
   const stair = new Float32Array(N * N).fill(-Infinity);
+  /** the walking surface over the stairs: one even slope through the flight (no step edges for feet or drone wheels) */
+  const smooth = new Float32Array(N * N).fill(-Infinity);
   {
     // every pixel next to a higher walkable pixel (a step to 1.6 m higher) starts a flight going down into its own level
     type Q = { i: number; hs: number; d: number };
@@ -191,6 +194,7 @@ export function buildOutdoor(physics: Physics, scene: THREE.Scene, map: HouseDat
       const h = hs - RISER * Math.ceil(d / 2);
       if (h <= H[i] + 1e-3 || h <= stair[i] + 1e-3) continue;
       stair[i] = h;
+      smooth[i] = Math.max(smooth[i], Math.max(H[i], hs - (RISER * d) / 2));
       const u = i % N;
       const v = (i / N) | 0;
       for (const [du, dv] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
@@ -215,6 +219,41 @@ export function buildOutdoor(physics: Physics, scene: THREE.Scene, map: HouseDat
       (keys.get(k) ?? keys.set(k, []).get(k)!).push(i);
     }
     const mask = new Uint8Array(N * N);
+    // stairs: stepped boxes to look at, one sloped triangle mesh to walk on
+    const isStair = (i: number) => stair[i] > H[i] && !cut[i] && Z[i] !== ZONE.garageRamp && Z[i] !== ZONE.nwStairs;
+    {
+      const surf = (i: number) => (isStair(i) ? smooth[i] : G[i]);
+      const corner = new Map<number, number>();
+      const verts: number[] = [];
+      const idx: number[] = [];
+      const vert = (cu: number, cv: number) => {
+        const key = cv * (N + 1) + cu;
+        let k = corner.get(key);
+        if (k !== undefined) return k;
+        // corner height: the mean surface of the pixels around it that are walkable ground or stairs
+        let sum = 0;
+        let n = 0;
+        for (const [pu, pv] of [[cu - 1, cv - 1], [cu, cv - 1], [cu - 1, cv], [cu, cv]]) {
+          if (pu < 0 || pv < 0 || pu >= N || pv >= N) continue;
+          const j = pv * N + pu;
+          if (cut[j] || Z[j] === ZONE.water || Z[j] === ZONE.garageRamp || Z[j] === ZONE.nwStairs) continue;
+          sum += surf(j);
+          n++;
+        }
+        k = verts.length / 3;
+        verts.push(uToX(cu), sum / Math.max(1, n), vToZ(cv));
+        corner.set(key, k);
+        return k;
+      };
+      for (let i = 0; i < N * N; i++) {
+        if (!isStair(i)) continue;
+        const u = i % N;
+        const v = (i / N) | 0;
+        const a = vert(u, v), b2 = vert(u + 1, v), c = vert(u + 1, v + 1), d = vert(u, v + 1);
+        idx.push(a, c, b2, a, d, c);
+      }
+      if (idx.length) physics.addTrimesh(new Float32Array(verts), new Uint32Array(idx), { kind: 'static', mat: 'concrete', exterior: true });
+    }
     for (const [k, idx] of keys) {
       mask.fill(0);
       for (const i of idx) mask[i] = 1;
@@ -223,7 +262,13 @@ export function buildOutdoor(physics: Physics, scene: THREE.Scene, map: HouseDat
       const color = tag === 's' ? '#85827a' : zoneColor(Number(tag), h);
       for (const [u0, v0, u1, v1] of greedy(mask, N, N)) {
         const r = { x0: uToX(u0), z0: vToZ(v0), x1: uToX(u1), z1: vToZ(v1) };
-        for (const q of subtractRects(r, HOUSE_HOLES)) solid([q.x0, BASE_Y, q.z0], [q.x1, h, q.z1], color, tag === '3' ? 'dirt' : tag === String(ZONE.docks) ? 'wood' : tag === 's' ? 'concrete' : 'dirt');
+        for (const q of subtractRects(r, HOUSE_HOLES)) {
+          if (tag === 's') {
+            // steps: drawn, not collided (the slope mesh above carries feet, wheels and bullets alike)
+            const col = new THREE.Color(color);
+            b.box([q.x0, BASE_Y, q.z0], [q.x1, h, q.z1], col, col.clone().multiplyScalar(0.72), 1);
+          } else solid([q.x0, BASE_Y, q.z0], [q.x1, h, q.z1], color, tag === '3' ? 'dirt' : tag === String(ZONE.docks) ? 'wood' : 'dirt');
+        }
       }
     }
   }
@@ -377,7 +422,8 @@ export function buildOutdoor(physics: Physics, scene: THREE.Scene, map: HouseDat
   for (let x = -14; x < 19; x += 6) deco([x, -1.5, 25.4], [x + 3, -1.49, 25.6], '#e8e4d6');
   // construction site: barrier fence, pipes, sand pile, site lights
   {
-    for (let x = -14; x < 13; x += 3) { const k = new Kit('metal'); k.box([0, 0, -0.03], [2.6, 1.9, 0.03], '#9aa0a2'); k.place(b, physics, x, -1.29, -24.7); }
+    // site fence panels, with a 2.4 m gate in line with the House's front walk
+    for (let x = -14; x < 13; x += 3) { if (x > -2 && x < 2) continue; const k = new Kit('metal'); k.box([0, 0, -0.03], [2.6, 1.9, 0.03], '#9aa0a2'); k.place(b, physics, x, -1.29, -24.7); }
     for (const [x, z] of [[-9, -33], [-9, -34.6]]) {
       // concrete pipes lying along X: a horizontal cylinder
       b.geom(new THREE.CylinderGeometry(0.75, 0.75, 2.2, 10, 1, true), new THREE.Matrix4().compose(new THREE.Vector3(x, -1.29 + 0.75, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2), new THREE.Vector3(1, 1, 1)), new THREE.Color('#9a968c'));
