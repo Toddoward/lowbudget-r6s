@@ -1,6 +1,6 @@
 # Matchmaking / relay backend (Cloudflare Workers + Durable Objects).
 # Deploy:  npx wrangler deploy -c worker/wrangler.toml
-name = "r6-matchmaker"
+name = "r6s-temu-matchmaker"
 main = "src/index.ts"
 compatibility_date = "2025-09-01"
 

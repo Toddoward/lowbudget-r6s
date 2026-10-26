@@ -12,7 +12,7 @@ concurrency:
 
 env:
   NODE_VERSION: 22
-  PAGES_PROJECT: r6s-original-2015
+  PAGES_PROJECT: r6s-temu
 
 jobs:
   build:

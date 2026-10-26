@@ -30,7 +30,7 @@ export class WsTransport implements Transport {
       try { this.onMessage(JSON.parse(e.data as string) as ServerMessage); } catch { /* ignore */ }
     };
     this.ws.onclose = (e) => this.onClose(e.reason || `socket closed (${e.code})`);
-    this.ws.onerror = () => this.onClose('websocket error — is the r6-matchmaker worker deployed / `npm run dev:worker` running?');
+    this.ws.onerror = () => this.onClose('websocket error — is the r6s-temu-matchmaker worker deployed / `npm run dev:worker` running?');
   }
 
   send(msg: ClientMessage) {

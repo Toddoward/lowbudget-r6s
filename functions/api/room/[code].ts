@@ -1,5 +1,5 @@
 /**
- * Pages Function: /api/room/:code → Durable Object (bound from worker "r6-matchmaker").
+ * Pages Function: /api/room/:code → Durable Object (bound from worker "r6s-temu-matchmaker").
  * Keeps the game same-origin so the browser only needs the Pages URL.
  */
 import { normalizeRoomCode } from '../../../shared/constants.ts';

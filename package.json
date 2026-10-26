@@ -1,5 +1,5 @@
 {
-  "name": "r6s-original-2015-web",
+  "name": "r6s-temu-web",
   "private": true,
   "version": "1.0.0",
   "description": "Rainbow Six Siege: Original 2015 Edition (Web Tactical FPS) - fan-made low-poly tactical FPS for the browser",
@@ -14,7 +14,7 @@
     "assets:spec": "node --experimental-strip-types --no-warnings tools/cli-anything/export-specs.ts",
     "assets:blender": "npm run assets:spec && python3 tools/cli-anything/pipeline.py",
     "deploy:worker": "wrangler deploy -c worker/wrangler.toml",
-    "deploy:pages": "wrangler pages deploy dist --project-name r6s-original-2015",
+    "deploy:pages": "wrangler pages deploy dist --project-name r6s-temu",
     "deploy": "npm run build && npm run deploy:worker && npm run deploy:pages",
     "test:e2e": "node tools/tests/e2e.mjs",
     "agent:example": "node tools/agents/webmcp-playwright-agent.mjs"
