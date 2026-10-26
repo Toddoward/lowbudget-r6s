@@ -5,6 +5,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { Physics, G_WORLD } from '../core/Physics.ts';
+import { preloadGlbAssets, glbStats } from '../assets/library.ts';
 import { Input } from '../core/Input.ts';
 import { Audio } from '../core/Audio.ts';
 import { DestructionSystem } from '../world/Destruction.ts';
@@ -66,11 +67,13 @@ const GRADE = {
   fragmentShader: `uniform sampler2D tDiffuse; uniform float vignette, sat, contrast, grain, time, hurt, droneFx; varying vec2 vUv;
     float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233)) + time) * 43758.5453); }
     void main(){ vec4 c = texture2D(tDiffuse, vUv); vec3 col = c.rgb;
-      float l = dot(col, vec3(0.299,0.587,0.114)); col = mix(vec3(l), col, sat); col = (col - 0.5) * contrast + 0.5;
+      col = max(col, vec3(0.0));
+      float l = dot(col, vec3(0.2126,0.7152,0.0722)); col = max(mix(vec3(l), col, sat), vec3(0.0));
+      col = 0.18 * pow(col / 0.18, vec3(contrast)); // linear-HDR contrast pivoting on mid-grey
       float d = distance(vUv, vec2(0.5)); col *= 1.0 - vignette * smoothstep(0.35, 0.85, d);
       col = mix(col, vec3(0.55,0.0,0.0), hurt * smoothstep(0.25, 0.75, d));
       if (droneFx > 0.0) { float s = sin(vUv.y * 900.0) * 0.04; col = mix(col, vec3(dot(col, vec3(0.3,0.6,0.1))) * vec3(0.8,1.0,0.85) + s, droneFx * 0.6); }
-      col += (h(vUv * 800.0) - 0.5) * grain;
+      col = max(col + (h(vUv * 800.0) - 0.5) * grain * (0.2 + l), vec3(0.0));
       gl_FragColor = vec4(col, c.a); }`,
 };
 
@@ -123,7 +126,10 @@ export class Game {
   onMenu: () => void = () => {};
   /** UI hook: a match (TH or a PvP round) is starting → hide menus */
   onMatchStart: () => void = () => {};
-  readonly stats = { stepMs: 0, renderMs: 0, frames: 0 };
+  readonly stats = { stepMs: 0, renderMs: 0, frames: 0, frameMs: 16 };
+  /** auto-downgrade quality on slow GPUs unless the player chose one explicitly */
+  autoQuality = true;
+  private slowFor = 0;
   onLobby: (s: RoomState, selfId: string) => void = () => {};
   onToast: (msg: string) => void = () => {};
   ready = false;
@@ -144,8 +150,9 @@ export class Game {
   }
 
   async init(progress: (msg: string) => void) {
-    progress('Initialising Rapier3D WASM physics…');
-    this.physics = await Physics.create();
+    progress('Initialising Rapier3D WASM physics · loading CLI-Anything/Blender GLB assets…');
+    const [physics] = await Promise.all([Physics.create(), preloadGlbAssets()]);
+    this.physics = physics;
     this.destruction = new DestructionSystem(this.physics);
     this.effects = new Effects(this.scene);
     progress('Building the original House (2015)…');
@@ -169,7 +176,7 @@ export class Game {
       soldier: (id) => this.soldierFor(id),
       controller: (id) => this.controllerFor(id),
       agents: () => this.agentList(),
-      match: () => this.matchState(),
+      match: (id) => this.matchState(id),
       join: (n, c, m) => this.joinRoom(n, c, m, true),
       startTH: (o) => this.startTH({ ...this.defaultTH(), difficulty: (o.difficulty as BotDifficulty['name']) ?? 'Normal', mission: (o.mission as Mission) ?? 'random' }),
       loadout: (o) => this.setLoadout(this.room?.selfId ?? '', o),
@@ -199,6 +206,7 @@ export class Game {
   setQuality(q: Quality) {
     this.quality = q;
     this.bloom.enabled = q === 'high';
+    this.lighting.flashlightShadows = q === 'high';
     this.renderer.shadowMap.enabled = q !== 'low';
     this.lighting.key.shadow.mapSize.set(q === 'high' ? 2048 : 1024, q === 'high' ? 2048 : 1024);
     this.lighting.key.shadow.map?.dispose();
@@ -442,20 +450,35 @@ export class Game {
     return out;
   }
 
-  matchState(): Record<string, unknown> {
+  matchState(agentId = 'self'): Record<string, unknown> {
     const w = this.world;
     const st = w.objectives.status();
     const timeLeft = Math.max(0, Math.round(this.timeLeft()));
-    const roomId = w.objectives.mission === 'bomb' ? w.objectives.bombs[0]?.room ?? w.objectives.site : w.objectives.site;
-    const objPos = this.mode === 'menu' ? null : w.objectives.spotOf(roomId).toArray().map((v) => Math.round(v * 10) / 10);
+    const o = w.objectives;
+    const me = this.soldierFor(agentId);
+    // objective position (public knowledge): next armed bomb / extraction zone when carrying the hostage / site spot
+    let target: THREE.Vector3 | null = null;
+    if (this.mode !== 'menu') {
+      if (o.mission === 'bomb') {
+        const armed = o.bombs.filter((b) => b.state === 'armed');
+        target = (me ? armed.sort((a, b) => a.pos.distanceTo(me.pos) - b.pos.distanceTo(me.pos))[0]?.pos : armed[0]?.pos) ?? o.spotOf(o.site);
+        if (o.defuser && me?.side === 'defend') target = o.defuser.pos;
+      } else if (o.mission === 'hostage' && o.hostage && me && o.hostage.carrier === me.id) {
+        const z = [...SPAWN_ZONES].sort((a, b) => me.pos.distanceTo(new THREE.Vector3(...a.center)) - me.pos.distanceTo(new THREE.Vector3(...b.center)))[0];
+        target = new THREE.Vector3(...z.center);
+      } else if (o.mission === 'hostage' && o.hostage) target = o.hostage.pos;
+      else target = o.container?.pos ?? o.spotOf(o.site);
+    }
+    const objPos = target ? target.toArray().map((v) => Math.round(v * 10) / 10) : null;
     return {
       mode: this.mode === 'th' ? 'terrorist_hunt' : this.mode === 'pvp' ? 'pvp' : 'menu',
       phase: w.phase, timeLeft, mission: st.mission, site: st.site, siteLabel: st.siteLabel, objective: st.text,
       objectiveProgress: Math.round(st.progress * 100) / 100, objectivePos: objPos,
-      team: this.player?.side ?? null, timeOfDay: this.lighting.tod,
+      team: me?.side ?? this.player?.side ?? null, timeOfDay: this.lighting.tod,
       room: this.room ? { code: this.room.code, transport: this.room.kind, peers: this.room.peerPaths(), score: this.room.state?.score, round: this.room.state?.round?.index } : null,
       enemiesRemaining: this.mode === 'th' ? this.bots.filter((b) => b.s.alive).length : undefined,
       droneActive: !!this.drone && w.phase === 'prep',
+      assets: glbStats.source,
     };
   }
 
@@ -494,7 +517,8 @@ export class Game {
     this.world.mode = 'pvp';
     this.world.friendlyFire = true;
     this.world.phase = 'lobby';
-    this.world.emit = (ev) => room.sendEvent(ev);
+    // shots go over the low-latency DataChannel path; everything else is reliable & ordered (WS → DO)
+    this.world.emit = (ev) => (ev.t === 'fire' ? room.sendFast([], [ev]) : room.sendEvent(ev));
     room.onState = (s) => this.onRoomState(s);
     room.onWelcome = (log) => { for (const ev of log) this.applyEvent('', ev); };
     room.onSnapshots = (from, snaps) => this.onSnapshots(from, snaps);
@@ -667,7 +691,10 @@ export class Game {
   private applyTod(tod: TimeOfDay, seed: number) {
     this.lighting.apply(tod, seed);
     this.vm.setTimeOfDay(tod === 'day');
-    this.bloom.strength = tod === 'day' ? 0.3 : 0.55;
+    // night: tight bloom so lamp glows don't smear an orange haze across the frame
+    this.bloom.strength = tod === 'day' ? 0.3 : 0.32;
+    this.bloom.radius = tod === 'day' ? 0.5 : 0.25;
+    this.bloom.threshold = tod === 'day' ? 0.88 : 0.95;
   }
 
   private endDronePhase() {
@@ -710,6 +737,15 @@ export class Game {
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
     if (!this.ready) return;
+    this.stats.frameMs = this.stats.frameMs * 0.95 + dt * 1000 * 0.05;
+    if (this.autoQuality && this.mode !== 'menu' && this.quality !== 'low') {
+      this.slowFor = this.stats.frameMs > (this.quality === 'high' ? 26 : 38) ? this.slowFor + dt : 0;
+      if (this.slowFor > 4) {
+        this.slowFor = 0;
+        this.setQuality(this.quality === 'high' ? 'medium' : 'low');
+        this.onToast(`Performance: quality lowered to ${this.quality.toUpperCase()} (Settings to override)`);
+      }
+    }
     if (this.mode === 'menu') {
       const t = now * 0.00004;
       this.camera.position.set(Math.sin(t) * 30, 8 + Math.sin(t * 3) * 1.5, Math.cos(t) * 30);
@@ -822,9 +858,11 @@ export class Game {
       rig.pose(dt, s.mode === 'rappel' ? Stance.Rappel : s.stance, s.pitch, s.lean, Math.hypot(s.vel.x, s.vel.z), s.mode === 'rappel' && s.inverted);
     }
     // camera
+    for (const r of this.remotes.values()) r.rig.root.visible = true;
     let camSoldier: Soldier | null = p;
     let spectating = '';
     const inDrone = !!(this.drone && w.phase === 'prep' && p);
+    if (this.drone) this.drone.mesh.visible = !inDrone;
     if (inDrone) {
       const d = this.drone!;
       this.camera.position.copy(d.pos).add(new THREE.Vector3(0, 0.08, 0));
@@ -837,8 +875,19 @@ export class Game {
         spectating = `SPECTATING ${camSoldier.name} (WebMCP agent view)`;
       } else camSoldier = null;
       if (!camSoldier) {
-        this.camera.position.lerp(p.pos.clone().add(new THREE.Vector3(2.5, 3, 2.5)), Math.min(1, dt * 2));
-        this.camera.lookAt(p.pos);
+        // PvP: watch a living remote teammate through their eyes
+        const remoteMates = [...this.remotes.values()].filter((r) => r.alive && r.side === p.side);
+        if (remoteMates.length) {
+          const r = remoteMates[this.spectateIdx % remoteMates.length];
+          r.rig.root.visible = false;
+          this.camera.position.copy(r.eye());
+          this.camera.rotation.set(r.pitch, r.yaw, -r.lean * 0.21, 'YXZ');
+          this.camera.fov = this.fov;
+          spectating = `SPECTATING ${r.name}`;
+        } else {
+          this.camera.position.lerp(p.pos.clone().add(new THREE.Vector3(2.5, 3, 2.5)), Math.min(1, dt * 2));
+          this.camera.lookAt(p.pos);
+        }
       }
     }
     if (camSoldier && !inDrone) {

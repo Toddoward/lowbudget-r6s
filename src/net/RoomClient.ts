@@ -1,5 +1,5 @@
 import { PROTOCOL_VERSION } from '../../shared/constants.ts';
-import type { ActorSnapshot, ClientMessage, GameEvent, RoomState, RtcSignal, ServerMessage } from '../../shared/protocol.ts';
+import type { ActorSnapshot, ClientMessage, FastEvent, GameEvent, RoomState, RtcSignal, ServerMessage } from '../../shared/protocol.ts';
 import { LocalTransport, WsTransport, type Transport } from './Transport.ts';
 
 const ICE: RTCIceServer[] = [{ urls: ['stun:stun.cloudflare.com:3478', 'stun:stun.l.google.com:19302'] }];
@@ -37,6 +37,8 @@ export class RoomClient {
   onWelcome: (log: GameEvent[]) => void = () => {};
   onSnapshots: (from: string, snaps: ActorSnapshot[]) => void = () => {};
   onEvent: (from: string, ev: GameEvent) => void = () => {};
+  private fastSeq = 0;
+  private fastSeen = new Map<string, number>();
   onError: (msg: string) => void = () => {};
   onClosed: (msg: string) => void = () => {};
 
@@ -88,6 +90,7 @@ export class RoomClient {
         break;
       case 'relay':
         this.onSnapshots(m.from, m.snaps);
+        if (m.fast) this.acceptFast(m.from, m.fast);
         break;
       case 'event':
         this.onEvent(m.from, m.ev);
@@ -148,8 +151,9 @@ export class RoomClient {
     dc.onclose = () => { peer.open = false; };
     dc.onmessage = (e) => {
       try {
-        const snaps = JSON.parse(e.data as string) as ActorSnapshot[];
-        this.onSnapshots(peer.id, snaps);
+        const msg = JSON.parse(e.data as string) as { s?: ActorSnapshot[]; f?: FastEvent[] };
+        if (msg.s?.length) this.onSnapshots(peer.id, msg.s);
+        if (msg.f?.length) this.acceptFast(peer.id, msg.f);
       } catch { /* */ }
     };
   }
@@ -179,10 +183,26 @@ export class RoomClient {
     }
   }
 
-  /** 20 Hz snapshots: DataChannel where open, WS relay for the rest */
-  sendSnapshots(snaps: ActorSnapshot[]) {
-    if (!snaps.length) return;
-    const data = JSON.stringify(snaps);
+  /** fast events arrive via DataChannel and/or WS relay → apply each (sender, n) once */
+  private acceptFast(from: string, evs: FastEvent[]) {
+    const last = this.fastSeen.get(from) ?? -1;
+    let max = last;
+    for (const f of evs) {
+      if (f.n <= last) continue;
+      max = Math.max(max, f.n);
+      this.onEvent(from, f.ev);
+    }
+    this.fastSeen.set(from, max);
+  }
+
+  /**
+   * Low-latency path: 20 Hz actor snapshots + shot events (tracers / muzzle / sound).
+   * DataChannel where open (unordered, no retransmits); one WS relay for peers without one.
+   */
+  sendFast(snaps: ActorSnapshot[], events: GameEvent[] = []) {
+    if (!snaps.length && !events.length) return;
+    const fast: FastEvent[] = events.map((ev) => ({ n: ++this.fastSeq, ev }));
+    const data = JSON.stringify({ s: snaps, f: fast });
     let needRelay = false;
     for (const id of this.connIds()) {
       const p = this.peers.get(id);
@@ -190,8 +210,10 @@ export class RoomClient {
         try { p.dc.send(data); } catch { needRelay = true; }
       } else needRelay = true;
     }
-    if (needRelay) this.send({ type: 'relay', snaps });
+    if (needRelay) this.send({ type: 'relay', snaps, fast: fast.length ? fast : undefined });
   }
+
+  sendSnapshots(snaps: ActorSnapshot[]) { this.sendFast(snaps); }
 
   peerPaths(): { id: string; path: 'webrtc' | 'ws-relay' }[] {
     return this.connIds().map((id) => ({ id, path: this.peers.get(id)?.open ? 'webrtc' : 'ws-relay' }));

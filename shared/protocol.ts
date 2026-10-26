@@ -112,9 +112,12 @@ export type ClientMessage =
   | { type: 'loadout'; actor: string; squad?: Squad; operator?: OperatorId; spawn?: SpawnId; ready?: boolean }
   | { type: 'start_match' }
   | { type: 'rtc'; to: string; data: RtcSignal }
-  | { type: 'relay'; snaps: ActorSnapshot[] }
+  | { type: 'relay'; snaps: ActorSnapshot[]; fast?: FastEvent[] }
   | { type: 'event'; ev: GameEvent }
   | { type: 'ping'; t: number };
+
+/** low-latency, loss-tolerant events (DataChannel first, WS relay fallback, de-duplicated by `n`) */
+export interface FastEvent { n: number; ev: GameEvent }
 
 export type RtcSignal =
   | { kind: 'offer'; sdp: string }
@@ -132,7 +135,7 @@ export type ServerMessage =
   | { type: 'welcome'; selfId: string; state: RoomState; log: GameEvent[] }
   | { type: 'state'; state: RoomState }
   | { type: 'rtc'; from: string; data: RtcSignal }
-  | { type: 'relay'; from: string; snaps: ActorSnapshot[] }
+  | { type: 'relay'; from: string; snaps: ActorSnapshot[]; fast?: FastEvent[] }
   | { type: 'event'; from: string; ev: GameEvent }
   | { type: 'pong'; t: number; serverTime: number }
   | { type: 'error'; message: string };

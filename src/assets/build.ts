@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { BoxBatch } from '../world/BoxBatch.ts';
 import { vcMaterial } from '../render/palette.ts';
 import type { AssetSpec, PartSpec } from './spec.ts';
+import { glbBones } from './library.ts';
 
 const geoCache = new Map<string, THREE.BufferGeometry>();
 function unitGeo(shape: PartSpec['shape'], seg: number): THREE.BufferGeometry {
@@ -38,6 +39,8 @@ export function partMatrix(part: PartSpec, out = tmpM): THREE.Matrix4 {
 
 /** Build a spec into one mesh per bone (key '' when unboned). */
 export function buildBones(spec: AssetSpec): Map<string, THREE.Mesh> {
+  const fromGlb = glbBones(spec.id);
+  if (fromGlb) return fromGlb;
   const batches = new Map<string, BoxBatch>();
   const emissive = new Map<string, BoxBatch>();
   for (const part of spec.parts) {

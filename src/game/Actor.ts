@@ -47,7 +47,8 @@ export function computeHitboxes(pos: THREE.Vector3, yaw: number, stance: Stance,
   }
   const crouch = stance === Stance.Crouch;
   const pelvisY = crouch ? 0.62 : 0.95;
-  const neckY = crouch ? 1.05 : 1.45;
+  // torso capsule top (neck + radius) stays below the head sphere so it never shadows headshots
+  const neckY = crouch ? 0.88 : 1.28;
   const headY = crouch ? 1.18 : 1.6;
   const lx = lean * (crouch ? 0.28 : 0.34);
   const sgn = inverted ? -1 : 1;
@@ -99,7 +100,8 @@ export function rayActor(o: THREE.Vector3, d: THREE.Vector3, hb: Hitboxes, maxT:
   const th = raySphere(o, d, hb.head.c, hb.head.r);
   if (th >= 0 && th < maxT) best = { t: th, zone: 'head' };
   const tt = rayCapsule(o, d, hb.torso);
-  if (tt >= 0 && tt < maxT && (!best || tt < best.t)) best = { t: tt, zone: 'torso' };
+  // head wins near-ties (round grazing the collar still counts as a headshot)
+  if (tt >= 0 && tt < maxT && (!best || tt < best.t - 0.12)) best = { t: tt, zone: 'torso' };
   const tl = rayCapsule(o, d, hb.legs);
   if (tl >= 0 && tl < maxT && (!best || tl < best.t)) best = { t: tl, zone: 'legs' };
   return best;

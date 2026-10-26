@@ -73,7 +73,7 @@ export const PROPS: PropDef[] = [
   P('Shelves', 0, 2.1, 6.4, [0.6, 1.8, 1.0], 'wood', '#6d5a40', 'shelf'),
   P('Pantry Shelves', 0, 3.3, 6.65, [1.4, 1.9, 0.5], 'wood', '#6d5a40', 'shelf'),
   P('Pantry Shelves', 0, 7.2, 6.65, [1.4, 1.9, 0.5], 'wood', '#6d5a40', 'shelf'),
-  P('Freezer', 0, 7.5, 2.8, [0.8, 0.9, 1.2], 'metal', '#e1e1dc', 'appliance'),
+  P('Freezer', 0, 7.5, 3.35, [0.8, 0.9, 1.2], 'metal', '#e1e1dc', 'appliance'),
   // ---------------- 2F
   P('Shower Stall', 1, -7.25, -6.25, [1.3, 2.1, 1.3], 'concrete', '#c9d6d8', 'shower'),
   P('Bathtub', 1, -4.2, -6.45, [1.6, 0.6, 0.8], 'concrete', '#e8e8e2', 'tub'),

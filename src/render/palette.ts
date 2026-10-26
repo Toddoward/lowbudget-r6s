@@ -7,9 +7,9 @@ import * as THREE from 'three';
  * Press [T] in-game for the saturated "tier X-ray" overlay.
  */
 export const PAL = {
-  softWall: new THREE.Color('#a8665a'),
+  softWall: new THREE.Color('#9e675d'),
   softCore: new THREE.Color('#e6dccb'),
-  semiWall: new THREE.Color('#c6a35a'),
+  semiWall: new THREE.Color('#bb9b60'),
   semiCore: new THREE.Color('#8a6a3c'),
   stud: new THREE.Color('#6d5232'),
   solidWall: new THREE.Color('#e4e0d6'),

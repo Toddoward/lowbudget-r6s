@@ -75,10 +75,28 @@ export class NavGraph {
       const lo = s.axis === 'x' ? new THREE.Vector3(r.x0 - 0.45, s.yMin, mid.z) : new THREE.Vector3(mid.x, s.yMin, r.z0 - 0.45);
       const hi = s.axis === 'x' ? new THREE.Vector3(r.x1 + 0.45, s.yMax, mid.z) : new THREE.Vector3(mid.x, s.yMax, r.z1 + 0.45);
       const sm = snap(mid.clone().add(new THREE.Vector3(0, 0.3, 0)));
-      // ends may step off sideways – try the straight extension, else the side
-      const end = (p: THREE.Vector3, y: number) => snap(p.setY(y)) ?? snap(p.clone().add(new THREE.Vector3(s.axis === 'x' ? 0 : 0.9, 0, s.axis === 'x' ? 0.9 : 0)).setY(y));
-      const sLo = end(lo, s.yMin);
-      const sHi = end(hi, s.yMax);
+      // ends: straight extension first, else step off sideways near that end (stairs against a wall)
+      const width = s.axis === 'x' ? r.z1 - r.z0 : r.x1 - r.x0;
+      const end = (p: THREE.Vector3, y: number, inward: number) => {
+        // the ramp's foot on that end, at floor level
+        const foot = p.clone().setY(y);
+        if (s.axis === 'x') foot.x += Math.sign(inward) * 0.75; else foot.z += Math.sign(inward) * 0.75;
+        const cands = [p.clone().setY(y)];
+        const base = p.clone();
+        if (s.axis === 'x') base.x += inward; else base.z += inward;
+        for (const side of [1, -1]) {
+          const q = base.clone();
+          if (s.axis === 'x') q.z = mid.z + side * (width / 2 + 0.45); else q.x = mid.x + side * (width / 2 + 0.45);
+          cands.push(q.setY(y));
+        }
+        for (const c of cands) {
+          const sn = snap(c);
+          if (sn && Math.abs(sn.y - y) < 0.35 && free(sn) && this.walkable(sn, foot)) return sn;
+        }
+        return null;
+      };
+      const sLo = end(lo, s.yMin, 0.85);
+      const sHi = end(hi, s.yMax, -0.85);
       if (!sm || !sLo || !sHi) continue;
       const nm = add(sm, null, 'stair');
       const nl = add(sLo, null, 'stair');
@@ -92,9 +110,16 @@ export class NavGraph {
     for (let z = -9; z <= 9; z += 3) ring.push([-12.5, GROUND_Y, z]);
     for (let z = -10; z <= 10; z += 2.5) ring.push([11, LOWER_GROUND_Y, z]);
     for (const zone of SPAWN_ZONES) ring.push(zone.center);
-    ring.push([-6, GROUND_Y, -20], [-20, GROUND_Y, 0], [0, GROUND_Y, 22], [-20, GROUND_Y, 22], [-20, GROUND_Y, -22], [22, LOWER_GROUND_Y, 0], [14, GROUND_Y - 1.4, -11.5], [14, GROUND_Y - 1.4, 15.5], [4, GROUND_Y, 8.2]);
+    ring.push([-6, GROUND_Y, -20], [-20, GROUND_Y, 0], [0, GROUND_Y, 22], [-20, GROUND_Y, 22], [-20, GROUND_Y, -22], [22, LOWER_GROUND_Y, 0], [14, GROUND_Y - 1.4, -11.5], [14, GROUND_Y - 1.4, 15.5], [4, GROUND_Y, 8.2], [-0.25, GROUND_Y, 8.0], [-14, GROUND_Y, 0], [-11.5, GROUND_Y, 0]);
+    // coarse exterior grid so every spawn zone connects to the house (both ground levels)
+    for (let x = -49; x <= 49; x += 7) {
+      for (let z = -49; z <= 49; z += 7) {
+        if (Math.abs(x) < 10 && Math.abs(z) < 9) continue;
+        ring.push([x, x > 8 ? LOWER_GROUND_Y : GROUND_Y, z]);
+      }
+    }
     for (const [x, y, z] of ring) {
-      const s = snap(new THREE.Vector3(x, y, z));
+      const s = snap(new THREE.Vector3(x, y + 0.6, z));
       if (s && free(s)) add(s, null, 'ext');
     }
     // breach edges through soft walls separating two places
@@ -117,9 +142,11 @@ export class NavGraph {
       const a = this.nodes[i];
       for (let j = i + 1; j < N; j++) {
         const b = this.nodes[j];
-        const maxD = a.kind === 'ext' && b.kind === 'ext' ? 9 : 2.7;
+        const ext = (a.kind === 'ext' ? 1 : 0) + (b.kind === 'ext' ? 1 : 0);
+        const doorExt = ext === 1 && (a.kind === 'door' || b.kind === 'door' || a.kind === 'stair' || b.kind === 'stair');
+        const maxD = ext === 2 ? 10.5 : doorExt ? 6 : 2.7;
         const d = a.pos.distanceTo(b.pos);
-        if (d > maxD || Math.abs(a.pos.y - b.pos.y) > 0.6) continue;
+        if (d > maxD || Math.abs(a.pos.y - b.pos.y) > (ext === 2 ? 1.2 : 0.6)) continue;
         if (a.edges.some((e) => e.to === b.id)) continue;
         if (this.walkable(a.pos, b.pos)) this.link(a, b);
       }
@@ -158,10 +185,21 @@ export class NavGraph {
     return true;
   }
 
-  edgeOpen(e: NavEdge): boolean {
+  private crossesBarricade(a: THREE.Vector3, b: THREE.Vector3): boolean {
+    for (const op of this.openings) {
+      if (op.barricadePanel === null) continue;
+      const n = op.run === 'x' ? 2 : 0;
+      const ca = a.getComponent(n) - op.c;
+      const cb = b.getComponent(n) - op.c;
+      if (Math.sign(ca) !== Math.sign(cb) && Math.abs(op.center.y - (a.y + 1)) < 2 && a.distanceTo(op.center) < 4) return true;
+    }
+    return false;
+  }
+
+  edgeOpen(e: NavEdge, allowBarricades = false): boolean {
     if (e.opening !== undefined) {
       const op = this.openings[e.opening];
-      if (op && op.barricadePanel !== null) return false;
+      if (op && op.barricadePanel !== null && !(allowBarricades && op.barricadeKind === 'wood')) return false;
     }
     if (e.panel !== undefined) {
       const p = this.destruction.get(e.panel);
@@ -182,8 +220,8 @@ export class NavGraph {
     return best;
   }
 
-  /** A* → list of node positions (smoothed) */
-  path(from: THREE.Vector3, to: THREE.Vector3): THREE.Vector3[] | null {
+  /** A* → list of node positions (smoothed). allowBarricades: route through wooden barricades (the caller melees them). */
+  path(from: THREE.Vector3, to: THREE.Vector3, allowBarricades = false): THREE.Vector3[] | null {
     const s = this.nearest(from);
     const t = this.nearest(to);
     if (!s || !t) return null;
@@ -196,7 +234,7 @@ export class NavGraph {
     g[s.id] = 0;
     f[s.id] = s.pos.distanceTo(t.pos);
     let iter = 0;
-    while (open.length && iter++ < 6000) {
+    while (open.length && iter++ < 12000) {
       let bi = 0;
       for (let i = 1; i < open.length; i++) if (f[open[i]] < f[open[bi]]) bi = i;
       const cur = open[bi];
@@ -204,8 +242,9 @@ export class NavGraph {
       if (cur === t.id) break;
       closed[cur] = 1;
       for (const e of this.nodes[cur].edges) {
-        if (closed[e.to] || !this.edgeOpen(e)) continue;
-        const ng = g[cur] + e.cost;
+        if (closed[e.to] || !this.edgeOpen(e, allowBarricades)) continue;
+        const barricaded = e.opening !== undefined && this.openings[e.opening]?.barricadePanel != null;
+        const ng = g[cur] + e.cost + (barricaded ? 6 : 0);
         if (ng < g[e.to]) {
           g[e.to] = ng;
           f[e.to] = ng + this.nodes[e.to].pos.distanceTo(t.pos);
@@ -224,7 +263,7 @@ export class NavGraph {
     let i = 0;
     while (i < pts.length - 1) {
       let j = Math.min(pts.length - 1, i + 6);
-      while (j > i + 1 && !(Math.abs(pts[j].y - pts[i].y) < 0.3 && this.walkable(pts[i], pts[j]))) j--;
+      while (j > i + 1 && !(Math.abs(pts[j].y - pts[i].y) < 0.3 && this.walkable(pts[i], pts[j]) && !this.crossesBarricade(pts[i], pts[j]))) j--;
       out.push(pts[j]);
       i = j;
     }

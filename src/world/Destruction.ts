@@ -292,7 +292,9 @@ export class Panel {
     const solid = (u: number, v: number) => this.isSolidCell(v * this.nu + u);
     const needU = Math.ceil(0.7 / this.cu);
     const needV = this.isWall ? Math.min(this.nv, Math.ceil(1.7 / this.cv)) : Math.ceil(0.7 / this.cv);
-    const rowsFrom = this.isWall ? [0] : Array.from({ length: Math.max(1, this.nv - needV + 1) }, (_, i) => i);
+    // walls: the hole may start above a low lip the character controller steps over (autostep 0.36 m)
+    const lip = Math.floor(0.3 / this.cv);
+    const rowsFrom = this.isWall ? Array.from({ length: lip + 1 }, (_, i) => i) : Array.from({ length: Math.max(1, this.nv - needV + 1) }, (_, i) => i);
     for (const vs of rowsFrom) {
       let run = 0;
       for (let u = 0; u < this.nu; u++) {
@@ -438,7 +440,11 @@ export class DestructionSystem {
       } else if (kind === 'melee') {
         if (k === 'hatch') push(target, target.liveCells(), 2);
         else if (k === 'castle') push(target, target.liveCells(), 1);
-        else push(target, target.cellsInSphere(point, k === 'barricade' ? 0.5 : 0.36), k === 'shutter' ? 2 : 10);
+        else if (k === 'barricade') {
+          // R6: two melee hits bring a wooden barricade down wherever you strike it
+          push(target, target.cellsInSphere(point, 0.5), 10);
+          push(target, target.liveCells(), 0.5);
+        } else push(target, target.cellsInSphere(point, 0.36), k === 'shutter' ? 2 : 10);
       } else if (kind === 'swing') {
         if (k === 'barricade') push(target, target.liveCells(), 99);
         else blocked = true;

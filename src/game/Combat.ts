@@ -171,6 +171,20 @@ export class Combat {
       }
     }
     w.sound({ type: 'impact', pos: o.clone(), radius: 10, source: s.id, intensity: 0.5, label: 'melee' });
+    // melee is a short volume, not a thin ray: a barricade / armor panel right in front is struck even
+    // when the ray slips through a hole already knocked into it
+    if (!(hit?.tag?.kind === 'panel' && ['barricade', 'castle'].includes(w.destruction.get(hit.tag.panelId)?.kind ?? ''))) {
+      const reach = o.clone().addScaledVector(d, 0.9);
+      for (const p of w.destruction.panelsNear(reach, 0.7)) {
+        if (p.kind !== 'barricade' && p.kind !== 'castle') continue;
+        const c = new THREE.Vector3(THREE.MathUtils.clamp(reach.x, p.min.x, p.max.x), THREE.MathUtils.clamp(reach.y, p.min.y, p.max.y), THREE.MathUtils.clamp(reach.z, p.min.z, p.max.z));
+        if (c.clone().sub(o).normalize().dot(d) < 0.5) continue;
+        const res = w.destruction.impactAndApply('melee', c, p);
+        this.emitCells(res.events);
+        w.effects.impact(c, d.clone().negate(), p.props.mat, null, false);
+        return;
+      }
+    }
     if (!hit) return;
     if (hit.tag?.kind === 'panel') {
       const panel = w.destruction.get(hit.tag.panelId);

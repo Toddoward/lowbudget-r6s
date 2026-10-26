@@ -1,0 +1,624 @@
+{
+ "generator": "cli-anything-blender (HKUDS/CLI-Anything) + Blender glTF exporter",
+ "generatedAt": "2026-10-25T16:38:09Z",
+ "assets": {
+  "ash_m120": {
+   "file": "ash_m120.glb",
+   "category": "gadget",
+   "parts": 6,
+   "bytes": 13468
+  },
+  "drone": {
+   "file": "drone.glb",
+   "category": "gadget",
+   "parts": 5,
+   "bytes": 16552
+  },
+  "g_ads": {
+   "file": "g_ads.glb",
+   "category": "gadget",
+   "parts": 3,
+   "bytes": 7908
+  },
+  "g_battery": {
+   "file": "g_battery.glb",
+   "category": "gadget",
+   "parts": 3,
+   "bytes": 7908
+  },
+  "g_breach": {
+   "file": "g_breach.glb",
+   "category": "gadget",
+   "parts": 3,
+   "bytes": 5976
+  },
+  "g_cluster": {
+   "file": "g_cluster.glb",
+   "category": "gadget",
+   "parts": 3,
+   "bytes": 5980
+  },
+  "g_emp": {
+   "file": "g_emp.glb",
+   "category": "gadget",
+   "parts": 2,
+   "bytes": 7736
+  },
+  "g_gas": {
+   "file": "g_gas.glb",
+   "category": "gadget",
+   "parts": 2,
+   "bytes": 7736
+  },
+  "g_jammer": {
+   "file": "g_jammer.glb",
+   "category": "gadget",
+   "parts": 3,
+   "bytes": 7908
+  },
+  "g_thermite": {
+   "file": "g_thermite.glb",
+   "category": "gadget",
+   "parts": 3,
+   "bytes": 5948
+  },
+  "module_barricade": {
+   "file": "module_barricade.glb",
+   "category": "module",
+   "parts": 5,
+   "bytes": 8208
+  },
+  "module_door_frame": {
+   "file": "module_door_frame.glb",
+   "category": "module",
+   "parts": 3,
+   "bytes": 5312
+  },
+  "module_hatch": {
+   "file": "module_hatch.glb",
+   "category": "module",
+   "parts": 3,
+   "bytes": 5272
+  },
+  "module_reinforcement": {
+   "file": "module_reinforcement.glb",
+   "category": "module",
+   "parts": 5,
+   "bytes": 8196
+  },
+  "module_stairs": {
+   "file": "module_stairs.glb",
+   "category": "module",
+   "parts": 15,
+   "bytes": 22572
+  },
+  "module_wall_semi": {
+   "file": "module_wall_semi.glb",
+   "category": "module",
+   "parts": 5,
+   "bytes": 8164
+  },
+  "module_wall_soft": {
+   "file": "module_wall_soft.glb",
+   "category": "module",
+   "parts": 1,
+   "bytes": 2396
+  },
+  "module_wall_solid": {
+   "file": "module_wall_solid.glb",
+   "category": "module",
+   "parts": 1,
+   "bytes": 2396
+  },
+  "module_window_frame": {
+   "file": "module_window_frame.glb",
+   "category": "module",
+   "parts": 4,
+   "bytes": 6768
+  },
+  "operator_ash": {
+   "file": "operator_ash.glb",
+   "category": "operator",
+   "parts": 31,
+   "bytes": 51636
+  },
+  "operator_bandit": {
+   "file": "operator_bandit.glb",
+   "category": "operator",
+   "parts": 31,
+   "bytes": 49732
+  },
+  "operator_castle": {
+   "file": "operator_castle.glb",
+   "category": "operator",
+   "parts": 31,
+   "bytes": 49716
+  },
+  "operator_fuze": {
+   "file": "operator_fuze.glb",
+   "category": "operator",
+   "parts": 32,
+   "bytes": 53064
+  },
+  "operator_hostage": {
+   "file": "operator_hostage.glb",
+   "category": "operator",
+   "parts": 23,
+   "bytes": 37952
+  },
+  "operator_jager": {
+   "file": "operator_jager.glb",
+   "category": "operator",
+   "parts": 32,
+   "bytes": 61252
+  },
+  "operator_mute": {
+   "file": "operator_mute.glb",
+   "category": "operator",
+   "parts": 32,
+   "bytes": 55000
+  },
+  "operator_pulse": {
+   "file": "operator_pulse.glb",
+   "category": "operator",
+   "parts": 32,
+   "bytes": 51820
+  },
+  "operator_recruit": {
+   "file": "operator_recruit.glb",
+   "category": "operator",
+   "parts": 30,
+   "bytes": 48292
+  },
+  "operator_sledge": {
+   "file": "operator_sledge.glb",
+   "category": "operator",
+   "parts": 31,
+   "bytes": 51652
+  },
+  "operator_smoke": {
+   "file": "operator_smoke.glb",
+   "category": "operator",
+   "parts": 32,
+   "bytes": 56916
+  },
+  "operator_terrorist": {
+   "file": "operator_terrorist.glb",
+   "category": "operator",
+   "parts": 29,
+   "bytes": 46596
+  },
+  "operator_thatcher": {
+   "file": "operator_thatcher.glb",
+   "category": "operator",
+   "parts": 33,
+   "bytes": 60292
+  },
+  "operator_thermite": {
+   "file": "operator_thermite.glb",
+   "category": "operator",
+   "parts": 32,
+   "bytes": 51832
+  },
+  "prop_armchair": {
+   "file": "prop_armchair.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2424
+  },
+  "prop_bathtub": {
+   "file": "prop_bathtub.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2424
+  },
+  "prop_bed": {
+   "file": "prop_bed.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2392
+  },
+  "prop_bench": {
+   "file": "prop_bench.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2380
+  },
+  "prop_boat": {
+   "file": "prop_boat.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2420
+  },
+  "prop_bookcase": {
+   "file": "prop_bookcase.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2428
+  },
+  "prop_bookshelf": {
+   "file": "prop_bookshelf.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2424
+  },
+  "prop_boxes": {
+   "file": "prop_boxes.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2424
+  },
+  "prop_bunk_bed": {
+   "file": "prop_bunk_bed.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2396
+  },
+  "prop_chair": {
+   "file": "prop_chair.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2428
+  },
+  "prop_china_cabinet": {
+   "file": "prop_china_cabinet.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2396
+  },
+  "prop_clothes_rack": {
+   "file": "prop_clothes_rack.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2428
+  },
+  "prop_coffee_table": {
+   "file": "prop_coffee_table.glb",
+   "category": "prop",
+   "parts": 5,
+   "bytes": 8196
+  },
+  "prop_console": {
+   "file": "prop_console.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2396
+  },
+  "prop_counter": {
+   "file": "prop_counter.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2424
+  },
+  "prop_desk": {
+   "file": "prop_desk.glb",
+   "category": "prop",
+   "parts": 5,
+   "bytes": 8176
+  },
+  "prop_dining_table": {
+   "file": "prop_dining_table.glb",
+   "category": "prop",
+   "parts": 5,
+   "bytes": 8176
+  },
+  "prop_dresser": {
+   "file": "prop_dresser.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2424
+  },
+  "prop_dryer": {
+   "file": "prop_dryer.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2424
+  },
+  "prop_filing_cabinet": {
+   "file": "prop_filing_cabinet.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2400
+  },
+  "prop_freezer": {
+   "file": "prop_freezer.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2424
+  },
+  "prop_fridge": {
+   "file": "prop_fridge.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2424
+  },
+  "prop_kids_desk": {
+   "file": "prop_kids_desk.glb",
+   "category": "prop",
+   "parts": 5,
+   "bytes": 8180
+  },
+  "prop_kitchen_island": {
+   "file": "prop_kitchen_island.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2392
+  },
+  "prop_laundry_table": {
+   "file": "prop_laundry_table.glb",
+   "category": "prop",
+   "parts": 5,
+   "bytes": 8192
+  },
+  "prop_mats": {
+   "file": "prop_mats.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2424
+  },
+  "prop_nightstand": {
+   "file": "prop_nightstand.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2428
+  },
+  "prop_office_chair": {
+   "file": "prop_office_chair.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2424
+  },
+  "prop_pantry_shelves": {
+   "file": "prop_pantry_shelves.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2392
+  },
+  "prop_pillar": {
+   "file": "prop_pillar.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2424
+  },
+  "prop_punching_bag": {
+   "file": "prop_punching_bag.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2368
+  },
+  "prop_sawhorse": {
+   "file": "prop_sawhorse.glb",
+   "category": "prop",
+   "parts": 5,
+   "bytes": 8164
+  },
+  "prop_sedan": {
+   "file": "prop_sedan.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2420
+  },
+  "prop_shelves": {
+   "file": "prop_shelves.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2380
+  },
+  "prop_shoe_cabinet": {
+   "file": "prop_shoe_cabinet.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2412
+  },
+  "prop_shower_stall": {
+   "file": "prop_shower_stall.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2424
+  },
+  "prop_sink": {
+   "file": "prop_sink.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2428
+  },
+  "prop_sofa": {
+   "file": "prop_sofa.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2424
+  },
+  "prop_stove": {
+   "file": "prop_stove.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2424
+  },
+  "prop_toilet": {
+   "file": "prop_toilet.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2396
+  },
+  "prop_tool_cabinet": {
+   "file": "prop_tool_cabinet.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2368
+  },
+  "prop_tool_shelf": {
+   "file": "prop_tool_shelf.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2396
+  },
+  "prop_toy_chest": {
+   "file": "prop_toy_chest.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2412
+  },
+  "prop_treadmill": {
+   "file": "prop_treadmill.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2424
+  },
+  "prop_tv_stand": {
+   "file": "prop_tv_stand.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2424
+  },
+  "prop_vanity": {
+   "file": "prop_vanity.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2428
+  },
+  "prop_washer": {
+   "file": "prop_washer.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2424
+  },
+  "prop_water_heater": {
+   "file": "prop_water_heater.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 5312
+  },
+  "prop_weight_rack": {
+   "file": "prop_weight_rack.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2400
+  },
+  "prop_workbench": {
+   "file": "prop_workbench.glb",
+   "category": "prop",
+   "parts": 1,
+   "bytes": 2396
+  },
+  "pulse_sensor": {
+   "file": "pulse_sensor.glb",
+   "category": "gadget",
+   "parts": 3,
+   "bytes": 5980
+  },
+  "sledge_hammer": {
+   "file": "sledge_hammer.glb",
+   "category": "gadget",
+   "parts": 4,
+   "bytes": 8692
+  },
+  "vehicle_apc": {
+   "file": "vehicle_apc.glb",
+   "category": "vehicle",
+   "parts": 12,
+   "bytes": 18276
+  },
+  "vehicle_police_cruiser": {
+   "file": "vehicle_police_cruiser.glb",
+   "category": "vehicle",
+   "parts": 8,
+   "bytes": 13160
+  },
+  "weapon_416c": {
+   "file": "weapon_416c.glb",
+   "category": "weapon",
+   "parts": 28,
+   "bytes": 46484
+  },
+  "weapon_556xi": {
+   "file": "weapon_556xi.glb",
+   "category": "weapon",
+   "parts": 28,
+   "bytes": 46484
+  },
+  "weapon_ak12": {
+   "file": "weapon_ak12.glb",
+   "category": "weapon",
+   "parts": 27,
+   "bytes": 45044
+  },
+  "weapon_ak47t": {
+   "file": "weapon_ak47t.glb",
+   "category": "weapon",
+   "parts": 23,
+   "bytes": 38624
+  },
+  "weapon_ar33": {
+   "file": "weapon_ar33.glb",
+   "category": "weapon",
+   "parts": 26,
+   "bytes": 43600
+  },
+  "weapon_fmg9": {
+   "file": "weapon_fmg9.glb",
+   "category": "weapon",
+   "parts": 23,
+   "bytes": 39280
+  },
+  "weapon_l85a2": {
+   "file": "weapon_l85a2.glb",
+   "category": "weapon",
+   "parts": 26,
+   "bytes": 49364
+  },
+  "weapon_mp5k": {
+   "file": "weapon_mp5k.glb",
+   "category": "weapon",
+   "parts": 23,
+   "bytes": 39280
+  },
+  "weapon_mp7": {
+   "file": "weapon_mp7.glb",
+   "category": "weapon",
+   "parts": 24,
+   "bytes": 42640
+  },
+  "weapon_p12": {
+   "file": "weapon_p12.glb",
+   "category": "weapon",
+   "parts": 9,
+   "bytes": 18464
+  },
+  "weapon_p226": {
+   "file": "weapon_p226.glb",
+   "category": "weapon",
+   "parts": 8,
+   "bytes": 15104
+  },
+  "weapon_pmm": {
+   "file": "weapon_pmm.glb",
+   "category": "weapon",
+   "parts": 8,
+   "bytes": 15104
+  },
+  "weapon_r4c": {
+   "file": "weapon_r4c.glb",
+   "category": "weapon",
+   "parts": 28,
+   "bytes": 46484
+  },
+  "weapon_spas12t": {
+   "file": "weapon_spas12t.glb",
+   "category": "weapon",
+   "parts": 22,
+   "bytes": 37184
+  },
+  "weapon_ump45": {
+   "file": "weapon_ump45.glb",
+   "category": "weapon",
+   "parts": 27,
+   "bytes": 45040
+  },
+  "weapon_usg57": {
+   "file": "weapon_usg57.glb",
+   "category": "weapon",
+   "parts": 8,
+   "bytes": 15104
+  }
+ }
+}

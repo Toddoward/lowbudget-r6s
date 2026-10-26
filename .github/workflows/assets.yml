@@ -1,0 +1,35 @@
+name: Rebuild 3D assets (CLI-Anything → Blender → GLB)
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: 'comma separated asset id prefixes (empty = all)'
+        required: false
+        default: ''
+
+jobs:
+  assets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci
+      - name: Install Blender
+        run: sudo apt-get update && sudo apt-get install -y blender
+      - name: Export specs → CLI-Anything Blender harness → GLB
+        run: |
+          npm run assets:spec
+          python3 tools/cli-anything/pipeline.py --jobs 4 ${{ inputs.only && format('--only {0}', inputs.only) || '' }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: glb-models
+          path: |
+            public/assets/models
+            tools/cli-anything/build/work/*/commands.sh

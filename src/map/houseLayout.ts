@@ -100,8 +100,8 @@ export const WALLS: WallDef[] = [
   W(0, 'x', -7, -8, -3, 'soft', [win(-6.5), win(-4.5)], true), // living N (2 windows)
   W(0, 'x', -7, -3, 2.5, 'soft', [win(-0.25)], true), // dining N
   W(0, 'x', -7, 2.5, 8, 'solid', [win(5.25)], true), // kitchen N
-  W(0, 'z', 8, -7, 2, 'solid', [win(-4.5), win(-0.5)], true), // kitchen E
-  W(0, 'z', 8, 2, 7, 'soft', [win(4.5)], true), // pantry E
+  W(0, 'z', 8, -7, 2.5, 'solid', [win(-4.5), win(-0.5)], true), // kitchen E
+  W(0, 'z', 8, 2.5, 7, 'soft', [win(4.5)], true), // pantry E
   W(0, 'x', 7, -8, -3, 'soft', [win(-5.5)], true), // office S (3rd office window)
   W(0, 'x', 7, -3, 2.5, 'soft', [{ at: -0.25, w: 1, kind: 'exterior_door' }], true), // back entrance
   W(0, 'x', 7, 2.5, 8, 'solid', [win(5.25)], true), // pantry S
@@ -113,10 +113,11 @@ export const WALLS: WallDef[] = [
   W(0, 'z', -3, 2, 7, 'soft', [door(4.5)]), // office | back hall
   W(0, 'x', -2, -3, 2.5, 'soft', [door(2)]), // dining | stair hall
   W(0, 'z', 2.5, -7, -2, 'semi', [door(-4.5)]), // dining | kitchen
-  W(0, 'z', 2.5, -2, 2, 'soft', [door(1.5)]), // stair hall | kitchen (top of kitchen stairs)
+  W(0, 'z', 2.5, -2, 2, 'soft', [door(1.5)]), // stair hall | kitchen (onto the kitchen-stairs landing)
+  W(0, 'z', 2.5, 2, 2.5, 'soft'), // short return between the stair hall door and the pantry wall
   W(0, 'x', 2, -3, 2.5, 'soft', [{ at: -0.25, w: 1.5, kind: 'arch' }]), // stair hall | back hall
   W(0, 'z', 2.5, 2, 7, 'soft', [door(4.5)]), // back hall | pantry
-  W(0, 'x', 2, 2.5, 8, 'soft', [door(6)]), // kitchen | pantry
+  W(0, 'x', 2.5, 2.5, 8, 'soft', [door(6)]), // kitchen | pantry (0.9 m landing in front of the kitchen stairs)
 
   /* ================================ 2F (3) ================================== */
   // exterior
@@ -244,9 +245,9 @@ export const ROOMS: RoomDef[] = [
   { id: 'office', name: 'Office', floor: 0, rects: [R(-8, 2, -3, 7)], spot: [-6, 3] },
   { id: 'dining', name: 'Dining Room', floor: 0, rects: [R(-3, -7, 2.5, -2)], spot: [-1.5, -3] },
   { id: 'stairhall', name: 'Stair Hall', floor: 0, rects: [R(-3, -2, 2.5, 2)], spot: [0.5, 0.6] },
-  { id: 'kitchen', name: 'Kitchen', floor: 0, rects: [R(2.5, -7, 8, 2)], spot: [6.5, -1] },
+  { id: 'kitchen', name: 'Kitchen', floor: 0, rects: [R(2.5, -7, 8, 2.5)], spot: [6.5, -1] },
   { id: 'backhall', name: 'Back Entrance', floor: 0, rects: [R(-3, 2, 2.5, 7)], spot: [-0.25, 4.5] },
-  { id: 'pantry', name: 'Pantry', floor: 0, rects: [R(2.5, 2, 8, 7)], spot: [4, 3.25] },
+  { id: 'pantry', name: 'Pantry', floor: 0, rects: [R(2.5, 2.5, 8, 7)], spot: [4, 3.4] },
   // 2F
   { id: 'bathroom', name: 'Bathroom', floor: 1, rects: [R(-8, -7, -3, -2)], spot: [-5.5, -4] },
   { id: 'master', name: 'Master Bedroom', floor: 1, rects: [R(-1, -7, 2.5, -2), R(-3, -5, -1, -2)], spot: [-0.3, -6.2] },

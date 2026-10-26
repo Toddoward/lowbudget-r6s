@@ -25,6 +25,7 @@ export class Lighting {
   private t = 0;
   tod: TimeOfDay = 'day';
   flashlightOn = false;
+  flashlightShadows = true;
   private shaftOpenings: { mesh: THREE.Mesh; opening: Opening }[] = [];
 
   constructor(private scene: THREE.Scene, private renderer: THREE.WebGLRenderer, private suburb: SuburbWorld, private lamps: LampDef[], private openings: Opening[]) {
@@ -204,7 +205,7 @@ export class Lighting {
     }
     for (const bar of this.suburb.policeBars) bar.rotation.y = Math.sin(this.t * 9) > 0 ? 0 : Math.PI;
     this.flashlight.intensity = this.flashlightOn ? 38 : 0;
-    this.flashlight.castShadow = this.flashlightOn;
+    this.flashlight.castShadow = this.flashlightOn && this.flashlightShadows;
   }
 
   /** Position the weapon flashlight from the camera. */
