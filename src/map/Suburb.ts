@@ -2,12 +2,12 @@ import * as THREE from 'three';
 import { G_CLIP, type Physics, type SurfaceMaterial } from '../core/Physics.ts';
 import { BoxBatch } from '../world/BoxBatch.ts';
 import { PAL, vcMaterial } from '../render/palette.ts';
-import { GROUND_Y, LOWER_GROUND_Y, MAP_BOUNDS, STAIRS, type Rect } from './houseLayout.ts';
+import { DRIVEWAY, GROUND_Y, LOWER_GROUND_Y, MAP_BOUNDS, VENT_SHAFT, type Rect } from './houseLayout.ts';
 import { subtractRects } from './geometry.ts';
 
 /**
- * Surrounding suburb: two-level terrain (street level y=-0.2 on the W/N/S,
- * river level y=-3 on the E), the four attacker spawn areas, roads, police
+ * Surrounding suburb: two-level terrain (street level y=-0.25 on the W/N/S,
+ * river level y=-3.5 on the E, reaching the garage driveway), the four attacker spawn areas, roads, police
  * cruisers, the APC, the construction site skeleton, the docks and a ring of
  * low-poly neighbour-house silhouettes. Everything that blocks has a collider.
  */
@@ -28,43 +28,58 @@ export function buildSuburb(physics: Physics, scene: THREE.Scene): SuburbWorld {
 
   /* ------------------------------------------------------------- terrain */
   const B = MAP_BOUNDS;
-  const upper: Rect = { x0: B.x0, z0: B.z0, x1: 8.15, z1: B.z1 };
+  const RIVER_X = DRIVEWAY.x1; // the lot drops to river level east of here
+  const upper: Rect = { x0: B.x0, z0: B.z0, x1: RIVER_X, z1: B.z1 };
+  // everything below grade that the House occupies + the sunken areas around it
   const holes: Rect[] = [
-    { x0: -8.15, z0: -7.15, x1: 8.15, z1: 7.15 }, // house footprint (basement)
-    ...STAIRS.filter((s) => s.exterior).map((s) => s.rect),
+    { x0: -7.4, z0: -7.55, x1: -1.55, z1: -4.65 }, // storage
+    { x0: -8.1, z0: -4.95, x1: 7.35, z1: -0.45 },
+    { x0: -8.8, z0: -0.75, x1: 9.85, z1: 3.85 },
+    { x0: -9.6, z0: 1.0, x1: -8.5, z1: 3.4 }, // bay
+    { x0: -5.6, z0: 3.55, x1: 9.85, z1: 5.0 },
+    { x0: -5.6, z0: 4.7, x1: 2.2, z1: 6.6 }, // back hallway (under the back deck)
+    { x0: -14.0, z0: -7.6, x1: -7.25, z1: -5.4 }, // storage stairwell
+    DRIVEWAY,
+    VENT_SHAFT,
   ];
   for (const r of subtractRects(upper, holes)) {
     solid([r.x0, LOWER_GROUND_Y - 0.4, r.z0], [r.x1, GROUND_Y, r.z1], PAL.grass, 'dirt', PAL.concreteDark);
   }
-  // pit floors under the exterior stairs (so nothing falls out of the world)
-  solid([-6, LOWER_GROUND_Y - 0.4, -11.5], [-5, LOWER_GROUND_Y - 0.05, -7.15], PAL.concreteDark);
-  solid([0.5, LOWER_GROUND_Y - 0.4, 7.15], [8.15, LOWER_GROUND_Y, 9.3], PAL.concreteDark);
+  // pit floors
+  solid([-14.0, LOWER_GROUND_Y - 0.4, -7.6], [-7.25, LOWER_GROUND_Y - 0.02, -5.4], PAL.concreteDark);
+  solid([VENT_SHAFT.x0, LOWER_GROUND_Y - 0.4, VENT_SHAFT.z0], [VENT_SHAFT.x1, LOWER_GROUND_Y, VENT_SHAFT.z1], PAL.concreteDark);
+  // vent shaft grille at grade (drones drop through, boots don't)
+  for (let k = 0; k <= 5; k++) {
+    const x = VENT_SHAFT.x0 + ((VENT_SHAFT.x1 - VENT_SHAFT.x0) * k) / 5;
+    deco([x - 0.012, GROUND_Y - 0.03, VENT_SHAFT.z0], [x + 0.012, GROUND_Y + 0.01, VENT_SHAFT.z1], '#2b2e33');
+  }
+  physics.addBox((VENT_SHAFT.x0 + VENT_SHAFT.x1) / 2, GROUND_Y + 0.3, (VENT_SHAFT.z0 + VENT_SHAFT.z1) / 2, (VENT_SHAFT.x1 - VENT_SHAFT.x0) / 2, 0.3, (VENT_SHAFT.z1 - VENT_SHAFT.z0) / 2, { kind: 'static', mat: 'metal' }, undefined, G_CLIP);
+  // sunken garage driveway (river level) in front of both shutters
+  solid([DRIVEWAY.x0, LOWER_GROUND_Y - 0.4, DRIVEWAY.z0], [DRIVEWAY.x1, LOWER_GROUND_Y, DRIVEWAY.z1], '#55575a');
   // lower river-level yard
-  solid([8.15, LOWER_GROUND_Y - 0.5, B.z0], [36, LOWER_GROUND_Y, B.z1], PAL.dirt, 'dirt');
-  // driveway apron in front of the garage shutters
-  deco([8.15, LOWER_GROUND_Y, -6], [20, LOWER_GROUND_Y + 0.02, 6], '#55575a');
+  solid([RIVER_X, LOWER_GROUND_Y - 0.5, B.z0], [36, LOWER_GROUND_Y, B.z1], PAL.dirt, 'dirt');
   // river bed + water
   solid([36, -5.2, B.z0], [B.x1, -4.6, B.z1], '#3b4a45', 'dirt');
   const water = new THREE.Mesh(new THREE.PlaneGeometry(B.x1 - 36 + 40, B.z1 - B.z0), new THREE.MeshStandardMaterial({ color: PAL.water, roughness: 0.15, metalness: 0.3, transparent: true, opacity: 0.88 }));
   water.rotation.x = -Math.PI / 2;
-  water.position.set((36 + B.x1 + 40) / 2, -3.7, 0);
+  water.position.set((36 + B.x1 + 40) / 2, -4.2, 0);
   water.receiveShadow = true;
   scene.add(water);
 
   // wedge ramps from street level down to the river yard (NE + SE)
-  for (const [z0, z1] of [[-13, -10], [14, 17]]) {
-    const run = 19 - 8.15;
+  for (const [z0, z1] of [[-14, -10.5], [14, 17.5]]) {
+    const x0 = RIVER_X, x1 = RIVER_X + 11;
+    const run = x1 - x0;
     const rise = GROUND_Y - LOWER_GROUND_Y;
     const theta = Math.atan2(rise, run);
     const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -theta);
     const L = Math.hypot(run, rise);
-    const cx = (8.15 + 19) / 2;
+    const cx = (x0 + x1) / 2;
     const cy = (GROUND_Y + LOWER_GROUND_Y) / 2 - 0.15 / Math.cos(theta);
     physics.addBox(cx, cy, (z0 + z1) / 2, L / 2, 0.15, (z1 - z0) / 2, { kind: 'static', mat: 'concrete', exterior: true }, q);
     const m = new THREE.Matrix4().compose(new THREE.Vector3(cx, cy, (z0 + z1) / 2), q, new THREE.Vector3(1, 1, 1));
     b.tbox(m, L, 0.3, z1 - z0, new THREE.Color('#6d6b66'));
-    // fill wedge under the ramp (visual)
-    const shape = new THREE.Shape([new THREE.Vector2(8.15, GROUND_Y), new THREE.Vector2(19, LOWER_GROUND_Y), new THREE.Vector2(8.15, LOWER_GROUND_Y)]);
+    const shape = new THREE.Shape([new THREE.Vector2(x0, GROUND_Y), new THREE.Vector2(x1, LOWER_GROUND_Y), new THREE.Vector2(x0, LOWER_GROUND_Y)]);
     const wedge = new THREE.ExtrudeGeometry(shape, { depth: z1 - z0, bevelEnabled: false });
     b.geom(wedge, new THREE.Matrix4().makeTranslation(0, 0, z0), new THREE.Color('#6a5f4e'));
     wedge.dispose();
@@ -74,25 +89,29 @@ export function buildSuburb(physics: Physics, scene: THREE.Scene): SuburbWorld {
   const road = (x0: number, z0: number, x1: number, z1: number, y = GROUND_Y) => {
     deco([x0, y, z0], [x1, y + 0.02, z1], '#3a3b3e');
   };
-  road(-26, B.z0, -16, B.z1); // main road (west)
-  for (let z = B.z0 + 2; z < B.z1; z += 6) deco([-21.1, GROUND_Y + 0.02, z], [-20.9, GROUND_Y + 0.03, z + 3], '#d8c65a');
-  deco([-16, GROUND_Y, B.z0], [-14, GROUND_Y + 0.08, B.z1], '#9a978f'); // sidewalk
-  road(-26, 26, 8.15, 34); // side street (south)
-  road(8.15, 26, 36, 34, LOWER_GROUND_Y);
-  for (let x = -24; x < 34; x += 6) deco([x, (x < 8.15 ? GROUND_Y : LOWER_GROUND_Y) + 0.02, 29.9], [x + 3, (x < 8.15 ? GROUND_Y : LOWER_GROUND_Y) + 0.03, 30.1], '#e8e4d6');
-  // front walk & driveway to porch
-  deco([-14, GROUND_Y, -0.8], [-10.75, GROUND_Y + 0.03, 0.8], '#a29d92');
+  road(B.x0, -21.5, RIVER_X, -15.5); // front street (north, in front of the porch)
+  for (let x = B.x0 + 2; x < RIVER_X - 3; x += 6) deco([x, GROUND_Y + 0.02, -18.6], [x + 3, GROUND_Y + 0.03, -18.4], '#d8c65a');
+  deco([B.x0, GROUND_Y, -15.5], [RIVER_X, GROUND_Y + 0.08, -14.2], '#9a978f'); // sidewalk
+  road(-26, -15.5, -16, B.z1); // west avenue (to the APC checkpoint)
+  for (let z = -12; z < B.z1; z += 6) deco([-21.1, GROUND_Y + 0.02, z], [-20.9, GROUND_Y + 0.03, z + 3], '#d8c65a');
+  road(-26, 26, RIVER_X, 34); // side street (south)
+  road(RIVER_X, 26, 36, 34, LOWER_GROUND_Y);
+  for (let x = -24; x < 34; x += 6) deco([x, (x < RIVER_X ? GROUND_Y : LOWER_GROUND_Y) + 0.02, 29.9], [x + 3, (x < RIVER_X ? GROUND_Y : LOWER_GROUND_Y) + 0.03, 30.1], '#e8e4d6');
+  // front walk from the sidewalk to the porch steps
+  deco([-0.9, GROUND_Y, -14.2], [1.1, GROUND_Y + 0.03, -7.35], '#a29d92');
+  // back walk from the back porch to the side street
+  deco([-4.9, GROUND_Y, 6.95], [-3.7, GROUND_Y + 0.03, 26], '#a29d92');
   // picket fence along the front yard (gap at the walk)
-  for (const [z0, z1] of [[-12, -1.2], [1.2, 12]]) {
-    deco([-13.2, GROUND_Y, z0], [-13.1, GROUND_Y + 0.9, z1], '#e9e6dc');
-    physics.addBox(-13.15, GROUND_Y + 0.45, (z0 + z1) / 2, 0.05, 0.45, (z1 - z0) / 2, { kind: 'static', mat: 'wood' }, undefined, G_CLIP);
+  for (const [x0, x1] of [[-13, -1.4], [1.6, RIVER_X - 0.4]]) {
+    deco([x0, GROUND_Y, -13.65], [x1, GROUND_Y + 0.9, -13.55], '#e9e6dc');
+    physics.addBox((x0 + x1) / 2, GROUND_Y + 0.45, -13.6, (x1 - x0) / 2, 0.45, 0.05, { kind: 'static', mat: 'wood' }, undefined, G_CLIP);
   }
   // hedges
-  solid([-12.5, GROUND_Y, -10.5], [-9.5, GROUND_Y + 1.1, -9.5], '#3f5a2e', 'fabric');
-  solid([-12.5, GROUND_Y, 9.5], [-9.5, GROUND_Y + 1.1, 10.5], '#3f5a2e', 'fabric');
+  solid([-9.5, GROUND_Y, -12.6], [-6.5, GROUND_Y + 1.1, -11.6], '#3f5a2e', 'fabric');
+  solid([4.5, GROUND_Y, -12.6], [7.5, GROUND_Y + 1.1, -11.6], '#3f5a2e', 'fabric');
   // mailbox
-  deco([-14.4, GROUND_Y, 1.6], [-14.3, GROUND_Y + 1.0, 1.7], '#333');
-  deco([-14.55, GROUND_Y + 1.0, 1.45], [-14.15, GROUND_Y + 1.25, 1.85], '#2b4f7a');
+  deco([2.0, GROUND_Y, -14.0], [2.1, GROUND_Y + 1.0, -13.9], '#333');
+  deco([1.85, GROUND_Y + 1.0, -14.15], [2.25, GROUND_Y + 1.25, -13.75], '#2b4f7a');
 
   /* --------------------------------------------------- street lamps */
   const lamp = (x: number, z: number, y = GROUND_Y, dx = 1) => {
@@ -102,7 +121,7 @@ export function buildSuburb(physics: Physics, scene: THREE.Scene): SuburbWorld {
     physics.addBox(x, y + 2.6, z, 0.1, 2.6, 0.1, { kind: 'static', mat: 'metal', exterior: true });
     lights.push({ pos: new THREE.Vector3(x + dx * 1.0, y + 4.9, z), color: '#ffc27a', kind: 'lamp' });
   };
-  lamp(-15, -14, GROUND_Y, -1); lamp(-15, 12, GROUND_Y, -1); lamp(-4, 25.5); lamp(14, 25.5, LOWER_GROUND_Y); lamp(-15, 40, GROUND_Y, -1);
+  lamp(-8, -14.6, GROUND_Y, 1); lamp(8, -14.6, GROUND_Y, -1); lamp(-15, 12, GROUND_Y, -1); lamp(-4, 25.5); lamp(16, 25.5, LOWER_GROUND_Y); lamp(-15, 40, GROUND_Y, -1);
   lamp(24, -8, LOWER_GROUND_Y, -1);
 
   /* --------------------------------------------------- police cruisers */
@@ -137,7 +156,7 @@ export function buildSuburb(physics: Physics, scene: THREE.Scene): SuburbWorld {
   cruiser(-5, 30, Math.PI / 2 + 0.3);
   cruiser(4, 31.5, Math.PI / 2 - 0.2);
   cruiser(-20, 8, 0.15);
-  cruiser(-22, -30, -0.4);
+  cruiser(-14, -18.5, Math.PI / 2 + 0.1);
 
   /* --------------------------------------------------- APC area (SW) */
   {
@@ -253,14 +272,19 @@ export function buildSuburb(physics: Physics, scene: THREE.Scene): SuburbWorld {
     b.geom(new THREE.IcosahedronGeometry(1.6 * s, 0), new THREE.Matrix4().makeTranslation(x, y + 3.3 * s, z), new THREE.Color('#3d5530'));
     physics.addBox(x, y + 1.1 * s, z, 0.2 * s, 1.1 * s, 0.2 * s, { kind: 'static', mat: 'wood', exterior: true });
   };
-  for (const [x, z, s] of [[-12, -16, 1.1], [-12, 16, 1], [-3, -16, 1.2], [5, 18, 1], [-28, -10, 1.3], [-28, 12, 1.1], [-8, 22, 0.9], [12, -18, 1], [26, 18, 1.2], [-44, 4, 1.4]]) tree(x, z, x > 8.15 ? LOWER_GROUND_Y : GROUND_Y, s);
+  for (const [x, z, s] of [[-12, -11, 1.1], [-12, 16, 1], [-14, 4, 1.2], [5, 18, 1], [-28, -10, 1.3], [-28, 12, 1.1], [-8, 22, 0.9], [16, -20, 1], [26, 18, 1.2], [-44, 4, 1.4], [10, 9.5, 0.9]]) tree(x, z, x > RIVER_X ? LOWER_GROUND_Y : GROUND_Y, s);
   // parked car on the street + the garden shed in the north yard
   solid([-24.5, GROUND_Y, -6], [-22.7, GROUND_Y + 1.4, -1.6], '#7a2b25', 'vehicle');
-  solid([-4, GROUND_Y, -14.5], [-1, GROUND_Y + 2.4, -12], '#8b7d63', 'wood');
+  solid([-15.5, GROUND_Y, 0.5], [-13, GROUND_Y + 2.4, 3.5], '#8b7d63', 'wood');
   // retaining-wall caps along the drop to the river yard
-  for (const [z0, z1] of [[-58, -13], [-10, -7.15], [7.15, 14], [17, 58]]) {
-    deco([7.95, GROUND_Y, z0], [8.15, GROUND_Y + 0.5, z1], '#77736b');
-    physics.addBox(8.05, GROUND_Y + 0.45, (z0 + z1) / 2, 0.1, 0.45, (z1 - z0) / 2, { kind: 'static', mat: 'concrete' }, undefined, G_CLIP);
+  for (const [z0, z1] of [[-58, -14], [-10.5, DRIVEWAY.z0], [DRIVEWAY.z1, 14], [17.5, 58]]) {
+    deco([RIVER_X - 0.2, GROUND_Y, z0], [RIVER_X, GROUND_Y + 0.5, z1], '#77736b');
+    physics.addBox(RIVER_X - 0.1, GROUND_Y + 0.45, (z0 + z1) / 2, 0.1, 0.45, (z1 - z0) / 2, { kind: 'static', mat: 'concrete' }, undefined, G_CLIP);
+  }
+  // driveway retaining-wall caps + rails
+  for (const z of [DRIVEWAY.z0, DRIVEWAY.z1]) {
+    deco([DRIVEWAY.x0, GROUND_Y, z - 0.1], [RIVER_X, GROUND_Y + 0.5, z + 0.1], '#77736b');
+    physics.addBox((DRIVEWAY.x0 + RIVER_X) / 2, GROUND_Y + 0.45, z, (RIVER_X - DRIVEWAY.x0) / 2, 0.45, 0.1, { kind: 'static', mat: 'concrete' }, undefined, G_CLIP);
   }
 
   /* --------------------------------------------------- map bounds (clip) */

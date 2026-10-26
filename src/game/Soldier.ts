@@ -53,9 +53,15 @@ interface RappelState {
 interface MoveAnim { t: number; dur: number; from: THREE.Vector3; mid: THREE.Vector3; to: THREE.Vector3; onMid?: () => void; midDone: boolean; endStance: Stance }
 
 const UP = new THREE.Vector3(0, 1, 0);
-const RADIUS = 0.3;
-const HALF: Record<number, number> = { [Stance.Stand]: 0.6, [Stance.Crouch]: 0.33, [Stance.Prone]: 0.06, [Stance.Rappel]: 0.6 };
-const EYE: Record<number, number> = { [Stance.Stand]: 1.64, [Stance.Crouch]: 1.12, [Stance.Prone]: 0.38, [Stance.Rappel]: 1.64 };
+// spec: 1.8 m tall standing capsule (r 0.35); eye heights 1.65 / 1.05 / 0.40
+const RADIUS = 0.35;
+const HALF: Record<number, number> = { [Stance.Stand]: 0.55, [Stance.Crouch]: 0.25, [Stance.Prone]: 0.0, [Stance.Rappel]: 0.55 };
+const EYE: Record<number, number> = { [Stance.Stand]: 1.65, [Stance.Crouch]: 1.05, [Stance.Prone]: 0.4, [Stance.Rappel]: 1.65 };
+/** generic vault: anything with its top at most this high above the feet */
+const VAULT_MAX_H = 1.3;
+/** shallower than this → vault over; deeper → climb on top */
+const VAULT_OVER_DEPTH = 0.85;
+export interface VaultPlan { over: boolean; top: number; mid: THREE.Vector3; land: THREE.Vector3 }
 const WALL_GAP = 0.42;
 
 export class Soldier implements Actor {
@@ -290,7 +296,7 @@ export class Soldier implements Actor {
     }
     // fall damage
     if (this.pos.y < -20) this.world.damageActor(this, 999, this.id, false);
-    if (inp.jump && this.grounded) this.world.interactions.tryVault(this);
+    if (inp.jump && this.grounded) this.tryVault();
   }
 
   /** move with the character controller; updates pos & grounded */
@@ -329,6 +335,70 @@ export class Soldier implements Actor {
     }
     this.stance = s;
     this.syncCollider();
+    return true;
+  }
+
+  /* ------------------------------------------------------------ vault / climb */
+  /**
+   * Generic, geometry-driven vault (no special "vaultable" flags): look for an
+   * obstacle right in front, find its top, then march along the top to measure
+   * its depth. Thin things (window sills, breach lips, stair rails, counters)
+   * are vaulted over; deep things (tables, beds, ledges) are climbed onto.
+   */
+  probeVault(): VaultPlan | null {
+    if (this.mode !== 'normal' || !this.grounded || this.stance === Stance.Prone) return null;
+    const ph = this.world.physics;
+    const mask = G_WORLD | G_CLIP;
+    const fwd = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
+    const feet = this.pos;
+    let hitD = Infinity;
+    for (const h of [0.4, 0.75, 1.1]) {
+      const hit = ph.raycast(feet.clone().add(new THREE.Vector3(0, h, 0)), fwd, 0.9, mask);
+      if (hit && Math.abs(hit.normal.y) < 0.5) hitD = Math.min(hitD, hit.dist);
+    }
+    if (hitD === Infinity) return null;
+    const down = new THREE.Vector3(0, -1, 0);
+    const front = feet.clone().addScaledVector(fwd, hitD + 0.1);
+    const fromY = feet.y + VAULT_MAX_H + 0.5;
+    const topHit = ph.raycast(front.clone().setY(fromY), down, VAULT_MAX_H + 0.5, mask);
+    if (!topHit || topHit.dist < 0.02 || topHit.normal.y < 0.6) return null;
+    const top = topHit.point.y;
+    const rel = top - feet.y;
+    if (rel < 0.33 || rel > VAULT_MAX_H) return null;
+    // the body has to fit over the top (a window opening, not a wall with a shelf)
+    if (ph.raycast(topHit.point.clone().add(new THREE.Vector3(0, 0.04, 0)), new THREE.Vector3(0, 1, 0), 0.85, mask)) return null;
+    if (ph.raycast(feet.clone().add(new THREE.Vector3(0, rel + 0.45, 0)), fwd, hitD + 0.35, mask)) return null;
+    // depth along the top
+    let depth = 0;
+    let land: THREE.Vector3 | null = null;
+    for (let d = hitD + 0.25; d <= hitD + 2.2; d += 0.15) {
+      const p = feet.clone().addScaledVector(fwd, d).setY(top + 0.45);
+      const h = ph.raycast(p, down, 4.2, mask);
+      if (h && Math.abs(h.point.y - top) < 0.14 && h.normal.y > 0.6) { depth = d - hitD; continue; }
+      if (depth < VAULT_OVER_DEPTH) {
+        const lp = feet.clone().addScaledVector(fwd, d + 0.35).setY(top + 0.45);
+        const lh = ph.raycast(lp, down, 4.6, mask);
+        if (lh && lh.normal.y > 0.6 && top - lh.point.y < 4.0) land = lh.point.clone().add(new THREE.Vector3(0, 0.02, 0));
+      }
+      break;
+    }
+    const mid = feet.clone().addScaledVector(fwd, hitD + 0.15).setY(top + 0.55);
+    if (land && depth < VAULT_OVER_DEPTH) {
+      if (ph.overlapsWorld(land.clone().add(new THREE.Vector3(0, 0.65, 0)), 0.3)) return null;
+      return { over: true, top, mid, land };
+    }
+    const onTop = feet.clone().addScaledVector(fwd, hitD + 0.45).setY(top + 0.02);
+    if (ph.overlapsWorld(onTop.clone().add(new THREE.Vector3(0, 0.62, 0)), 0.3)) return null;
+    return { over: false, top, mid, land: onTop };
+  }
+
+  tryVault(): boolean {
+    const plan = this.probeVault();
+    if (!plan) return false;
+    const clearUp = !this.world.physics.raycast(plan.land.clone().add(new THREE.Vector3(0, 0.1, 0)), new THREE.Vector3(0, 1, 0), 1.75, G_WORLD | G_CLIP);
+    const dur = plan.over ? 0.55 + Math.max(0, plan.top - this.pos.y) * 0.15 : 0.75;
+    this.playMove(this.pos, plan.mid, plan.land, dur, plan.over || !clearUp ? Stance.Crouch : Stance.Stand);
+    this.world.sound({ type: 'footstep', pos: this.pos.clone(), radius: 10, source: this.id, intensity: 0.6, label: 'vault' });
     return true;
   }
 

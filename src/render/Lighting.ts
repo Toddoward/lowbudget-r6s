@@ -146,13 +146,13 @@ export class Lighting {
     this.shaftMat.uniforms.strength.value = day ? 0.16 : 0.07;
     const travel = sunDir.clone().negate();
     for (const op of this.openings) {
-      if (!op.exterior || op.kind === 'shutter') continue;
+      if (!op.exterior || op.kind === 'shutter' || op.kind === 'vent') continue;
       // outward normal: side without a room
-      const n = op.run === 'x' ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0);
+      const n = op.normal.clone();
       if (op.rooms[1] !== null && op.rooms[0] === null) n.negate();
       if (n.dot(sunDir) < 0.12) continue;
       const L = 7;
-      const u = op.run === 'x' ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1);
+      const u = new THREE.Vector3(-op.normal.z, 0, op.normal.x);
       const c = op.center;
       const hw = op.w / 2, hh = op.h / 2;
       const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => c.clone().addScaledVector(u, a * hw).add(new THREE.Vector3(0, b * hh, 0)));

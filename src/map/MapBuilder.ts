@@ -5,8 +5,8 @@ import { BoxBatch } from '../world/BoxBatch.ts';
 import { DestructionSystem, type Panel, type PanelKind } from '../world/Destruction.ts';
 import { PAL, vcMaterial } from '../render/palette.ts';
 import {
-  FLOORS, FLOOR_LABEL, FLOOR_Y, HATCHES, OPENING_DIMS, ROOMS, STAIRS, WALLS, WALL_H, SLAB_T, exteriorZoneName,
-  type FloorId, type OpeningKind, type RoomDef, type StairDef, type WallDef,
+  CCTVS, DIAG_WALLS, FLOORS, FLOOR_LABEL, FLOOR_Y, GROUND_Y, HATCHES, LANDINGS, OPENING_DIMS, PANEL_MAX_W, ROOF_Y, ROOMS, SLAB_T, STAIRS, WALLS, WALL_H,
+  exteriorZoneName, type FloorId, type OpeningKind, type RoomDef, type StairDef, type SurfaceTier, type WallDef,
 } from './houseLayout.ts';
 import { PROPS, type PropDef } from './houseProps.ts';
 import { subtractRects, inRect } from './geometry.ts';
@@ -18,14 +18,18 @@ export interface Opening {
   center: THREE.Vector3;
   w: number;
   h: number;
-  /** wall run axis: 'x' → normal along Z */
-  run: 'x' | 'z';
-  /** wall plane coordinate */
+  /** wall run axis: 'x' → normal along Z ('d' = diagonal wall, see `normal`) */
+  run: 'x' | 'z' | 'd';
+  /** wall plane coordinate (axis-aligned walls) */
   c: number;
+  /** horizontal unit normal of the wall plane */
+  normal: THREE.Vector3;
   floor: FloorId;
   floorY: number;
   exterior: boolean;
   barricadeable: boolean;
+  /** barricade bottom gap (doors: drones roll under, prone players see feet) */
+  gap: number;
   thickness: number;
   rooms: [string | null, string | null];
   /** active barricade / armor panel id */
@@ -35,6 +39,7 @@ export interface Opening {
 }
 
 export interface LampDef { pos: THREE.Vector3; room: string }
+export interface CameraDef { id: string; label: string; pos: THREE.Vector3; yaw: number; exterior: boolean; mesh: THREE.Object3D; alive: boolean; collider: unknown }
 
 export interface HouseWorld {
   openings: Opening[];
@@ -42,6 +47,7 @@ export interface HouseWorld {
   lamps: LampDef[];
   props: PropDef[];
   wallPanels: Panel[];
+  cameras: CameraDef[];
   roomAt(p: THREE.Vector3): RoomDef | null;
   locationName(p: THREE.Vector3): string;
   floorOf(y: number): FloorId;
@@ -73,10 +79,15 @@ export function locationName(p: THREE.Vector3): string {
 }
 
 export function floorOf(y: number): FloorId {
-  if (y < -1.2) return -1;
-  if (y < 2.2) return 0;
+  if (y < -1.4) return -1;
+  if (y < 2.9) return 0;
   return 1;
 }
+
+const thicknessOf = (w: WallDef) => w.t ?? (w.ext ? 0.3 : w.tier === 'solid' && !(w.spans ?? []).length ? 0.25 : 0.2);
+const KIND_LABEL: Record<OpeningKind, string> = {
+  open_window: 'Open Window', window: 'Window', french: 'French Window', shutter: 'Garage Shutter', exterior_door: 'Door', arch: 'Archway', door: 'Doorway', vent: 'Drone Vent',
+};
 
 export function buildHouse(physics: Physics, destruction: DestructionSystem, scene: THREE.Scene): HouseWorld {
   const stat = new BoxBatch();
@@ -84,17 +95,27 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
   const openings: Opening[] = [];
   const wallPanels: Panel[] = [];
   const lamps: LampDef[] = [];
+  const cameras: CameraDef[] = [];
   const addStatic = (min: number[], max: number[], color: THREE.Color, mat: SurfaceMaterial, exterior = false, side?: THREE.Color, axis = -1) => {
     stat.box(min, max, color, side ?? color, axis);
     physics.addBox((min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2, (max[0] - min[0]) / 2, (max[1] - min[1]) / 2, (max[2] - min[2]) / 2, { kind: 'static', mat, exterior });
   };
+  const clip = (min: number[], max: number[]) =>
+    physics.addBox((min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2, (max[0] - min[0]) / 2, (max[1] - min[1]) / 2, (max[2] - min[2]) / 2, { kind: 'static', mat: 'wood' }, undefined, G_CLIP);
+  const box = (run: 'x' | 'z', c: number, t: number, u0: number, u1: number, v0: number, v1: number): [number[], number[]] =>
+    run === 'x' ? [[u0, v0, c - t / 2], [u1, v1, c + t / 2]] : [[c - t / 2, v0, u0], [c + t / 2, v1, u1]];
 
   /* ------------------------------------------------------------- walls */
   for (const wall of WALLS) sliceWall(wall);
 
+  function tierAt(wall: WallDef, u: number): SurfaceTier {
+    for (const s of wall.spans ?? []) if (u >= s.from - 1e-4 && u <= s.to + 1e-4) return s.tier;
+    return wall.tier;
+  }
+
   function sliceWall(wall: WallDef) {
     const fy = FLOOR_Y[wall.floor];
-    const t = wall.ext ? 0.3 : wall.tier === 'solid' ? 0.25 : 0.2;
+    const t = thicknessOf(wall);
     const e = wall.ext ? t / 2 : 0;
     const a = wall.from - e;
     const b = wall.to + e;
@@ -102,88 +123,155 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
     type R4 = { u0: number; u1: number; v0: number; v1: number; full: boolean };
     const rects: R4[] = [];
     let cur = a;
+    const nrm = wall.run === 'x' ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0);
     for (const o of ops) {
       const d = OPENING_DIMS[o.kind];
       const u0 = o.at - o.w / 2;
       const u1 = o.at + o.w / 2;
       if (u0 > cur + 1e-3) rects.push({ u0: cur, u1: u0, v0: fy, v1: fy + WALL_H, full: true });
-      if (d.y0 > 0) rects.push({ u0, u1, v0: fy, v1: fy + d.y0, full: false });
+      if (d.y0 > 0.001) rects.push({ u0, u1, v0: fy, v1: fy + d.y0, full: false });
       if (d.y0 + d.h < WALL_H - 1e-3) rects.push({ u0, u1, v0: fy + d.y0 + d.h, v1: fy + WALL_H, full: false });
       cur = u1;
-      // opening record
       const center = wall.run === 'x' ? new THREE.Vector3(o.at, fy + d.y0 + d.h / 2, wall.c) : new THREE.Vector3(wall.c, fy + d.y0 + d.h / 2, o.at);
-      const nrm = wall.run === 'x' ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0);
       const sideA = roomAt(TMP.copy(center).addScaledVector(nrm, -0.6).setY(fy + 0.2));
       const sideB = roomAt(TMP.copy(center).addScaledVector(nrm, 0.6).setY(fy + 0.2));
       const labelRoom = sideA?.name ?? sideB?.name ?? 'Exterior';
-      const kindLabel = o.kind === 'open_window' ? 'Open Window' : o.kind === 'window' ? 'Window' : o.kind === 'shutter' ? 'Garage Shutter' : o.kind === 'exterior_door' ? 'Exterior Door' : o.kind === 'arch' ? 'Archway' : 'Door';
-      const op: Opening = {
-        id: openings.length, kind: o.kind, label: `${FLOOR_LABEL[wall.floor]} ${labelRoom} ${kindLabel}`, center, w: o.w, h: d.h, run: wall.run, c: wall.c,
-        floor: wall.floor, floorY: fy, exterior: !!wall.ext, barricadeable: d.barricade, thickness: t,
+      openings.push({
+        id: openings.length, kind: o.kind, label: `${FLOOR_LABEL[wall.floor]} ${labelRoom} ${KIND_LABEL[o.kind]}`, center, w: o.w, h: d.h, run: wall.run, c: wall.c, normal: nrm.clone(),
+        floor: wall.floor, floorY: fy, exterior: !!wall.ext, barricadeable: d.barricade, gap: d.gap, thickness: t,
         rooms: [sideA?.id ?? null, sideB?.id ?? null], barricadePanel: null, barricadeKind: 'none', barricadeGen: 0,
-      };
-      openings.push(op);
-      // frame trims
-      const frameC = new THREE.Color(o.kind === 'shutter' ? '#3a3d42' : '#3b2f24');
-      const ft = 0.05;
-      const fr = (u0: number, u1: number, v0: number, v1: number, extra = 0.02) => {
-        if (wall.run === 'x') trim.box([u0, v0, wall.c - t / 2 - extra], [u1, v1, wall.c + t / 2 + extra], frameC);
-        else trim.box([wall.c - t / 2 - extra, v0, u0], [wall.c + t / 2 + extra, v1, u1], frameC);
-      };
-      fr(u0 - ft, u0, fy + d.y0, fy + d.y0 + d.h);
-      fr(u1, u1 + ft, fy + d.y0, fy + d.y0 + d.h);
-      fr(u0 - ft, u1 + ft, fy + d.y0 + d.h, fy + d.y0 + d.h + ft);
-      if (d.y0 > 0) fr(u0 - ft, u1 + ft, fy + d.y0 - ft, fy + d.y0, 0.06);
+      });
+      frameOpening(wall.run, wall.c, t, o.kind, u0, u1, fy + d.y0, fy + d.y0 + d.h);
       if (o.kind === 'shutter') {
-        const spec = wallPanelSpec(wall, u0, u1, fy + d.y0, fy + d.y0 + d.h, 0.08, 'shutter', `B Garage Shutter ${o.at < 0 ? 'N' : 'S'}`, false);
-        destruction.add(spec);
+        // shutter = three reinforceable metal sections
+        const n = 3;
+        for (let i = 0; i < n; i++) {
+          const s0 = u0 + ((u1 - u0) * i) / n;
+          const s1 = u0 + ((u1 - u0) * (i + 1)) / n;
+          const [mn, mx] = box(wall.run, wall.c, 0.08, s0, s1, fy + d.y0, fy + d.y0 + d.h);
+          const p = destruction.add({ kind: 'shutter', min: mn as [number, number, number], max: mx as [number, number, number], nAx: wall.run === 'x' ? 2 : 0, label: `B Garage Shutter ${o.at < 0 ? 'B' : 'A'} §${i + 1}`, exterior: true, reinforceable: true, rooms: ['garage', null] });
+          wallPanels.push(p);
+        }
       }
     }
     if (b > cur + 1e-3) rects.push({ u0: cur, u1: b, v0: fy, v1: fy + WALL_H, full: true });
 
     const extColor = wall.floor === -1 ? PAL.concrete : PAL.solidExt;
-    for (const r of rects) {
-      if (wall.tier === 'solid') {
-        const col = wall.ext ? extColor : PAL.solidWall;
-        if (wall.run === 'x') addStatic([r.u0, r.v0, wall.c - t / 2], [r.u1, r.v1, wall.c + t / 2], col, 'concrete', !!wall.ext, PAL.concreteDark, 2);
-        else addStatic([wall.c - t / 2, r.v0, r.u0], [wall.c + t / 2, r.v1, r.u1], col, 'concrete', !!wall.ext, PAL.concreteDark, 0);
-        continue;
-      }
-      // slice into ≤2.5 m panels on the 0.25 grid
-      const width = r.u1 - r.u0;
-      const n = r.full ? Math.max(1, Math.ceil(width / 2.5 - 1e-6)) : 1;
-      for (let i = 0; i < n; i++) {
-        let s0 = r.u0 + (width * i) / n;
-        let s1 = r.u0 + (width * (i + 1)) / n;
-        if (i > 0) s0 = Math.round(s0 * 4) / 4;
-        if (i < n - 1) s1 = Math.round(s1 * 4) / 4;
-        const kind: PanelKind = wall.tier === 'semi' ? 'wall_semi' : 'wall_soft';
-        const tierLbl = wall.tier === 'semi' ? 'Semi-breach Wall' : 'Soft Wall';
-        const spec = wallPanelSpec(wall, s0, s1, r.v0, r.v1, t, kind, '', r.full && wall.tier === 'soft' && s1 - s0 >= 0.74);
-        const sideA = spec.rooms?.[0];
-        const sideB = spec.rooms?.[1];
-        const nameA = ROOMS.find((x) => x.id === sideA)?.name;
-        const nameB = ROOMS.find((x) => x.id === sideB)?.name;
-        spec.label = `${FLOOR_LABEL[wall.floor]} ${tierLbl} (${[nameA ?? 'Exterior', nameB ?? 'Exterior'].join(' | ')})`;
-        wallPanels.push(destruction.add(spec));
+    for (const r0 of rects) {
+      // split each piece where the tier changes
+      const cuts = [r0.u0, ...(wall.spans ?? []).flatMap((s) => [s.from, s.to]).filter((u) => u > r0.u0 + 1e-3 && u < r0.u1 - 1e-3), r0.u1].sort((p, q) => p - q);
+      for (let k = 0; k < cuts.length - 1; k++) {
+        const r = { ...r0, u0: cuts[k], u1: cuts[k + 1] };
+        if (r.u1 - r.u0 < 0.02) continue;
+        const tier = tierAt(wall, (r.u0 + r.u1) / 2);
+        if (tier === 'solid') {
+          const col = wall.ext ? extColor : PAL.solidWall;
+          const [mn, mx] = box(wall.run, wall.c, t, r.u0, r.u1, r.v0, r.v1);
+          addStatic(mn, mx, col, 'concrete', !!wall.ext, PAL.concreteDark, wall.run === 'x' ? 2 : 0);
+          continue;
+        }
+        // reinforcement-sized panels
+        const width = r.u1 - r.u0;
+        const n = r.full ? Math.max(1, Math.ceil(width / PANEL_MAX_W - 1e-6)) : 1;
+        for (let i = 0; i < n; i++) {
+          const s0 = r.u0 + (width * i) / n;
+          const s1 = r.u0 + (width * (i + 1)) / n;
+          const kind: PanelKind = tier === 'semi' ? 'wall_semi' : 'wall_soft';
+          const tierLbl = tier === 'semi' ? 'Semi-breach Wall' : 'Soft Wall';
+          const spec = wallPanelSpec(wall, t, s0, s1, r.v0, r.v1, kind, r.full && tier === 'soft' && s1 - s0 >= 0.6);
+          const nameA = ROOMS.find((x) => x.id === spec.rooms[0])?.name;
+          const nameB = ROOMS.find((x) => x.id === spec.rooms[1])?.name;
+          spec.label = `${FLOOR_LABEL[wall.floor]} ${tierLbl} (${[nameA ?? 'Exterior', nameB ?? 'Exterior'].join(' | ')})`;
+          const p = destruction.add(spec);
+          wallPanels.push(p);
+          // baseboard: the visual cue that this wall is breakable (it goes when the wall goes)
+          if (r.full && r.v0 === fy) {
+            const bb = new BoxBatch();
+            const [mn, mx] = box(wall.run, wall.c, t + 0.035, s0 + 0.01, s1 - 0.01, fy, fy + 0.11);
+            bb.box(mn, mx, tier === 'semi' ? PAL.studDark : PAL.baseboard);
+            const m = new THREE.Mesh(bb.build(), vcMaterial());
+            m.receiveShadow = true;
+            p.details.push(m);
+            destruction.group.add(m);
+          }
+        }
       }
     }
   }
 
-  function wallPanelSpec(wall: WallDef, u0: number, u1: number, v0: number, v1: number, t: number, kind: PanelKind, label: string, reinforceable: boolean) {
-    const min: [number, number, number] = wall.run === 'x' ? [u0, v0, wall.c - t / 2] : [wall.c - t / 2, v0, u0];
-    const max: [number, number, number] = wall.run === 'x' ? [u1, v1, wall.c + t / 2] : [wall.c + t / 2, v1, u1];
+  function frameOpening(run: 'x' | 'z', c: number, t: number, kind: OpeningKind, u0: number, u1: number, y0: number, y1: number) {
+    const frameC = kind === 'shutter' ? new THREE.Color('#3a3d42') : kind === 'vent' ? PAL.darkMetal : new THREE.Color('#3b2f24');
+    const ft = kind === 'vent' ? 0.025 : 0.05;
+    const fr = (a0: number, a1: number, v0: number, v1: number, extra = 0.02) => {
+      const [mn, mx] = box(run, c, t + extra * 2, a0, a1, v0, v1);
+      trim.box(mn, mx, frameC);
+    };
+    fr(u0 - ft, u0, y0, y1);
+    fr(u1, u1 + ft, y0, y1);
+    fr(u0 - ft, u1 + ft, y1, y1 + ft);
+    if (y0 > FLOOR_Y[floorOf(y0)] + 0.01) fr(u0 - ft, u1 + ft, y0 - ft, y0, 0.06);
+    if (kind === 'vent') {
+      // grille bars: visual only — drones and grenades pass, bodies can't fit anyway
+      for (let k = 1; k < 5; k++) {
+        const u = u0 + ((u1 - u0) * k) / 5;
+        const [mn, mx] = box(run, c, 0.02, u - 0.008, u + 0.008, y0, y1);
+        trim.box(mn, mx, PAL.darkMetal);
+      }
+    }
+  }
+
+  function wallPanelSpec(wall: WallDef, t: number, u0: number, u1: number, v0: number, v1: number, kind: PanelKind, reinforceable: boolean) {
+    const [mn, mx] = box(wall.run, wall.c, t, u0, u1, v0, v1);
     const nrm = wall.run === 'x' ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0);
-    const mid = new THREE.Vector3((min[0] + max[0]) / 2, FLOOR_Y[wall.floor] + 0.3, (min[2] + max[2]) / 2);
+    const mid = new THREE.Vector3((mn[0] + mx[0]) / 2, FLOOR_Y[wall.floor] + 0.3, (mn[2] + mx[2]) / 2);
     const ra = roomAt(TMP.copy(mid).addScaledVector(nrm, -0.6))?.id ?? null;
     const rb = roomAt(TMP.copy(mid).addScaledVector(nrm, 0.6))?.id ?? null;
-    return { kind, min, max, nAx: (wall.run === 'x' ? 2 : 0) as 0 | 2, label, exterior: !!wall.ext, reinforceable, rooms: [ra, rb] as [string | null, string | null] };
+    return { kind, min: mn as [number, number, number], max: mx as [number, number, number], nAx: (wall.run === 'x' ? 2 : 0) as 0 | 2, label: '', exterior: !!wall.ext, reinforceable, rooms: [ra, rb] as [string | null, string | null] };
+  }
+
+  /* ------------------------------------------------------------- diagonal walls (bay, NE chamfer) */
+  for (const dw of DIAG_WALLS) {
+    const fy = FLOOR_Y[dw.floor];
+    const A = new THREE.Vector2(...dw.a);
+    const B = new THREE.Vector2(...dw.b);
+    const len = A.distanceTo(B);
+    const dir = B.clone().sub(A).normalize();
+    const yaw = Math.atan2(-dir.y, dir.x);
+    const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+    const t = 0.3;
+    const col = dw.floor === -1 ? PAL.concrete : PAL.solidExt;
+    const piece = (s0: number, s1: number, v0: number, v1: number) => {
+      const m = (s0 + s1) / 2;
+      const c = new THREE.Vector3(A.x + dir.x * m, fy + (v0 + v1) / 2, A.y + dir.y * m);
+      const mat = new THREE.Matrix4().compose(c, q, new THREE.Vector3(1, 1, 1));
+      stat.tbox(mat, s1 - s0 + 0.15, v1 - v0, t, col);
+      physics.addBox(c.x, c.y, c.z, (s1 - s0 + 0.15) / 2, (v1 - v0) / 2, t / 2, { kind: 'static', mat: 'concrete', exterior: true }, q);
+    };
+    if (!dw.window) piece(0, len, 0, WALL_H);
+    else {
+      const w = dw.window.w;
+      const mid = dw.window.at * len;
+      const d = OPENING_DIMS.window;
+      piece(0, mid - w / 2, 0, WALL_H);
+      piece(mid + w / 2, len, 0, WALL_H);
+      piece(mid - w / 2, mid + w / 2, 0, d.y0);
+      piece(mid - w / 2, mid + w / 2, d.y0 + d.h, WALL_H);
+      const center = new THREE.Vector3(A.x + dir.x * mid, fy + d.y0 + d.h / 2, A.y + dir.y * mid);
+      const normal = new THREE.Vector3(-dir.y, 0, dir.x);
+      const sideA = roomAt(TMP.copy(center).addScaledVector(normal, -0.6).setY(fy + 0.2));
+      const sideB = roomAt(TMP.copy(center).addScaledVector(normal, 0.6).setY(fy + 0.2));
+      openings.push({
+        id: openings.length, kind: 'window', label: `${FLOOR_LABEL[dw.floor]} ${sideA?.name ?? sideB?.name ?? 'Exterior'} Bay Window`, center, w, h: d.h, run: 'd', c: 0, normal,
+        floor: dw.floor, floorY: fy, exterior: true, barricadeable: false, gap: 0, thickness: t,
+        rooms: [sideA?.id ?? null, sideB?.id ?? null], barricadePanel: null, barricadeKind: 'none', barricadeGen: 0,
+      });
+    }
   }
 
   /* ------------------------------------------------------------- floors */
   for (const f of FLOORS) {
     const y1 = f.y;
-    const y0 = f.y - SLAB_T;
+    const y0 = f.y - (f.t ?? SLAB_T);
     if (f.tier === 'semi') {
       destruction.add({
         kind: 'floor_semi', min: [f.rect.x0, y0, f.rect.z0], max: [f.rect.x1, y1, f.rect.z1], nAx: 1,
@@ -192,24 +280,57 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
       });
       continue;
     }
-    const color = f.kind === 'roof' ? PAL.roof : f.kind === 'wood' ? PAL.woodFloor : f.y < -1 ? PAL.concreteDark : PAL.concrete;
-    for (const r of subtractRects(f.rect, f.holes ?? [])) addStatic([r.x0, y0, r.z0], [r.x1, y1, r.z1], color, f.kind === 'wood' ? 'wood' : 'concrete', f.kind === 'roof', PAL.concreteDark, 1);
+    const color = f.kind === 'roof' ? PAL.roof : f.kind === 'wood' || f.kind === 'deck' ? PAL.woodFloor : f.y < -1 ? PAL.concreteDark : PAL.concrete;
+    for (const r of subtractRects(f.rect, f.holes ?? [])) addStatic([r.x0, y0, r.z0], [r.x1, y1, r.z1], color, f.kind === 'wood' || f.kind === 'deck' ? 'wood' : 'concrete', f.kind === 'roof' || f.kind === 'deck', PAL.concreteDark, 1);
   }
+  for (const l of LANDINGS) addStatic([l.rect.x0, l.y - 0.25, l.rect.z0], [l.rect.x1, l.y, l.rect.z1], PAL.woodFloor, 'wood', false, PAL.woodDark, 1);
   for (const h of HATCHES) {
-    destruction.add({ kind: 'hatch', min: [h.rect.x0, h.y - SLAB_T, h.rect.z0], max: [h.rect.x1, h.y, h.rect.z1], nAx: 1, label: h.label, reinforceable: true, rooms: [h.below, h.above] });
+    const p = destruction.add({ kind: 'hatch', min: [h.rect.x0, h.y - SLAB_T, h.rect.z0], max: [h.rect.x1, h.y, h.rect.z1], nAx: 1, label: h.label, reinforceable: true, rooms: [h.below, h.above] });
+    // lattice frame (stays) + recessed handle (goes with the hatch) — reads "this floor opens"
+    const r = h.rect;
+    const fr = new THREE.Color('#3b2f24');
+    trim.box([r.x0 - 0.06, h.y - 0.02, r.z0 - 0.06], [r.x1 + 0.06, h.y + 0.012, r.z0], fr);
+    trim.box([r.x0 - 0.06, h.y - 0.02, r.z1], [r.x1 + 0.06, h.y + 0.012, r.z1 + 0.06], fr);
+    trim.box([r.x0 - 0.06, h.y - 0.02, r.z0], [r.x0, h.y + 0.012, r.z1], fr);
+    trim.box([r.x1, h.y - 0.02, r.z0], [r.x1 + 0.06, h.y + 0.012, r.z1], fr);
+    const d = new BoxBatch();
+    const cx = (r.x0 + r.x1) / 2, cz = (r.z0 + r.z1) / 2;
+    for (const k of [-0.25, 0, 0.25]) d.box([r.x0 + 0.04, h.y + 0.001, cz + k - 0.02], [r.x1 - 0.04, h.y + 0.006, cz + k + 0.02], PAL.woodDark);
+    d.box([cx - 0.12, h.y + 0.001, r.z1 - 0.2], [cx + 0.12, h.y + 0.025, r.z1 - 0.16], PAL.metal);
+    const hm = new THREE.Mesh(d.build(), vcMaterial());
+    p.details.push(hm);
+    destruction.group.add(hm);
   }
-  // roof parapet / curb + chimney + AC unit (cover on the roof)
-  const curb = (x0: number, z0: number, x1: number, z1: number) => addStatic([x0, 6, z0], [x1, 6.18, z1], PAL.concreteDark, 'concrete', true);
-  curb(-8.15, -7.15, 8.15, -7.0); curb(-8.15, -7.0, -8.0, -2); curb(8.0, -7.0, 8.15, 2); curb(-6.15, -2, -6.0, 2); curb(-8.15, 2, -8.0, 7.15); curb(-8.0, 7.0, -2.85, 7.15); curb(-3.0, 2, -2.85, 7.0); curb(-2.85, 1.85, 8.15, 2);
-  addStatic([-7.6, 6, -6.9], [-6.6, 7.6, -6.0], new THREE.Color('#7a5446'), 'concrete', true);
-  addStatic([3.2, 6, -4.6], [4.6, 6.9, -3.4], new THREE.Color('#9a9b98'), 'metal', true);
-  // porch: posts + rails
-  for (const z of [-2.35, 7.0]) addStatic([-10.7, 0, z - 0.1], [-10.5, 2.8, z + 0.1], PAL.solidExt, 'wood', true);
-  for (const z of [2.3, 4.6]) addStatic([-10.7, 0, z - 0.1], [-10.5, 2.8, z + 0.1], PAL.solidExt, 'wood', true);
-  for (const [z0, z1] of [[-2.35, -0.75], [0.75, 7.0]]) {
-    trim.box([-10.68, 0.85, z0], [-10.52, 0.95, z1], PAL.solidExt);
-    physics.addBox(-10.6, 0.45, (z0 + z1) / 2, 0.06, 0.45, (z1 - z0) / 2, { kind: 'static', mat: 'wood' }, undefined, G_CLIP);
+
+  /* ------------------------------------------------------------- roof parapet, porch, decks */
+  for (const w of WALLS) {
+    if (!w.ext || w.floor !== 1) continue;
+    const [mn, mx] = box(w.run, w.c, 0.32, w.from - 0.16, w.to + 0.16, ROOF_Y, ROOF_Y + 0.35);
+    addStatic(mn, mx, PAL.concreteDark, 'concrete', true);
   }
+  for (const w of WALLS) {
+    // porch-roof lip at the 2F floor line where the 1F façade steps back
+    if (!w.ext || w.floor !== 0) continue;
+  }
+  // chimney + AC unit on the roof (cover)
+  addStatic([-6.9, ROOF_Y, -7.2], [-5.9, ROOF_Y + 1.6, -6.3], new THREE.Color('#7a5446'), 'concrete', true);
+  addStatic([2.6, ROOF_Y, -1.6], [4.0, ROOF_Y + 0.9, -0.4], new THREE.Color('#9a9b98'), 'metal', true);
+  addStatic([-4.6, ROOF_Y, 3.0], [-3.6, ROOF_Y + 0.7, 4.0], new THREE.Color('#9a9b98'), 'metal', true);
+  // porch: posts, rail, steps (front = north)
+  for (const x of [-1.55, 1.3, 4.2]) addStatic([x - 0.1, 0, -6.95], [x + 0.1, 3.2, -6.75], PAL.solidExt, 'wood', true);
+  for (const [x0, x1] of [[-1.6, -1.0], [1.2, 4.3]]) {
+    trim.box([x0, 0.85, -6.92], [x1, 0.95, -6.78], PAL.solidExt);
+    clip([x0, 0, -6.92], [x1, 0.95, -6.78]);
+  }
+  addStatic([-1.0, GROUND_Y, -7.35], [1.2, -0.12, -7.0], PAL.concrete, 'concrete', true);
+  addStatic([-1.6, -0.3, -7.0], [4.3, 0.0, -6.75], PAL.woodFloor, 'wood', true);
+  // back porch posts under the kids' room overhang
+  for (const x of [-7.1, -4.3, -1.95]) addStatic([x - 0.1, 0, 6.35], [x + 0.1, 3.2, 6.55], PAL.solidExt, 'wood', true);
+  addStatic([-5.0, GROUND_Y, 6.6], [-3.6, -0.12, 6.95], PAL.concrete, 'concrete', true);
+  // storage stairwell: retaining walls + guard rails at street level
+  for (const [z0, z1] of [[-7.6, -7.3], [-5.7, -5.4]]) addStatic([-13.6, -3.6, z0], [-7.25, GROUND_Y + 0.05, z1], PAL.concrete, 'concrete', true);
+  addStatic([-14.0, -3.6, -7.6], [-13.6, GROUND_Y + 0.05, -5.4], PAL.concrete, 'concrete', true);
+  for (const z of [-7.45, -5.55]) { trim.box([-13.6, GROUND_Y + 0.85, z - 0.04], [-7.3, GROUND_Y + 0.92, z + 0.04], PAL.darkMetal); clip([-13.6, GROUND_Y, z - 0.05], [-7.3, GROUND_Y + 1.0, z + 0.05]); }
 
   /* ------------------------------------------------------------- stairs */
   for (const s of STAIRS) buildStair(s);
@@ -240,7 +361,6 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
     const hx = s.axis === 'x' ? L / 2 : width / 2;
     const hz = s.axis === 'x' ? width / 2 : L / 2;
     physics.addBox(cx, cy, cz, hx, 0.1, hz, { kind: 'static', mat: s.exterior ? 'concrete' : 'wood' }, q);
-    // stringers (visual) on interior stairs
     if (!s.exterior) {
       const m = new THREE.Matrix4().compose(new THREE.Vector3(cx, (s.yMin + s.yMax) / 2 - 0.15, cz), q, new THREE.Vector3(1, 1, 1));
       const side = s.axis === 'x' ? new THREE.Vector3(0, 0, width / 2) : new THREE.Vector3(width / 2, 0, 0);
@@ -251,22 +371,28 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
       }
     }
   }
-  // stair-well guard rails (movement clip only: bullets & sight pass)
-  const rail = (x0: number, z0: number, x1: number, z1: number, y: number) => {
-    trim.box([x0, y + 0.85, z0], [x1, y + 0.92, z1], PAL.woodDark);
-    for (let k = 0; k <= 4; k++) {
-      const px = x0 + ((x1 - x0) * k) / 4;
-      const pz = z0 + ((z1 - z0) * k) / 4;
-      trim.box([px - 0.025, y, pz - 0.025], [px + 0.025, y + 0.88, pz + 0.025], PAL.woodDark);
+  // banisters: turned balusters stop bodies but let sight & bullets through (spec: lobby stair rail = semi-transparent)
+  const rail = (x0: number, z0: number, x1: number, z1: number, y: number, h = 0.95) => {
+    trim.box([x0, y + h - 0.07, z0], [x1, y + h, z1], PAL.woodDark);
+    const L = Math.hypot(x1 - x0, z1 - z0);
+    const n = Math.max(2, Math.round(L / 0.16));
+    for (let k = 0; k <= n; k++) {
+      const px = x0 + ((x1 - x0) * k) / n;
+      const pz = z0 + ((z1 - z0) * k) / n;
+      trim.box([px - 0.022, y, pz - 0.022], [px + 0.022, y + h - 0.05, pz + 0.022], PAL.woodDark);
     }
-    physics.addBox((x0 + x1) / 2, y + 0.46, (z0 + z1) / 2, Math.max(0.03, (x1 - x0) / 2), 0.46, Math.max(0.03, (z1 - z0) / 2), { kind: 'static', mat: 'wood' }, undefined, G_CLIP);
+    clip([x0 - 0.03, y, z0 - 0.03], [x1 + 0.03, y + h, z1 + 0.03]);
   };
-  rail(-7.6, -3.3, -4.0, -3.25, 0); // living stairs (north side)
-  rail(-7.65, -3.3, -7.6, -2.1, 0); // living stairs (west end)
-  rail(4.0, -2.5, 4.05, 1.5, 0); // kitchen stairs east side
-  rail(2.75, -2.55, 4.05, -2.5, 0); // kitchen stairs north end
-  rail(-2.5, -0.5, 1.5, -0.45, 3); // main stairs south side (2F)
-  rail(-2.55, -1.75, -2.5, -0.45, 3); // main stairs west end (2F)
+  // main stairs (2F gallery around the well)
+  rail(1.4, -4.9, 4.2, -4.88, 3.5);
+  rail(1.4, -4.9, 1.42, -1.2, 3.5);
+  rail(2.8, -1.22, 4.2, -1.2, 3.5);
+  rail(2.79, -3.95, 2.81, -1.2, 0); // between the two flights (1F)
+  clip([1.42, 0, -3.95], [2.78, 1.6, -1.2]); // nobody walks under the upper flight
+  rail(1.4, -4.85, 1.42, -1.2, 0, 1.0); // lobby side
+  // side stairs well (1F)
+  rail(-8.4, 2.05, -3.75, 2.07, 0);
+  rail(-8.42, 0.85, -8.4, 2.05, 0);
 
   /* ------------------------------------------------------------- props */
   const propBatch = new BoxBatch();
@@ -280,13 +406,17 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
     const B = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, col = c) => propBatch.box([p.x + x0, fy + y0, p.z + z0], [p.x + x1, fy + y1, p.z + z1], col);
     const hx = sx / 2, hz = sz / 2;
     switch (p.style) {
-      case 'sofa':
-        B(-hx, 0.1, -hz, hx, 0.45, hz); B(-hx, 0.45, hz - 0.22, hx, sy, hz, dark); B(-hx, 0.45, -hz, -hx + 0.2, 0.65, hz, dark); B(hx - 0.2, 0.45, -hz, hx, 0.65, hz, dark);
-        B(-hx + 0.25, 0.45, -hz + 0.05, -0.02, 0.58, hz - 0.22, light); B(0.02, 0.45, -hz + 0.05, hx - 0.25, 0.58, hz - 0.22, light);
+      case 'sofa': {
+        const backZ = sz > sx; // long axis along z → back on the x side
+        B(-hx, 0.1, -hz, hx, 0.45, hz);
+        if (backZ) { B(-hx, 0.45, -hz, -hx + 0.22, sy, hz, dark); B(-hx, 0.45, -hz, hx, 0.65, -hz + 0.2, dark); B(-hx, 0.45, hz - 0.2, hx, 0.65, hz, dark); }
+        else { B(-hx, 0.45, hz - 0.22, hx, sy, hz, dark); B(-hx, 0.45, -hz, -hx + 0.2, 0.65, hz, dark); B(hx - 0.2, 0.45, -hz, hx, 0.65, hz, dark); }
+        B(-hx + 0.22, 0.45, -hz + 0.2, hx - 0.22, 0.58, hz - 0.22, light);
         break;
+      }
       case 'bed':
         B(-hx, 0.0, -hz, hx, 0.3, hz, new THREE.Color('#4f3a26')); B(-hx + 0.05, 0.3, -hz + 0.05, hx - 0.05, sy, hz - 0.05, light);
-        B(-hx, 0, -hz, -hx + 0.08, 1.0, hz, new THREE.Color('#4f3a26')); B(-hx + 0.1, sy, -hz + 0.15, -hx + 0.5, sy + 0.12, hz - 0.15, new THREE.Color('#e8e4da'));
+        B(-hx, 0, -hz, hx, 1.05, -hz + 0.08, new THREE.Color('#4f3a26')); B(-hx + 0.15, sy, -hz + 0.1, hx - 0.15, sy + 0.12, -hz + 0.5, new THREE.Color('#e8e4da'));
         break;
       case 'table': case 'desk':
         B(-hx, sy - 0.05, -hz, hx, sy, hz);
@@ -326,19 +456,23 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
         break;
       case 'shower':
         B(-hx, 0, -hz, hx, 0.12, hz, light);
-        B(-hx, 0, hz - 0.08, hx, 1.25, hz, c); B(hx - 0.08, 0, -hz, hx, 1.25, hz, c);
-        trim.box([p.x - hx, fy + 1.25, p.z + hz - 0.02], [p.x + hx, fy + sy, p.z + hz], new THREE.Color('#bcd6dd'));
-        trim.box([p.x + hx - 0.02, fy + 1.25, p.z - hz], [p.x + hx, fy + sy, p.z + hz], new THREE.Color('#bcd6dd'));
-        break;
+        B(-hx, 0, -hz, hx, sy, -hz + 0.1, c); B(-hx, 0, -hz, -hx + 0.1, sy, hz, c); B(hx - 0.1, 0, -hz, hx, sy, hz, c);
+        trim.box([p.x - hx + 0.1, fy + 1.0, p.z + hz - 0.02], [p.x + hx - 0.1, fy + sy, p.z + hz], new THREE.Color('#bcd6dd'));
+        // the booth partitions are bulletproof: three solid colliders, open front
+        physics.addBox(p.x, fy + sy / 2, p.z - hz + 0.05, hx, sy / 2, 0.05, { kind: 'static', mat: 'concrete' });
+        physics.addBox(p.x - hx + 0.05, fy + sy / 2, p.z, 0.05, sy / 2, hz, { kind: 'static', mat: 'concrete' });
+        physics.addBox(p.x + hx - 0.05, fy + sy / 2, p.z, 0.05, sy / 2, hz, { kind: 'static', mat: 'concrete' });
+        return;
       case 'tub':
         B(-hx, 0, -hz, hx, sy, hz, c); B(-hx + 0.08, 0.2, -hz + 0.08, hx - 0.08, sy + 0.001, hz - 0.08, new THREE.Color('#bcd6dd'));
         break;
       case 'bunk':
         for (const [lx, lz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) B(lx * hx - 0.04, 0, lz * hz - 0.04, lx * hx + 0.04, sy, lz * hz + 0.04, dark);
-        B(-hx, 0.25, -hz, hx, 0.45, hz, new THREE.Color('#d8d2c2')); B(-hx, 1.1, -hz, hx, 1.3, hz, new THREE.Color('#c25b4a'));
+        B(-hx, 0.25, -hz, hx, 0.45, hz, new THREE.Color('#d8d2c2'));
+        for (let k = 0; k <= 8; k++) { const x = -hx + (sx * k) / 8; B(x - 0.015, 0.45, -hz, x + 0.015, sy, -hz + 0.03, c); B(x - 0.015, 0.45, hz - 0.03, x + 0.015, sy, hz, c); }
         break;
       case 'bag':
-        B(-hx * 0.8, 0, -hz * 0.8, hx * 0.8, sy, hz * 0.8, c); trim.box([p.x - 0.01, fy + sy, p.z - 0.01], [p.x + 0.01, FLOOR_Y[p.floor] + 2.8, p.z + 0.01], PAL.darkMetal);
+        B(-hx * 0.8, 0, -hz * 0.8, hx * 0.8, sy, hz * 0.8, c); trim.box([p.x - 0.01, fy + sy, p.z - 0.01], [p.x + 0.01, FLOOR_Y[p.floor] + WALL_H, p.z + 0.01], PAL.darkMetal);
         break;
       case 'pillar':
         B(-hx, 0, -hz, hx, sy, hz, c);
@@ -353,12 +487,44 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
       case 'bench':
         B(-hx, sy - 0.08, -hz, hx, sy, hz, c); B(-hx + 0.05, 0, -hz + 0.05, hx - 0.05, sy - 0.08, hz - 0.05, dark);
         break;
+      case 'ammo':
+        B(-hx, 0, -hz, hx, sy, hz, c);
+        B(-hx - 0.01, sy * 0.3, -hz - 0.01, hx + 0.01, sy * 0.36, hz + 0.01, dark);
+        B(-hx * 0.5, sy, -hz * 0.5, hx * 0.5, sy + 0.02, hz * 0.5, new THREE.Color('#d9b23a'));
+        // stencil-ish yellow band so you can spot it across a room
+        B(-hx - 0.012, sy * 0.55, -hz * 0.6, hx + 0.012, sy * 0.75, hz * 0.6, new THREE.Color('#d9b23a'));
+        break;
       default:
         B(-hx, 0, -hz, hx, sy, hz, c);
         if (p.style === 'appliance') B(-hx + 0.05, sy * 0.55, -hz - 0.005, hx - 0.05, sy * 0.58, -hz, dark);
         if (p.style === 'box') B(-hx - 0.005, sy * 0.45, -hz - 0.005, hx + 0.005, sy * 0.55, hz + 0.005, new THREE.Color('#c8b28a'));
     }
     if (sy > 0.08) physics.addBox(p.x, fy + sy / 2, p.z, hx, sy / 2, hz, { kind: 'static', mat: p.mat });
+  }
+
+  /* ------------------------------------------------------------- CCTV cameras */
+  for (const cdef of CCTVS) {
+    const g = new BoxBatch();
+    const body = new THREE.Color('#d9d9d4');
+    g.box([-0.07, -0.07, -0.18], [0.07, 0.07, 0.12], body);
+    g.box([-0.05, -0.05, -0.2], [0.05, 0.05, -0.18], new THREE.Color('#111'));
+    g.box([-0.02, 0.07, -0.02], [0.02, 0.2, 0.02], PAL.darkMetal);
+    const mesh = new THREE.Mesh(g.build(), vcMaterial());
+    const pos = new THREE.Vector3(...cdef.pos);
+    mesh.position.copy(pos);
+    mesh.rotation.y = cdef.yaw;
+    mesh.rotation.x = -0.35;
+    mesh.castShadow = true;
+    scene.add(mesh);
+    const led = new THREE.Mesh(new THREE.SphereGeometry(0.012, 6, 4), new THREE.MeshBasicMaterial({ color: '#ff2a2a', toneMapped: false }));
+    led.position.set(0.04, 0.03, -0.19);
+    mesh.add(led);
+    if (cdef.exterior) {
+      // pole
+      addStatic([pos.x - 0.07, GROUND_Y, pos.z - 0.07], [pos.x + 0.07, pos.y + 0.2, pos.z + 0.07], PAL.darkMetal, 'metal', true);
+    }
+    const collider = physics.addBox(pos.x, pos.y, pos.z, 0.09, 0.09, 0.16, { kind: 'gadget', gadgetId: `cctv:${cdef.id}` });
+    cameras.push({ id: cdef.id, label: cdef.label, pos, yaw: cdef.yaw, exterior: cdef.exterior, mesh, alive: true, collider });
   }
 
   /* ------------------------------------------------------------- lamps (night) */
@@ -382,5 +548,5 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
   propMesh.name = 'house_props';
   scene.add(statMesh, trimMesh, propMesh, destruction.group);
 
-  return { openings, stairs: STAIRS, lamps, props: PROPS, wallPanels, roomAt, locationName, floorOf };
+  return { openings, stairs: STAIRS, lamps, props: PROPS, wallPanels, cameras, roomAt, locationName, floorOf };
 }

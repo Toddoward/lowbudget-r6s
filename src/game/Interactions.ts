@@ -35,13 +35,14 @@ export class Interactions {
     let best: Opening | null = null;
     let bestD = maxDist;
     for (const op of this.world.house.openings) {
+      if (op.kind === 'vent') continue;
       const c = op.center;
       if (Math.abs(c.y - eye.y) > op.h / 2 + 1.2) continue;
       // distance to opening plane & lateral offset
-      const n = op.run === 'x' ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0);
+      const n = op.normal;
       const toC = c.clone().sub(eye);
       const plane = Math.abs(toC.dot(n));
-      const lat = Math.abs(op.run === 'x' ? toC.x : toC.z);
+      const lat = Math.abs(toC.x * n.z - toC.z * n.x);
       if (lat > op.w / 2 + 0.25 || plane > bestD) continue;
       const flat = toC.clone().setY(0);
       if (flat.lengthSq() > 0.01 && flat.normalize().dot(fwd) < 0.35) continue;
@@ -66,24 +67,26 @@ export class Interactions {
     const op = this.openingInFront(s);
     if (op) {
       if (op.barricadePanel === null && op.barricadeable && defender && s.op.universal === 'barricade' && this.world.phase !== 'over') {
-        return { key: `bar${op.id}`, label: `Hold [F] Barricade ${op.kind === 'window' ? 'window' : 'door'}`, hold: 1.4, run: () => this.placeBarricade(op, 'wood', true) };
-      }
-      if (op.barricadePanel === null && (op.kind === 'window' || op.kind === 'open_window') && s.pos.y > op.floorY - 0.6) {
-        return { key: `vault${op.id}`, label: '[F]/[Space] Vault', hold: 0, run: () => this.vault(s, op) };
+        const what = op.kind === 'window' || op.kind === 'french' ? 'action.barricadeWindow' : 'action.barricadeDoor';
+        return { key: `bar${op.id}`, label: what, hold: 1.4, run: () => this.placeBarricade(op, 'wood', true) };
       }
     }
     if (defender && s.reinforcementsLeft > 0) {
       const ph = this.panelInFront(s);
-      if (ph && ph.panel.reinforceable && !ph.panel.reinforced && ph.panel.brokenCount === 0) {
-        return { key: `rf${ph.panel.id}`, label: `Hold [F] Reinforce (${s.reinforcementsLeft} left)`, hold: 2.5, run: () => this.reinforce(s, ph.panel, true) };
+      // spec #15: shot-up / breached soft walls can still be reinforced; a section Thermite burnt through cannot
+      if (ph && ph.panel.reinforceable && !ph.panel.reinforced && !ph.panel.thermited) {
+        return { key: `rf${ph.panel.id}`, label: `action.reinforce|${s.reinforcementsLeft}`, hold: 2.5, run: () => this.reinforce(s, ph.panel, true) };
       }
     }
+    // generic vault / climb (any obstacle under the height limit: sills, breached wall lips, rails, counters)
+    const v = s.probeVault();
+    if (v) return { key: 'vault', label: v.over ? 'action.vault' : 'action.climb', hold: 0, run: () => s.tryVault() };
     if (s.side === 'attack') {
       // throttled dry-run of the rope hook so the HUD can offer "[F] Rappel"
       const h = this.rappelHint.get(s.id);
       let ok = h?.ok ?? false;
       if (!h || this.world.time - h.t > 0.3) { ok = s.startRappel(true); this.rappelHint.set(s.id, { t: this.world.time, ok }); }
-      return { key: 'rappel', label: ok ? '[F] Rappel' : '', hold: 0, run: () => s.startRappel() };
+      return { key: 'rappel', label: ok ? 'action.rappel' : '', hold: 0, run: () => s.startRappel() };
     }
     return null;
   }
@@ -91,7 +94,7 @@ export class Interactions {
   update(s: Soldier, dt: number, inp: SoldierInput) {
     const c = this.candidate(s);
     const st = this.held.get(s.id);
-    s.interactLabel = c?.label ?? (s.mode === 'rappel' ? '[W/S] climb · [A/D] traverse · [C] invert · [F] breach & swing · [Space] detach' : '');
+    s.interactLabel = c?.label ?? (s.mode === 'rappel' ? 'action.rappelHelp' : '');
     if (!c) { this.held.delete(s.id); s.interactProgress = 0; return; }
     if (c.hold === 0) {
       s.interactProgress = 0;
@@ -121,7 +124,9 @@ export class Interactions {
     op.barricadeGen++;
     const id = BARRICADE_BASE + op.id * 64 + (op.barricadeGen % 64);
     const t = kind === 'castle' ? 0.1 : 0.05;
-    const hw = op.w / 2, y0 = op.center.y - op.h / 2, y1 = op.center.y + op.h / 2;
+    if (op.run === 'd') return;
+    // door barricades keep an 18–20 cm gap at the bottom (drones roll under, prone players see feet)
+    const hw = op.w / 2, y0 = op.center.y - op.h / 2 + (kind === 'wood' ? op.gap : 0), y1 = op.center.y + op.h / 2;
     const min: [number, number, number] = op.run === 'x' ? [op.center.x - hw, y0, op.c - t / 2] : [op.c - t / 2, y0, op.center.z - hw];
     const max: [number, number, number] = op.run === 'x' ? [op.center.x + hw, y1, op.c + t / 2] : [op.c + t / 2, y1, op.center.z + hw];
     d.add({ kind: kind === 'castle' ? 'castle' : 'barricade', min, max, nAx: op.run === 'x' ? 2 : 0, label: `${op.label} ${kind === 'castle' ? 'Armor Panel' : 'Barricade'}`, openingId: op.id, exterior: op.exterior, rooms: op.rooms }, id);
@@ -150,7 +155,9 @@ export class Interactions {
   }
 
   reinforce(s: Soldier | null, panel: Panel, broadcast: boolean) {
-    if (panel.reinforced) return;
+    if (panel.reinforced || panel.thermited) return;
+    // the steel plate covers whatever was shot out of the plaster
+    if (panel.brokenCount > 0) panel.resetSkin();
     panel.reinforced = true;
     panel.dirty = true;
     if (s) s.reinforcementsLeft--;
@@ -158,35 +165,7 @@ export class Interactions {
     if (broadcast) this.world.emit({ t: 'reinforce', panel: panel.id, by: s?.id ?? '' });
   }
 
-  /* ------------------------------------------------------------- vault / swing */
-  tryVault(s: Soldier): boolean {
-    const op = this.openingInFront(s, 1.2);
-    if (!op || op.barricadePanel !== null || !(op.kind === 'window' || op.kind === 'open_window' || op.kind === 'door' || op.kind === 'exterior_door')) return false;
-    if (op.kind === 'door' || op.kind === 'exterior_door') return false;
-    return this.vault(s, op);
-  }
-
-  private otherSide(s: Soldier, op: Opening, depth: number): { n: THREE.Vector3; target: THREE.Vector3 } {
-    const n = op.run === 'x' ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0);
-    const side = Math.sign(s.pos.clone().sub(op.center).dot(n)) || 1;
-    const across = n.clone().multiplyScalar(-side);
-    const target = op.center.clone().addScaledVector(across, depth);
-    // find floor on the far side
-    const fl = this.world.physics.raycast(target.clone().setY(op.center.y + 0.5), new THREE.Vector3(0, -1, 0), 6, G_WORLD);
-    target.y = fl ? fl.point.y : op.floorY;
-    return { n: across, target };
-  }
-
-  vault(s: Soldier, op: Opening): boolean {
-    if (op.barricadePanel !== null) return false;
-    const { target } = this.otherSide(s, op, 0.75);
-    const sill = op.center.y - op.h / 2;
-    const mid = op.center.clone().setY(Math.max(sill + 0.1, s.pos.y + 0.3));
-    s.playMove(s.pos, mid, target, 0.6, Stance.Crouch);
-    this.world.sound({ type: 'footstep', pos: s.pos.clone(), radius: 10, source: s.id, intensity: 0.6, label: 'vault' });
-    return true;
-  }
-
+  /* ------------------------------------------------------------- swing */
   /** Rappel Breach & Swing: kick through the window in front, smashing a wooden barricade. */
   trySwing(s: Soldier): boolean {
     if (!s.rappel) return false;
@@ -195,13 +174,13 @@ export class Interactions {
     let best: Opening | null = null;
     let bestD = 1.4;
     for (const op of this.world.house.openings) {
-      if (!op.exterior || !(op.kind === 'window' || op.kind === 'open_window')) continue;
+      if (!op.exterior || !(op.kind === 'window' || op.kind === 'open_window' || op.kind === 'french')) continue;
       const toC = op.center.clone().sub(eye);
-      const lat = Math.abs(op.run === 'x' ? toC.x : toC.z);
+      const lat = Math.abs(toC.x * op.normal.z - toC.z * op.normal.x);
       if (lat > op.w / 2 + 0.35) continue;
       const vert = s.pos.y - (op.center.y - op.h / 2);
       if (vert < -1.3 || vert > 0.6) continue;
-      const plane = Math.abs(op.run === 'x' ? toC.z : toC.x);
+      const plane = Math.abs(toC.dot(op.normal));
       if (plane < bestD) { best = op; bestD = plane; }
     }
     if (!best || best.barricadeKind === 'castle') return false;

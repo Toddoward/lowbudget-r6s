@@ -14,82 +14,120 @@ export interface PropDef {
   mat: SurfaceMaterial;
   color: string;
   /** visual-only detail style */
-  style?: 'sofa' | 'bed' | 'table' | 'shelf' | 'car' | 'boat' | 'counter' | 'appliance' | 'shower' | 'tub' | 'bunk' | 'box' | 'bag' | 'pillar' | 'cylinder' | 'chair' | 'bench' | 'rack' | 'desk';
+  style?: 'ammo' | 'sofa' | 'bed' | 'table' | 'shelf' | 'car' | 'boat' | 'counter' | 'appliance' | 'shower' | 'tub' | 'bunk' | 'box' | 'bag' | 'pillar' | 'cylinder' | 'chair' | 'bench' | 'rack' | 'desk';
   /** raise off the floor (e.g. punching bag) */
   lift?: number;
+  /** rotate 90° (swap x/z footprint is done by the author; this flags visual orientation) */
 }
 
 const P = (type: string, floor: -1 | 0 | 1, x: number, z: number, size: [number, number, number], mat: SurfaceMaterial, color: string, style?: PropDef['style'], lift?: number): PropDef =>
   ({ type, floor, x, z, size, mat, color, style, lift });
 
 export const PROPS: PropDef[] = [
-  // ---------------- Basement
-  P('Shelves', -1, -7.0, -6.6, [1.5, 2.0, 0.55], 'wood', '#6d5a40', 'shelf'),
-  P('Shelves', -1, -3.9, -6.6, [1.4, 2.0, 0.55], 'wood', '#6d5a40', 'shelf'),
-  P('Boxes', -1, -4.2, -5.0, [0.8, 0.8, 0.8], 'wood', '#9b7f57', 'box'),
-  P('Boxes', -1, -7.3, -4.75, [0.9, 0.6, 0.6], 'wood', '#9b7f57', 'box'),
-  P('Washer', -1, -7.5, 0.5, [0.7, 0.9, 0.7], 'metal', '#d9d9d4', 'appliance'),
-  P('Dryer', -1, -7.5, 1.3, [0.7, 0.9, 0.7], 'metal', '#d9d9d4', 'appliance'),
-  P('Laundry Table', -1, -5.5, 5.6, [1.6, 0.85, 0.8], 'wood', '#7d6a50', 'table'),
-  P('Water Heater', -1, -7.4, 6.4, [0.7, 1.6, 0.7], 'metal', '#b9b9b0', 'cylinder'),
-  P('Sink', -1, -7.55, -1.2, [0.6, 0.9, 0.6], 'metal', '#c9c9c4', 'appliance'),
-  P('Shelves', -1, -3.4, 6.4, [0.5, 1.8, 1.0], 'wood', '#6d5a40', 'shelf'),
-  P('Punching Bag', -1, 1.5, -6.0, [0.5, 1.2, 0.5], 'fabric', '#7a2020', 'bag', 0.8),
-  P('Treadmill', -1, -2.3, -6.1, [0.8, 1.2, 1.8], 'metal', '#2a2a2a', 'appliance'),
-  P('Weight Rack', -1, 2.0, -1.0, [0.6, 1.2, 1.5], 'metal', '#333', 'rack'),
-  P('Bench', -1, -1.8, -2.4, [0.5, 0.5, 1.4], 'fabric', '#222', 'bench'),
-  P('Mats', -1, -0.3, -4.0, [2.4, 0.04, 2.4], 'fabric', '#2f4f6f'),
-  P('Shelves', -1, 2.05, 6.4, [0.6, 1.8, 1.0], 'wood', '#6d5a40', 'shelf'),
-  P('Boxes', -1, -2.4, 6.4, [0.7, 0.7, 0.7], 'wood', '#9b7f57', 'box'),
-  P('Sedan', -1, 5.65, -4.4, [1.8, 1.4, 4.4], 'vehicle', '#5a6b7c', 'car'),
-  P('Boat', -1, 5.75, 4.3, [1.9, 1.3, 4.6], 'vehicle', '#d8d4c8', 'boat'),
-  P('Pillar', -1, 6.0, 0.0, [0.8, 2.8, 0.8], 'concrete', '#8f8c86', 'pillar'),
-  P('Workbench', -1, 2.9, -5.5, [0.6, 0.9, 2.0], 'wood', '#6d5a40', 'counter'),
-  P('Tool Shelf', -1, 7.6, 0.0, [0.5, 1.8, 1.6], 'metal', '#4b4f55', 'shelf'),
-  // ---------------- 1F
-  P('Sofa', 0, -5.5, -6.3, [2.2, 0.8, 0.9], 'fabric', '#5b4a3f', 'sofa'),
-  P('Coffee Table', 0, -5.5, -5.2, [1.2, 0.45, 0.6], 'wood', '#5e4128', 'table'),
-  P('TV Stand', 0, -5.5, -3.95, [1.6, 0.6, 0.45], 'wood', '#2e2b28', 'counter'),
-  P('Armchair', 0, -7.4, -5.2, [0.8, 0.85, 0.8], 'fabric', '#6b5444', 'chair'),
-  P('Bookcase', 0, -3.35, -4.2, [0.4, 1.8, 0.9], 'wood', '#4f3a26', 'shelf'),
-  P('Shoe Cabinet', 0, -7.7, 1.5, [0.4, 1.0, 0.8], 'wood', '#5e4128', 'counter'),
-  P('Bench', 0, -6.0, 1.75, [1.2, 0.45, 0.4], 'wood', '#5e4128', 'bench'),
-  P('Desk', 0, -4.6, 6.25, [1.6, 0.75, 0.8], 'wood', '#5e4128', 'desk'),
-  P('Office Chair', 0, -4.6, 5.45, [0.55, 0.9, 0.55], 'fabric', '#222', 'chair'),
-  P('Bookshelf', 0, -7.7, 4.5, [0.4, 1.9, 0.8], 'wood', '#4f3a26', 'shelf'),
-  P('Filing Cabinet', 0, -3.35, 3.2, [0.5, 1.3, 0.6], 'metal', '#5b6067', 'appliance'),
-  P('Dining Table', 0, -0.25, -4.5, [2.6, 0.75, 1.1], 'wood', '#6b4a2b', 'table'),
-  P('Chair', 0, -1.2, -5.35, [0.45, 0.95, 0.45], 'wood', '#5e4128', 'chair'),
-  P('Chair', 0, 0.7, -5.35, [0.45, 0.95, 0.45], 'wood', '#5e4128', 'chair'),
-  P('Chair', 0, -1.2, -3.65, [0.45, 0.95, 0.45], 'wood', '#5e4128', 'chair'),
-  P('Chair', 0, 0.7, -3.65, [0.45, 0.95, 0.45], 'wood', '#5e4128', 'chair'),
-  P('China Cabinet', 0, -2.7, -2.9, [0.5, 1.9, 1.2], 'wood', '#4f3a26', 'shelf'),
-  P('Console', 0, -2.2, 1.75, [1.0, 0.8, 0.4], 'wood', '#5e4128', 'counter'),
-  P('Counter', 0, 5.25, -6.6, [3.9, 0.92, 0.7], 'concrete', '#d6d0c4', 'counter'),
-  P('Fridge', 0, 7.6, -6.5, [0.7, 1.9, 0.7], 'metal', '#e1e1dc', 'appliance'),
-  P('Stove', 0, 2.95, -6.2, [0.7, 0.92, 0.7], 'metal', '#2a2a2a', 'appliance'),
-  P('Kitchen Island', 0, 5.5, -3.5, [2.2, 0.95, 1.0], 'concrete', '#d6d0c4', 'counter'),
-  P('Bench', 0, -2.6, 6.0, [0.45, 0.45, 1.2], 'wood', '#5e4128', 'bench'),
-  P('Shelves', 0, 2.1, 6.4, [0.6, 1.8, 1.0], 'wood', '#6d5a40', 'shelf'),
-  P('Pantry Shelves', 0, 3.3, 6.65, [1.4, 1.9, 0.5], 'wood', '#6d5a40', 'shelf'),
-  P('Pantry Shelves', 0, 7.2, 6.65, [1.4, 1.9, 0.5], 'wood', '#6d5a40', 'shelf'),
-  P('Freezer', 0, 7.5, 3.35, [0.8, 0.9, 1.2], 'metal', '#e1e1dc', 'appliance'),
-  // ---------------- 2F
-  P('Shower Stall', 1, -7.25, -6.25, [1.3, 2.1, 1.3], 'concrete', '#c9d6d8', 'shower'),
-  P('Bathtub', 1, -4.2, -6.45, [1.6, 0.6, 0.8], 'concrete', '#e8e8e2', 'tub'),
-  P('Vanity', 1, -7.65, -3.0, [0.6, 0.9, 1.2], 'wood', '#e0dccf', 'counter'),
-  P('Toilet', 1, -3.4, -4.0, [0.5, 0.8, 0.65], 'concrete', '#f0f0ea', 'appliance'),
-  P('Bed', 1, -2.0, -3.5, [2.0, 0.6, 1.6], 'fabric', '#7c7a8a', 'bed'),
-  P('Nightstand', 1, -2.6, -2.35, [0.45, 0.55, 0.45], 'wood', '#5e4128', 'counter'),
-  P('Dresser', 1, 2.12, -3.5, [0.45, 1.1, 1.4], 'wood', '#4f3a26', 'counter'),
-  P('Armchair', 1, 1.8, -6.4, [0.8, 0.85, 0.8], 'fabric', '#6b5444', 'chair'),
-  P('Clothes Rack', 1, -2.0, -6.7, [1.8, 1.7, 0.4], 'fabric', '#5b5f6a', 'rack'),
-  P('Workbench', 1, 5.25, -6.5, [2.4, 0.9, 0.8], 'wood', '#6d5a40', 'counter'),
-  P('Tool Cabinet', 1, 7.65, -2.6, [0.5, 1.8, 1.0], 'metal', '#8a2b2b', 'appliance'),
-  P('Sawhorse', 1, 4.0, -4.0, [1.6, 0.8, 0.5], 'wood', '#9b7f57', 'table'),
-  P('Boxes', 1, 7.3, -6.4, [0.8, 0.8, 0.8], 'wood', '#9b7f57', 'box'),
-  P('Console', 1, 6.5, 1.75, [1.0, 0.8, 0.4], 'wood', '#5e4128', 'counter'),
-  P('Bunk Bed', 1, -3.5, 5.75, [0.9, 1.6, 2.0], 'wood', '#3f6a8a', 'bunk'),
-  P('Toy Chest', 1, -7.6, 2.55, [0.6, 0.5, 0.8], 'wood', '#b04a3a', 'box'),
-  P('Kids Desk', 1, -5.5, 6.6, [1.2, 0.75, 0.6], 'wood', '#d0a060', 'desk'),
+  // ---------------- Basement: Storage (metal shelving blocks the view from the outside door)
+  P('Metal Shelves', -1, -6.1, -7.05, [1.6, 2.0, 0.5], 'metal', '#7d8186', 'rack'),
+  P('Metal Shelves', -1, -2.6, -7.05, [1.6, 2.0, 0.5], 'metal', '#7d8186', 'rack'),
+  P('Metal Shelves', -1, -5.0, -5.9, [0.5, 2.0, 1.5], 'metal', '#7d8186', 'rack'),
+  P('Metal Shelves', -1, -2.05, -5.6, [0.5, 2.0, 1.4], 'metal', '#7d8186', 'rack'),
+  P('Boxes', -1, -3.6, -6.2, [0.8, 0.8, 0.8], 'wood', '#9b7f57', 'box'),
+  P('Boxes', -1, -6.6, -5.3, [0.9, 0.6, 0.6], 'wood', '#9b7f57', 'box'),
+  // Training Room: bench press, punching bags, mats
+  P('Bench Press', -1, -5.6, -3.6, [0.7, 0.55, 1.7], 'metal', '#2c2f33', 'bench'),
+  P('Weight Rack', -1, -0.4, -4.3, [1.4, 1.2, 0.5], 'metal', '#3a3d42', 'rack'),
+  P('Punching Bag', -1, -1.6, -2.1, [0.4, 1.1, 0.4], 'fabric', '#7b2f2b', 'bag', 0.85),
+  P('Punching Bag', -1, -6.6, -1.6, [0.4, 1.1, 0.4], 'fabric', '#7b2f2b', 'bag', 0.85),
+  P('Floor Mat', -1, -4.0, -1.9, [2.4, 0.04, 1.6], 'fabric', '#2f4f6a'),
+  P('Treadmill', -1, -7.1, -4.0, [0.8, 1.2, 1.8], 'metal', '#2c2f33', 'appliance'),
+  // Garage: black sedan + white boat on a trailer (the two big hard covers)
+  P('Sedan', -1, 3.9, -2.75, [1.9, 1.45, 4.6], 'vehicle', '#141619', 'car'),
+  P('Boat on Trailer', -1, 5.7, 2.1, [2.1, 1.7, 5.0], 'vehicle', '#e7e3d8', 'boat'),
+  P('Shelves', -1, 1.4, -4.4, [1.6, 2.0, 0.5], 'metal', '#7d8186', 'rack'),
+  P('Workbench', -1, 3.0, 4.35, [2.0, 0.9, 0.7], 'wood', '#6b4f33', 'desk'),
+  P('Oil Drums', -1, 8.9, -0.0, [0.6, 0.9, 0.6], 'metal', '#3e5a7a', 'cylinder'),
+  // Laundry Room: washer, dryer, folding table, shelf
+  P('Washer', -1, -3.05, 1.2, [0.65, 0.9, 0.65], 'metal', '#e8e8e4', 'appliance'),
+  P('Dryer', -1, -3.05, 1.95, [0.65, 0.9, 0.65], 'metal', '#dcdcd6', 'appliance'),
+  P('Folding Table', -1, 0.3, 2.45, [1.6, 0.9, 0.9], 'wood', '#8a7350', 'table'),
+  P('Laundry Shelf', -1, 1.5, 3.25, [0.5, 1.8, 0.8], 'wood', '#6d5a40', 'shelf'),
+  P('Laundry Basket', -1, -1.0, 3.3, [0.6, 0.45, 0.45], 'fabric', '#b9b2a4', 'box'),
+  // Side Stairs: ammo crate under the stairs
+  P('Ammo Crate', -1, -7.8, 3.15, [0.75, 0.45, 0.45], 'wood', '#4b5a37', 'ammo'),
+  P('Boxes', -1, -4.4, 3.2, [0.7, 0.7, 0.7], 'wood', '#9b7f57', 'box'),
+  // Back Hallway
+  P('Water Heater', -1, 1.4, 6.0, [0.55, 1.7, 0.55], 'metal', '#c9c6bd', 'cylinder'),
+  P('Boxes', -1, -4.8, 6.0, [0.9, 0.7, 0.7], 'wood', '#9b7f57', 'box'),
+  P('Bike', -1, -2.6, 6.1, [1.6, 0.9, 0.3], 'metal', '#8a2d2d'),
+
+  // ---------------- 1F: Living Room (L-sofa, coffee table, TV stand)
+  P('Sofa', 0, -5.4, -1.2, [2.6, 0.85, 0.95], 'fabric', '#5a6a7a', 'sofa'),
+  P('Sofa', 0, -6.95, -2.05, [0.95, 0.85, 1.9], 'fabric', '#5a6a7a', 'sofa'),
+  P('Coffee Table', 0, -5.2, -2.45, [1.2, 0.45, 0.65], 'wood', '#5a4330', 'table'),
+  P('TV Stand', 0, -5.1, -5.0, [2.0, 0.55, 0.45], 'wood', '#3a2c20', 'counter'),
+  P('TV', 0, -5.1, -5.05, [1.4, 0.8, 0.08], 'metal', '#111214', undefined, 0.55),
+  P('Armchair', 0, -2.6, -6.4, [0.9, 0.9, 0.9], 'fabric', '#7a5a45', 'chair'),
+  P('Bookshelf', 0, -6.95, -6.4, [0.4, 2.0, 1.4], 'wood', '#5a4330', 'shelf'),
+  // Lobby
+  P('Console Table', 0, -1.3, -3.2, [0.4, 0.85, 1.2], 'wood', '#4f3a26', 'table'),
+  P('Coat Rack', 0, -1.4, -4.5, [0.4, 1.8, 0.4], 'wood', '#3a2c20', 'pillar'),
+  // Office (desk + bookcases)
+  P('Desk', 0, 6.1, -3.1, [1.7, 0.76, 0.85], 'wood', '#5a4330', 'desk'),
+  P('Office Chair', 0, 6.1, -2.4, [0.6, 1.0, 0.6], 'fabric', '#1f2124', 'chair'),
+  P('Bookcase', 0, 4.65, -3.6, [0.45, 2.1, 1.6], 'wood', '#4f3a26', 'shelf'),
+  P('Bookcase', 0, 7.0, -1.0, [1.6, 2.1, 0.45], 'wood', '#4f3a26', 'shelf'),
+  P('Filing Cabinet', 0, 7.7, -2.0, [0.5, 1.3, 0.6], 'metal', '#6b6f75', 'appliance'),
+  // Dining Room: six-seat table + ammo crate
+  P('Dining Table', 0, 6.9, 2.2, [2.3, 0.78, 1.15], 'wood', '#6b4a2b', 'table'),
+  ...[5.95, 6.9, 7.85].flatMap((x) => [
+    P('Chair', 0, x, 1.25, [0.48, 0.95, 0.48], 'wood', '#4f3a26', 'chair'),
+    P('Chair', 0, x, 3.15, [0.48, 0.95, 0.48], 'wood', '#4f3a26', 'chair'),
+  ]),
+  P('Sideboard', 0, 5.4, 4.5, [1.8, 0.9, 0.5], 'wood', '#4f3a26', 'counter'),
+  P('Ammo Crate', 0, 9.2, 4.3, [0.75, 0.45, 0.45], 'wood', '#4b5a37', 'ammo'),
+  // Kitchen: island, fridge, counters, sink
+  P('Kitchen Island', 0, 0.6, 2.6, [2.2, 0.92, 1.0], 'concrete', '#d9d4c8', 'counter'),
+  P('Fridge', 0, -2.7, 4.4, [0.8, 1.9, 0.7], 'metal', '#c9cbcd', 'appliance'),
+  P('Counter', 0, 1.7, 4.5, [3.4, 0.92, 0.6], 'concrete', '#d9d4c8', 'counter'),
+  P('Counter', 0, -1.2, 4.5, [1.4, 0.92, 0.6], 'concrete', '#d9d4c8', 'counter'),
+  P('Stove', 0, 3.75, 4.5, [0.75, 0.92, 0.6], 'metal', '#2c2f33', 'appliance'),
+  // Back Entrance
+  P('Shoe Bench', 0, -6.0, 4.4, [1.2, 0.5, 0.4], 'wood', '#5a4330', 'bench'),
+  P('Umbrella Stand', 0, -3.6, 3.5, [0.3, 0.7, 0.3], 'metal', '#2c2f33', 'cylinder'),
+  // Front porch
+  P('Porch Bench', 0, -1.1, -6.6, [0.5, 0.5, 1.4], 'wood', '#6b4f33', 'bench'),
+  P('Planter', 0, 3.8, -6.7, [0.6, 0.7, 0.6], 'concrete', '#7a6a58', 'box'),
+
+  // ---------------- 2F: Bathroom (shower booth = bulletproof partitions)
+  P('Shower Booth', 1, -2.45, -4.6, [1.25, 2.2, 1.3], 'concrete', '#e8e4da', 'shower'),
+  P('Bathtub', 1, -6.4, -6.95, [1.7, 0.6, 0.8], 'concrete', '#efece4', 'tub'),
+  P('Vanity Sink', 1, -4.4, -7.1, [1.2, 0.86, 0.5], 'concrete', '#d9d4c8', 'counter'),
+  P('Toilet', 1, -2.3, -7.05, [0.45, 0.75, 0.65], 'concrete', '#f2f0ea', 'appliance'),
+  // West Hall
+  P('Dresser', 1, -7.0, -1.0, [0.5, 1.1, 1.5], 'wood', '#5a4330', 'counter'),
+  P('Bench', 1, -5.2, 1.7, [1.4, 0.45, 0.45], 'wood', '#6b4f33', 'bench'),
+  P('Plant', 1, -7.6, 0.2, [0.45, 1.2, 0.45], 'fabric', '#3f5a2e', 'cylinder'),
+  // Upper Hallway
+  P('Hall Table', 1, -0.8, -5.1, [1.2, 0.8, 0.4], 'wood', '#4f3a26', 'table'),
+  // Workshop: workbench, tool shelves, ammo crate
+  P('Workbench', 1, 6.0, -4.65, [2.2, 0.95, 0.8], 'wood', '#6b4f33', 'desk'),
+  P('Tool Shelf', 1, 7.8, -1.5, [0.5, 1.9, 1.4], 'metal', '#5d6268', 'rack'),
+  P('Table Saw', 1, 6.2, -2.4, [1.1, 0.9, 0.8], 'metal', '#3e5a7a', 'appliance'),
+  P('Ammo Crate', 1, 4.9, -0.95, [0.75, 0.45, 0.45], 'wood', '#4b5a37', 'ammo'),
+  // Master Bedroom: king bed, nightstands, cupboard, ammo crate
+  P('King Bed', 1, 5.6, 3.3, [2.0, 0.62, 2.2], 'fabric', '#c9c2b2', 'bed'),
+  P('Nightstand', 1, 4.25, 4.4, [0.5, 0.55, 0.45], 'wood', '#4f3a26', 'box'),
+  P('Nightstand', 1, 6.95, 4.4, [0.5, 0.55, 0.45], 'wood', '#4f3a26', 'box'),
+  P('Cupboard', 1, 2.6, 1.0, [1.6, 1.15, 0.55], 'wood', '#5a4330', 'counter'),
+  P('Armchair', 1, 9.0, 0.0, [0.9, 0.9, 0.9], 'fabric', '#7a5a45', 'chair'),
+  P('Ammo Crate', 1, 9.2, 4.35, [0.75, 0.45, 0.45], 'wood', '#4b5a37', 'ammo'),
+  // Walk-in Closet
+  P('Clothes Rack', 1, -1.45, 3.5, [0.5, 1.8, 2.0], 'fabric', '#6a5a7a', 'rack'),
+  P('Clothes Rack', 1, 0.3, 4.55, [1.6, 1.8, 0.45], 'fabric', '#7a5a5a', 'rack'),
+  // Kids' Room: crib, toy shelf, small desk
+  P('Crib', 1, -6.4, 4.4, [1.3, 1.0, 0.7], 'wood', '#e0d6c2', 'bunk'),
+  P('Toy Shelf', 1, -2.3, 6.2, [1.2, 1.2, 0.4], 'wood', '#c25b4a', 'shelf'),
+  P('Kids Desk', 1, -4.4, 6.0, [1.0, 0.65, 0.6], 'wood', '#6aa0c8', 'desk'),
+  P('Toy Box', 1, -3.0, 2.8, [0.7, 0.5, 0.5], 'wood', '#d9b23a', 'box'),
 ];
+
+/** ammo crates = resupply points (interact) */
+export const AMMO_CRATES = PROPS.filter((p) => p.style === 'ammo');

@@ -15,7 +15,7 @@ import { ViewModel } from '../render/ViewModel.ts';
 import { Rig } from '../render/Rig.ts';
 import { buildHouse, locationName, type HouseWorld } from '../map/MapBuilder.ts';
 import { buildSuburb, type SuburbWorld } from '../map/Suburb.ts';
-import { ROOMS, SPAWN_ZONES, FLOOR_Y, HATCHES, STAIRS, FLOOR_LABEL } from '../map/houseLayout.ts';
+import { ROOMS, SPAWN_ZONES, FLOOR_Y, HATCHES, STAIRS, FLOOR_LABEL, HOUSE_RECT, ROOF_Y } from '../map/houseLayout.ts';
 import { World } from './World.ts';
 import { Combat } from './Combat.ts';
 import { Interactions } from './Interactions.ts';
@@ -484,7 +484,7 @@ export class Game {
 
   private mapKnowledge() {
     return {
-      axes: '+X East, +Y Up, +Z South (North = -Z). Floors: B y=-3, 1F y=0, 2F y=3, roof y=6.',
+      axes: '+X East, +Y Up, +Z South (North = -Z). Floors: B y=-3.5, 1F y=0, 2F y=3.5, roof y=7. Front door faces North, garage shutters East.',
       rooms: ROOMS.map((r) => ({ id: r.id, name: `${FLOOR_LABEL[r.floor]} ${r.name}`, floor: FLOOR_LABEL[r.floor], floorY: FLOOR_Y[r.floor], rects: r.rects, objectiveSpot: r.spot })),
       stairs: STAIRS.map((s) => ({ id: s.id, label: s.label, rect: s.rect, axis: s.axis, yMin: s.yMin, yMax: s.yMax })),
       hatches: HATCHES,
@@ -748,8 +748,11 @@ export class Game {
     }
     if (this.mode === 'menu') {
       const t = now * 0.00004;
-      this.camera.position.set(Math.sin(t) * 30, 8 + Math.sin(t * 3) * 1.5, Math.cos(t) * 30);
-      this.camera.lookAt(0, 1.5, 0);
+      if (this.freeCam) this.applyFreeCam();
+      else {
+        this.camera.position.set(Math.sin(t) * 30, 8 + Math.sin(t * 3) * 1.5, Math.cos(t) * 30);
+        this.camera.lookAt(0, 1.5, 0);
+      }
       this.effects.update(dt);
       this.lighting.update(dt, this.camera, new THREE.Vector3());
       this.destruction.update();
@@ -896,6 +899,7 @@ export class Game {
       const adsFov = camSoldier.weapon ? camSoldier.weapon.def.adsFov : this.fov;
       this.camera.fov = THREE.MathUtils.lerp(this.fov, Math.min(this.fov, adsFov + 20), camSoldier.ads);
     }
+    if (this.freeCam) { this.applyFreeCam(); camSoldier = null; }
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld();
     this.audio.setListener(this.camera);
@@ -915,7 +919,8 @@ export class Game {
     this.composer.render(dt);
     // view model
     if (camSoldier && camSoldier.alive && !inDrone && camSoldier.mode !== 'swing' && camSoldier.mode !== 'vault') {
-      const inside = Math.abs(this.camera.position.x) < 8 && Math.abs(this.camera.position.z) < 7 && this.camera.position.y < 6;
+      const cp = this.camera.position;
+      const inside = cp.x > HOUSE_RECT.x0 && cp.x < HOUSE_RECT.x1 && cp.z > HOUSE_RECT.z0 && cp.z < HOUSE_RECT.z1 && cp.y < ROOF_Y - 0.2;
       const dim = inside ? (this.lighting.tod === 'day' ? 0.6 : 0.45) : this.lighting.tod === 'day' ? 1 : 0.5;
       const sprint = Math.hypot(camSoldier.vel.x, camSoldier.vel.z) > 4.5;
       this.vm.update(dt, camSoldier, this.lookDelta, this.firedThisFrame && camSoldier === p, sprint, this.camera.aspect, dim);
@@ -925,6 +930,16 @@ export class Game {
       this.renderer.autoClear = true;
     }
     if (p) this.updateHud(dt, camSoldier ?? p, inDrone, spectating);
+  }
+
+  /** QA / screenshot free camera (null in normal play) */
+  freeCam: { p: [number, number, number]; yaw: number; pitch: number; fov?: number } | null = null;
+  private applyFreeCam() {
+    const f = this.freeCam!;
+    this.camera.position.set(...f.p);
+    this.camera.rotation.set(f.pitch, f.yaw, 0, 'YXZ');
+    this.camera.fov = f.fov ?? this.fov;
+    this.camera.updateProjectionMatrix();
   }
 
   private updateHud(dt: number, s: Soldier, inDrone: boolean, spectating: string) {
