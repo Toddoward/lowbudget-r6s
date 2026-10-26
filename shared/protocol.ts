@@ -52,7 +52,7 @@ export interface RoomState {
  * damage is commutative so replaying the log in any order converges.
  */
 export type GameEvent =
-  | { t: 'cells'; panel: number; cells: number[]; dmg: number; src?: string }
+  | { t: 'cells'; panel: number; cells: number[]; dmg: number; src?: string; /** heavy hit: studs / joists go too */ fr?: 1 }
   | { t: 'fire'; actor: string; o: number[]; d: number[]; w: string; sup?: boolean }
   | { t: 'hit'; target: string; attacker: string; dmg: number; head: boolean }
   | { t: 'death'; actor: string; killer: string; head: boolean }
@@ -107,6 +107,8 @@ export interface ActorSnapshot {
   dr?: [number, number, number];
   /** Montagne: shield extended */
   sx?: boolean;
+  /** shield slung on the back */
+  sb?: boolean;
   /** Tachanka: mounted on the LMG */
   mt?: boolean;
 }

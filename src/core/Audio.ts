@@ -91,10 +91,15 @@ export class Audio {
   }
 
   private tone(dest: AudioNode, f0: number, f1: number, dur: number, type: OscillatorType = 'sine', vol = 1) {
+    this.toneAt(dest, 0, f0, f1, dur, type, vol);
+  }
+
+  /** a tone starting `delay` s from now */
+  private toneAt(dest: AudioNode, delay: number, f0: number, f1: number, dur: number, type: OscillatorType = 'sine', vol = 1) {
     const ctx = this.ctx!;
     const o = ctx.createOscillator();
     o.type = type;
-    const t = ctx.currentTime;
+    const t = ctx.currentTime + delay;
     o.frequency.setValueAtTime(f0, t);
     o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
     const env = ctx.createGain();
@@ -167,7 +172,7 @@ export class Audio {
     }
   }
 
-  ui(kind: 'hit' | 'kill' | 'tick' | 'round' | 'ping' | 'click') {
+  ui(kind: 'hit' | 'kill' | 'tick' | 'round' | 'ping' | 'click' | 'plant' | 'alarm' | 'success' | 'info') {
     if (!this.ctx) return;
     const c = this.chain(null, 0.25, new THREE.Vector3());
     if (kind === 'hit') this.tone(c, 1800, 1400, 0.05, 'square', 0.3);
@@ -175,6 +180,11 @@ export class Audio {
     else if (kind === 'tick') this.tone(c, 1000, 1000, 0.04, 'sine', 0.3);
     else if (kind === 'ping') { this.tone(c, 1320, 1320, 0.07, 'sine', 0.35); this.tone(c, 1760, 1760, 0.09, 'sine', 0.25); }
     else if (kind === 'click') this.tone(c, 2200, 1800, 0.02, 'square', 0.15);
+    // round-state callouts: a device arming (rising triple beep), an alarm (two-tone siren), a success chime, a neutral blip
+    else if (kind === 'plant') { for (let i = 0; i < 3; i++) this.toneAt(c, i * 0.14, 900 + i * 300, 900 + i * 300, 0.09, 'square', 0.28); }
+    else if (kind === 'alarm') { for (let i = 0; i < 4; i++) this.toneAt(c, i * 0.18, i % 2 ? 620 : 880, i % 2 ? 620 : 880, 0.16, 'sawtooth', 0.3); }
+    else if (kind === 'success') { this.toneAt(c, 0, 660, 660, 0.12, 'triangle', 0.35); this.toneAt(c, 0.12, 990, 990, 0.2, 'triangle', 0.35); }
+    else if (kind === 'info') this.tone(c, 760, 760, 0.1, 'sine', 0.3);
     else this.tone(c, 300, 600, 0.6, 'triangle', 0.5);
   }
 }

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
-import { G_GADGET, G_WORLD } from '../core/Physics.ts';
+import { G_CLIP, G_GADGET, G_WORLD, groups, type Physics } from '../core/Physics.ts';
 import { buildAsset } from '../assets/build.ts';
 import { chargeSpec, deviceSpec, droneSpec, throwableSpec } from '../assets/weaponModels.ts';
 import { extraGadgetSpec } from '../assets/gadgetModels.ts';
@@ -54,6 +54,18 @@ export interface Gadget {
 
 const THROW_SPEED = 13;
 export const DRONE_R = 0.085;
+/** KCC skin: small enough that the 17 cm ball still rolls under a 19 cm barricade gap */
+const DRONE_SKIN = 0.004;
+
+function makeDroneController(ph: Physics) {
+  const k = ph.world.createCharacterController(DRONE_SKIN);
+  k.enableAutostep(0.05, 0.04, false); // door thresholds, rug edges
+  k.enableSnapToGround(0.12);
+  k.setMaxSlopeClimbAngle((50 * Math.PI) / 180);
+  k.setMinSlopeSlideAngle((55 * Math.PI) / 180);
+  k.setApplyImpulsesToDynamicBodies(false);
+  return k;
+}
 let seq = 0;
 
 export class Gadgets {
@@ -67,6 +79,7 @@ export class Gadgets {
   readonly heartbeats = new Map<string, { dir: THREE.Vector3; dist: number; dy: number }[]>();
   onPlace?: (g: Gadget) => void;
   drones = new Map<string, Gadget>();
+  private droneKcc: RAPIER.KinematicCharacterController | null = null;
 
   constructor(private world: World) {
     world.scene.add(this.group);
@@ -173,11 +186,11 @@ export class Gadgets {
     }
     if (cls === 'active') {
       if (kind === 'shield_ext') {
-        if (pressed) s.shieldExtended = !s.shieldExtended;
+        if (pressed && !s.shieldBack) s.shieldExtended = !s.shieldExtended;
         return '';
       }
       if (kind === 'flash_shield') {
-        if (pressed && left > 0 && s.flashCd <= 0) { spend(); s.flashCd = 1.2; this.blitzFlash(s); }
+        if (pressed && left > 0 && s.flashCd <= 0 && !s.shieldBack) { spend(); s.flashCd = 1.2; this.blitzFlash(s); }
         return left > 0 ? `gadget.fire|${keyAction}|${name}` : 'gadget.none';
       }
       return '';
@@ -287,7 +300,7 @@ export class Gadgets {
   /** blind everyone in the cone that has line of sight (local sim + local player) */
   applyFlash(origin: THREE.Vector3, dir: THREE.Vector3, team: string) {
     for (const a of this.world.soldiers.values()) {
-      if (!a.alive || a.side === team) continue;
+      if (!this.world.targetable(a) || a.side === team) continue;
       const head = a.eye();
       const to = head.clone().sub(origin);
       const d = to.length();
@@ -465,7 +478,7 @@ export class Gadgets {
     const hit = this.world.physics.raycast(o, d, 2.1, G_WORLD | G_GADGET);
     this.world.sound({ type: 'breach', pos: o.clone(), radius: 28, source: s.id, intensity: 0.8, label: 'hammer' });
     for (const a of this.world.actors.values()) {
-      if (a.id === s.id || !a.alive) continue;
+      if (a.id === s.id || !this.world.targetable(a)) continue;
       const head = a.pos.clone().add(new THREE.Vector3(0, 1.0, 0));
       if (head.distanceTo(o) < 1.8 && head.clone().sub(o).normalize().dot(d) > 0.8) this.world.damageActor(a, 100, s.id, false, d);
     }
@@ -547,7 +560,7 @@ export class Gadgets {
     const out: { dir: THREE.Vector3; dist: number; dy: number }[] = [];
     const eye = s.eye();
     for (const a of this.world.actors.values()) {
-      if (!a.alive || a.id === s.id || a.side === s.side) continue;
+      if (!this.world.targetable(a) || a.id === s.id || a.side === s.side) continue;
       const d = a.pos.distanceTo(s.pos);
       if (d > 9) continue;
       const dir = a.pos.clone().add(new THREE.Vector3(0, 1.2, 0)).sub(eye);
@@ -694,7 +707,7 @@ export class Gadgets {
     const L = ab.length();
     ab.normalize();
     for (const actor of this.world.actors.values()) {
-      if (!actor.alive || actor.side === g.team || actor.side === 'hostage') continue;
+      if (!this.world.targetable(actor) || actor.side === g.team || actor.side === 'hostage') continue;
       const feet = actor.pos.clone().setY(a.y);
       const t = THREE.MathUtils.clamp(feet.clone().sub(a).dot(ab), 0, L);
       const closest = a.clone().addScaledVector(ab, t);
@@ -760,25 +773,23 @@ export class Gadgets {
     v.y -= 14 * dt;
     // hop high enough for door thresholds, low props and stair steps (spec #6)
     if (inp.jump && g.data.grounded) v.y = 5.4;
-    // simple sphere-vs-world movement (3 sub-steps along axes)
+    // rolls with a character controller: slides along walls, climbs the sloped stair colliders, snaps down steps
     const ph = this.world.physics;
-    const r = DRONE_R;
-    g.data.grounded = false;
-    for (const ax of ['x', 'z', 'y'] as const) {
-      const d = v[ax] * dt;
-      if (Math.abs(d) < 1e-6) continue;
-      const dir = new THREE.Vector3();
-      dir[ax] = Math.sign(d);
-      const hit = ph.raycast(g.pos, dir, Math.abs(d) + r, G_WORLD | 0x0008, (t) => t?.kind === 'gadget');
-      if (hit) {
-        g.pos[ax] += Math.sign(d) * Math.max(0, hit.dist - r);
-        if (ax === 'y' && d < 0) g.data.grounded = true;
-        v[ax] = 0;
-      } else g.pos[ax] += d;
-    }
+    const kcc = (this.droneKcc ??= makeDroneController(ph));
+    const c = g.collider;
+    if (!c) return;
+    const want = v.clone().multiplyScalar(dt);
+    kcc.computeColliderMovement(c, { x: want.x, y: want.y, z: want.z }, undefined, groups(0xffff, G_WORLD | G_CLIP));
+    const m = kcc.computedMovement();
+    g.pos.x += m.x;
+    g.pos.y += m.y;
+    g.pos.z += m.z;
+    g.data.grounded = kcc.computedGrounded();
+    if (g.data.grounded && v.y < 0) v.y = 0;
+    if (want.y > 0 && m.y < want.y - 1e-4) v.y = 0; // bonked
+    c.setTranslation({ x: g.pos.x, y: g.pos.y, z: g.pos.z });
     g.mesh.position.copy(g.pos);
     g.mesh.rotation.set(0, yaw, 0);
-    g.collider?.setTranslation({ x: g.pos.x, y: g.pos.y, z: g.pos.z });
     void pitch;
   }
 

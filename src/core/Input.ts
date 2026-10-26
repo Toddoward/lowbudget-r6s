@@ -3,7 +3,7 @@ import { Stance } from '../game/types.ts';
 import { Keybinds, RESERVED_BROWSER_KEYS, type Action } from './Keybinds.ts';
 
 /** actions that are edge-triggered UI/game events rather than soldier input */
-export type UiAction = 'observe' | 'flashlight' | 'help' | 'xray' | 'overlay' | 'ping';
+export type UiAction = 'observe' | 'help' | 'xray' | 'overlay' | 'ping';
 
 /**
  * Keyboard + mouse (pointer lock) → SoldierInput through the rebindable keymap.
@@ -75,7 +75,7 @@ export class Input {
     this.keys.add(code);
     for (const a of this.binds.actionsFor(code)) {
       if (a === 'crouch') this.crouchDownAt = performance.now();
-      if (a === 'observe' || a === 'flashlight' || a === 'help' || a === 'xray' || a === 'overlay' || a === 'ping') this.onUiAction(a);
+      if (a === 'observe' || a === 'help' || a === 'xray' || a === 'overlay' || a === 'ping') this.onUiAction(a);
     }
   }
 

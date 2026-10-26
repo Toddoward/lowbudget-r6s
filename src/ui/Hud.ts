@@ -48,6 +48,9 @@ export interface HudState {
   viewTitle: string;
   viewHelp: string;
   droneJammed: boolean;
+  /** drone / camera scan of the enemy under the reticle: 0..1 (1 = identified), 0 = nobody */
+  scan: number;
+  scanLabel: string;
   scanning: { bearing: number; dist: number; vertical: string }[];
   dead: boolean;
   spectating: string;
@@ -145,6 +148,11 @@ export class Hud {
     this.set('#feed-title', s.viewTitle);
     this.set('#feed-help', s.viewHelp);
     $('#drone-jammed').classList.toggle('hidden', !s.droneJammed);
+    const ring = $('#scan-ring');
+    ring.classList.toggle('hidden', body || s.scan <= 0);
+    ring.classList.toggle('locked', s.scan >= 1);
+    ring.style.setProperty('--p', String(s.scan));
+    this.set('#scan-label', s.scanLabel);
     $('#dead-overlay').classList.toggle('hidden', !s.dead);
     this.set('#spectating', s.spectating);
     // team roster

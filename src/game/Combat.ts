@@ -71,7 +71,7 @@ export class Combat {
       // actors between here and the surface
       let best: { a: Actor; t: number; zone: 'head' | 'torso' | 'legs' } | null = null;
       for (const a of w.actors.values()) {
-        if (a.id === shooterId || !a.alive || a.ghost) continue;
+        if (a.id === shooterId || !w.targetable(a)) continue;
         if (a.pos.distanceToSquared(o) > (surfDist + 3) * (surfDist + 3)) continue;
         if (!visualOnly && shooter && shooter.kind === 'bot' && a.kind === 'bot') continue; // bots don't team-kill
         const r = rayActor(o, dir, a.hitboxes(), surfDist);
@@ -107,7 +107,8 @@ export class Combat {
           const inside = hit.point.clone().addScaledVector(dir, 0.01);
           const cell = panel.cellAt(inside);
           w.effects.impact(hit.point, hit.normal, panel.props.mat, `${panel.id}:${cell}`);
-          if (!visualOnly) this.panelHit(panel, inside, def.wallDmg * (panel.kind === 'barricade' ? 1 : mul));
+          // shotgun pellets also snap studs / joists (soft walls, hatches); other rounds go through them
+          if (!visualOnly) this.panelHit(panel, inside, def.wallDmg * (panel.kind === 'barricade' ? 1 : mul), (def.pellets ?? 1) > 1);
           power -= panel.kind === 'barricade' ? 0.5 : 1;
           // spec: a round through a soft wall keeps 60 % of its damage
           mul *= panel.kind === 'barricade' ? 0.85 : 0.6;
@@ -140,8 +141,8 @@ export class Combat {
     return o;
   }
 
-  private panelHit(panel: Panel, point: THREE.Vector3, dmg: number) {
-    const res = this.world.destruction.impactAndApply('bullet', point, panel, dmg);
+  private panelHit(panel: Panel, point: THREE.Vector3, dmg: number, heavy = false) {
+    const res = this.world.destruction.impactAndApply('bullet', point, panel, dmg, heavy);
     this.pendingCells.push(...res.events);
   }
 
@@ -150,18 +151,18 @@ export class Combat {
     if (!this.pendingCells.length) return;
     const merged = new Map<string, CellDamage>();
     for (const e of this.pendingCells) {
-      const k = `${e.panel}:${e.dmg.toFixed(3)}`;
+      const k = `${e.panel}:${e.dmg.toFixed(3)}:${e.frame ? 1 : 0}`;
       const m = merged.get(k);
       if (m) m.cells.push(...e.cells);
-      else merged.set(k, { panel: e.panel, cells: [...e.cells], dmg: e.dmg });
+      else merged.set(k, { panel: e.panel, cells: [...e.cells], dmg: e.dmg, frame: e.frame });
     }
-    for (const e of merged.values()) this.world.emit({ t: 'cells', panel: e.panel, cells: e.cells, dmg: +e.dmg.toFixed(3) });
+    for (const e of merged.values()) this.world.emit({ t: 'cells', panel: e.panel, cells: e.cells, dmg: +e.dmg.toFixed(3), fr: e.frame ? 1 : undefined });
     this.pendingCells = [];
   }
 
   /** broadcast & keep events computed elsewhere (gadgets) */
   emitCells(events: CellDamage[]) {
-    for (const e of events) this.world.emit({ t: 'cells', panel: e.panel, cells: e.cells, dmg: e.dmg });
+    for (const e of events) this.world.emit({ t: 'cells', panel: e.panel, cells: e.cells, dmg: e.dmg, fr: e.frame ? 1 : undefined });
   }
 
   melee(s: Soldier) {
@@ -171,7 +172,7 @@ export class Combat {
     const hit = w.physics.raycast(o, d, 1.6, G_WORLD | G_GADGET);
     const maxT = hit ? hit.dist : 1.6;
     for (const a of w.actors.values()) {
-      if (a.id === s.id || !a.alive) continue;
+      if (a.id === s.id || !w.targetable(a)) continue;
       const r = rayActor(o, d, a.hitboxes(), maxT + 0.2);
       if (r) {
         w.damageActor(a, 60, s.id, false, d);
@@ -222,7 +223,7 @@ export class Combat {
   areaDamage(center: THREE.Vector3, radius: number, maxDmg: number, attacker: string, falloff = 1.3) {
     const w = this.world;
     for (const a of w.actors.values()) {
-      if (!a.alive) continue;
+      if (!w.targetable(a)) continue;
       const chest = a.pos.clone().add(new THREE.Vector3(0, 0.9, 0));
       const d = chest.distanceTo(center);
       if (d > radius) continue;

@@ -73,6 +73,15 @@ const VAULT_OVER_DEPTH = 0.85;
 export interface VaultPlan { over: boolean; top: number; mid: THREE.Vector3; land: THREE.Vector3 }
 const WALL_GAP = 0.42;
 
+/**
+ * Rappel controls follow the view: hanging upright, W climbs and D goes right; hanging
+ * inverted (camera rolled 180°) the top of the screen points at the ground, so W
+ * descends, S climbs, and screen-right is the world's left.
+ */
+export function rappelAxes(moveF: number, moveR: number, inverted: boolean): { up: number; side: number } {
+  return inverted ? { up: -moveF, side: -moveR } : { up: moveF, side: moveR };
+}
+
 export class Soldier implements Actor {
   readonly id: string;
   name: string;
@@ -111,7 +120,6 @@ export class Soldier implements Actor {
   /** extra aim error (deg, 1σ) – bots */
   extraSpread = 0;
   spreadModel: 'gaussian' | 'linear' = 'gaussian';
-  flashlight = false;
   /** interaction progress 0..1 for HUD */
   interactProgress = 0;
   interactLabel = '';
@@ -128,6 +136,8 @@ export class Soldier implements Actor {
   gadgetHint = '';
   /** Montagne: shield extended (full cover, no shooting) */
   shieldExtended = false;
+  /** shield operators: shield slung on the back ([1] toggles; default: held in front). The pistol stays in hand either way. */
+  shieldBack = false;
   /** Blitz flash cooldown */
   flashCd = 0;
   /** blinded by a flash until world time */
@@ -178,7 +188,7 @@ export class Soldier implements Actor {
 
   /** shield follows the body: left-of-centre at the hip, or the whole body when extended */
   private updateShield() {
-    if (this.shieldCollider) placeShield(this.shieldCollider, this.pos, this.yaw, this.stance, this.shieldExtended, this.alive);
+    if (this.shieldCollider) placeShield(this.shieldCollider, this.pos, this.yaw, this.stance, this.shieldPose!, this.alive);
   }
 
   mountTurret(turretId: string, at: THREE.Vector3, yaw: number) {
@@ -205,15 +215,23 @@ export class Soldier implements Actor {
 
   resetLoadout() {
     const op = this.op;
-    this.weapons = [op.primary, op.secondary].map((id) => {
-      const def = WEAPONS[id];
-      return { def, mag: def.mag, reserve: def.reserve };
-    });
+    if (op.shield) {
+      // shield + pistol: both weapon slots are the one pistol (slot [1] works the shield instead)
+      const def = WEAPONS[op.secondary];
+      const pistol = { def, mag: def.mag, reserve: def.reserve };
+      this.weapons = [pistol, pistol];
+    } else {
+      this.weapons = [op.primary, op.secondary].map((id) => {
+        const def = WEAPONS[id];
+        return { def, mag: def.mag, reserve: def.reserve };
+      });
+    }
     this.slot = 0;
     this.gadgetLeft = op.gadgetCount;
     this.universalLeft = op.universalCount;
     this.reinforcementsLeft = this.side === 'defend' ? REINFORCEMENTS_PER_ROUND : 0;
     this.shieldExtended = false;
+    this.shieldBack = false;
     this.blindUntil = -1;
     this.mounted = null;
     this.mountSave = null;
@@ -238,6 +256,8 @@ export class Soldier implements Actor {
   get weaponId(): string | null { return this.weapon?.def.id ?? null; }
   get speedMul() { return SPEED_MUL[this.op.speed]; }
   get armorMul() { return ARMOR_MUL[this.op.armor]; }
+  /** where the shield is right now (null: no shield) */
+  get shieldPose(): ShieldPose | null { return this.op.shield ? shieldPoseOf(this.shieldExtended, this.shieldBack, this.ads > 0.5) : null; }
   get reloading() { return this.reloadT > 0; }
 
   eye(out = new THREE.Vector3()): THREE.Vector3 {
@@ -284,6 +304,10 @@ export class Soldier implements Actor {
 
   /* ================================================================ update */
   update(dt: number, inp: SoldierInput) {
+    // not deployed yet (attackers while droning): no body in the world
+    const deployed = this.world.deployed(this);
+    if (this.collider.isEnabled() !== deployed) this.collider.setEnabled(deployed);
+    if (this.shieldCollider && this.shieldCollider.isEnabled() !== deployed) this.shieldCollider.setEnabled(deployed);
     this.fireCd = Math.max(0, this.fireCd - dt);
     this.flashCd = Math.max(0, this.flashCd - dt);
     this.meleeCd = Math.max(0, this.meleeCd - dt);
@@ -358,7 +382,7 @@ export class Soldier implements Actor {
     speed *= 1 - this.ads * 0.4;
     if (Math.abs(this.lean) > 0.3) speed *= 0.75;
     if (this.world.gadgets.isScanning(this)) speed *= 0.6;
-    if (this.op.shield) speed *= this.shieldExtended ? 0.6 : 0.9;
+    if (this.op.shield) speed *= SHIELD_SPEED[this.shieldPose!];
     if (this.world.gadgets.inToxicGas(this.pos)) speed *= 0.85;
     const target = wish.multiplyScalar(speed);
     const k = Math.min(1, dt * (this.grounded ? 14 : 2));
@@ -587,11 +611,12 @@ export class Soldier implements Actor {
       const t = this.findTop(wallPt.setY(this.pos.y + 1), R.n);
       if (t !== null) R.topY = t;
     }
-    const upSpd = inp.moveF > 0 ? 1.6 : inp.sprint ? 4.2 : 2.3;
-    let vy = inp.moveF * upSpd;
-    const vx = inp.moveR * 1.3;
+    const { up, side } = rappelAxes(inp.moveF, inp.moveR, this.inverted);
+    const upSpd = up > 0 ? 1.6 : inp.sprint ? 4.2 : 2.3;
+    let vy = up * upSpd;
+    const vx = side * 1.3;
     // climb over the top
-    if (inp.moveF > 0.2 && this.pos.y >= R.topY - 1.9) {
+    if (up > 0.2 && this.pos.y >= R.topY - 1.9) {
       const over = this.pos.clone().addScaledVector(R.n, -WALL_GAP - 0.7).setY(R.topY + 0.05);
       if (!ph.overlapsWorld(over.clone().add(new THREE.Vector3(0, 0.9, 0)), 0.28)) {
         this.anim = { t: 0, dur: 0.75, from: this.pos.clone(), mid: this.pos.clone().setY(R.topY + 0.25), to: over, midDone: false, endStance: Stance.Crouch };
@@ -660,7 +685,11 @@ export class Soldier implements Actor {
 
   /* ------------------------------------------------------------ weapon */
   private updateWeapon(dt: number, inp: SoldierInput) {
-    if (inp.slot !== null && inp.slot !== this.slot) this.switchSlot(inp.slot);
+    if (this.op.shield && inp.slot !== null && inp.slot < 2) {
+      // [1]: shield front ↔ back (from a gadget: back to the pistol); [2]: the pistol (already in hand)
+      if (this.slot >= 2) this.switchSlot(0);
+      else if (inp.slot === 0) this.toggleShield();
+    } else if (inp.slot !== null && inp.slot !== this.slot) this.switchSlot(inp.slot);
     const w = this.weapon;
     const canAds = !!w && !this.reloading && this.equipT <= 0 && !(this.mode === 'rappel' && this.inverted) && !this.shieldExtended;
     this.ads += ((inp.ads && canAds ? 1 : 0) - this.ads) * Math.min(1, dt * 11);
@@ -694,6 +723,15 @@ export class Soldier implements Actor {
     }
   }
 
+  /** sling the shield on the back / bring it round to the front (the pistol stays up, a short transition) */
+  toggleShield() {
+    if (!this.op.shield) return;
+    this.shieldBack = !this.shieldBack;
+    this.shieldExtended = false;
+    this.equipT = Math.max(this.equipT, 0.35);
+    this.ads = 0;
+  }
+
   switchSlot(s: number) {
     if (s >= 2) {
       if (s === 2 && (this.op.gadget === 'none' || (this.gadgetLeft <= 0 && this.op.gadget !== 'heartbeat'))) return;
@@ -722,6 +760,8 @@ export class Soldier implements Actor {
     if (this.kind === 'bot') spreadDeg = def.adsSpread;
     spreadDeg += Math.min(this.shotsInBurst, 10) * 0.05 * (1 - this.ads * 0.5);
     if (this.mode === 'rappel') spreadDeg *= 1.3;
+    // pistol one-handed beside a shield held in front: wider from the hip
+    if (this.op.shield && !this.shieldBack) spreadDeg *= 1 + (1 - this.ads) * 0.5;
     const pellets = def.pellets ?? 1;
     for (let i = 0; i < pellets; i++) {
       const d = applySpread(base, spreadDeg, this.extraSpread, this.spreadModel);
@@ -764,6 +804,7 @@ export class Soldier implements Actor {
     this.rappel = null;
     this.anim = null;
     this.collider.setTranslation({ x: this.pos.x, y: -500, z: this.pos.z });
+    this.updateShield(); // the shield goes down with the body, not a frame later
     this.onDeath?.(this, killer, head);
   }
 
@@ -780,17 +821,31 @@ export class Soldier implements Actor {
 }
 
 /** Rotate `dir` by a random cone. gaussian: σ = spread/2 per axis ; linear: uniform disc of radius spread. */
-/** ballistic shield collider pose (local soldiers and remote peers share it) */
-export function placeShield(c: RAPIER.Collider, pos: THREE.Vector3, yaw: number, stance: Stance, ext: boolean, alive: boolean) {
+export type ShieldPose = 'front' | 'ads' | 'back' | 'ext';
+export const shieldPoseOf = (ext: boolean, back: boolean, ads: boolean): ShieldPose => (back ? 'back' : ext ? 'ext' : ads ? 'ads' : 'front');
+/** movement speed with the shield: extended walks, ADS beside it is slow, on the back is free */
+export const SHIELD_SPEED: Record<ShieldPose, number> = { front: 0.9, ads: 0.85, back: 1, ext: 0.6 };
+
+/**
+ * Ballistic shield collider pose (local soldiers and remote peers share it).
+ *  front: left of centre at chest height · ads: swung out to the left, turned 65° (covers the left flank, the
+ *  pistol aims past its edge) · back: slung over the back · ext: Montagne's full-body extension.
+ */
+export function placeShield(c: RAPIER.Collider, pos: THREE.Vector3, yaw: number, stance: Stance, pose: ShieldPose, alive: boolean) {
   if (!alive) { c.setTranslation({ x: pos.x, y: -600, z: pos.z }); return; }
   const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
   const right = new THREE.Vector3().crossVectors(fwd, UP);
   const crouch = stance === Stance.Crouch;
+  const ext = pose === 'ext';
   const h = ext ? (crouch ? 0.62 : 0.9) : crouch ? 0.42 : 0.5;
-  const cy = ext ? h + 0.02 : (crouch ? 0.62 : 1.0);
-  const p = pos.clone().addScaledVector(fwd, 0.5).addScaledVector(right, ext ? 0 : -0.1).add(new THREE.Vector3(0, cy, 0));
+  const cy = ext ? h + 0.02 : pose === 'back' ? (crouch ? 0.8 : 1.15) : crouch ? 0.62 : 1.0;
+  const p = pos.clone().add(new THREE.Vector3(0, cy, 0));
+  let turn = 0;
+  if (pose === 'back') p.addScaledVector(fwd, -0.26);
+  else if (pose === 'ads') { p.addScaledVector(fwd, 0.32).addScaledVector(right, -0.34); turn = THREE.MathUtils.degToRad(65); }
+  else p.addScaledVector(fwd, 0.5).addScaledVector(right, ext ? 0 : -0.1);
   c.setTranslation({ x: p.x, y: p.y, z: p.z });
-  const q = new THREE.Quaternion().setFromAxisAngle(UP, yaw);
+  const q = new THREE.Quaternion().setFromAxisAngle(UP, yaw + turn);
   c.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w });
   (c as unknown as { setHalfExtents?: (v: { x: number; y: number; z: number }) => void }).setHalfExtents?.({ x: ext ? 0.38 : 0.28, y: h, z: 0.03 });
 }

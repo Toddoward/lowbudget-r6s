@@ -99,3 +99,45 @@ test('spread models: gaussian σ ≈ spread/2 per axis, linear stays inside the 
   const sigma = Math.sqrt(sumSq / N);
   assert.ok(sigma > 0.85 && sigma < 1.15, `gaussian σ ${sigma}`);
 });
+
+test('soft walls and hatches keep their wooden frame until a heavy hit', async () => {
+  const ph = await Physics.create();
+  const d = new DestructionSystem(ph);
+  const soft = d.add({ kind: 'wall_soft', min: [0, 0, -0.07], max: [1.45, 2.8, 0.07], nAx: 2, label: 'soft' });
+  // punch the whole section out: plaster gone, studs + plates stay — no way through
+  for (let y = 0.2; y < 2.8; y += 0.4) for (let x = 0.1; x < 1.45; x += 0.3) d.impactAndApply('melee', new THREE.Vector3(x, y, 0), soft);
+  d.update();
+  assert.ok(soft.brokenFraction > 0.9, 'punches open the plaster');
+  assert.equal(soft.passable, false, 'the stud frame stops bodies');
+  // bullets pass the frame between studs (sight / fire lines exist)
+  ph.step();
+  let through = 0;
+  for (let x = 0.05; x < 1.4; x += 0.05) if (!ph.raycast(new THREE.Vector3(x, 1.4, -2), new THREE.Vector3(0, 0, 1), 4)) through++;
+  assert.ok(through > 10, 'rounds and eyes go between the studs');
+  // a sledge swing takes the frame down: now it is a doorway
+  d.impactAndApply('sledge', new THREE.Vector3(0.7, 1.0, 0), soft);
+  d.update();
+  assert.equal(soft.passable, true, 'heavy hit breaks the frame');
+  // shotgun pellets snap studs too, rifle rounds do not
+  const s2 = d.add({ kind: 'wall_soft', min: [5, 0, -0.07], max: [6.45, 2.8, 0.07], nAx: 2, label: 's2' });
+  for (let y = 0.2; y < 2.8; y += 0.25) for (let x = 5.05; x < 6.45; x += 0.12) d.impactAndApply('bullet', new THREE.Vector3(x, y, 0), s2, 6);
+  d.update();
+  assert.equal(s2.passable, false, 'rifle fire: frame stays');
+  for (let y = 0.2; y < 2.8; y += 0.25) for (let x = 5.05; x < 6.45; x += 0.12) d.impactAndApply('bullet', new THREE.Vector3(x, y, 0), s2, 6, true);
+  d.update();
+  assert.equal(s2.passable, true, 'shotgun: frame goes');
+  // hatch: punched boards leave the joists; breach / sledge opens it
+  const hatch = d.add({ kind: 'hatch', min: [10, -0.3, 0], max: [11, 0, 1], nAx: 1, label: 'hatch' });
+  for (let i = 0; i < 4; i++) d.impactAndApply('melee', new THREE.Vector3(10.5, 0, 0.5), hatch);
+  d.update();
+  assert.equal(hatch.brokenFraction, 1, 'boards gone');
+  assert.equal(hatch.passable, false, 'joists stay');
+  d.impactAndApply('sledge', new THREE.Vector3(10.5, 0, 0.5), hatch);
+  d.update();
+  assert.equal(hatch.passable, true, 'sledge drops through');
+  // a round reset brings back plaster and frame
+  soft.resetSkin();
+  d.update();
+  assert.equal(soft.passable, false);
+  assert.equal(soft.brokenCount, 0);
+});

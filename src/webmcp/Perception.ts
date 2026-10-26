@@ -81,7 +81,7 @@ export class Perception {
     };
     // characters
     for (const a of w.actors.values()) {
-      if (a.id === s.id || !a.alive) continue;
+      if (a.id === s.id || !w.targetable(a)) continue;
       const hb = a.hitboxes();
       const parts: string[] = [];
       if (visibleFrom(hb.head.c)) parts.push('head');
