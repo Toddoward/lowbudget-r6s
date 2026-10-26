@@ -103,6 +103,10 @@ export interface ActorSnapshot {
   ads: boolean;
   /** drone position while droning (prep phase) */
   dr?: [number, number, number];
+  /** Montagne: shield extended */
+  sx?: boolean;
+  /** Tachanka: mounted on the LMG */
+  mt?: boolean;
 }
 
 /* ------------------------------------------------------------ client → server */

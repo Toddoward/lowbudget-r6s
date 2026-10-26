@@ -52,6 +52,15 @@ function headgear(kind: string, accent: string): PartSpec[] {
     case 'whitemask':
       p.push(box([0, 0.13, -0.02], [0.18, 0.21, 0.19], '#e9e6df', { bone: H }), box([0.04, 0.15, -0.115], [0.04, 0.025, 0.01], '#0d0d0d', { bone: H }), box([-0.04, 0.15, -0.115], [0.04, 0.025, 0.01], '#0d0d0d', { bone: H }), box([0, 0.23, 0.02], [0.19, 0.06, 0.2], '#3a352c', { bone: H }));
       break;
+    case 'montagne_helmet': // GIGN riot helmet with a raised visor
+      p.push(box([0, 0.21, 0.01], [0.24, 0.13, 0.26], '#232a33', { bone: H }), box([0, 0.15, -0.135], [0.22, 0.14, 0.02], '#5f7d8c', { bone: H, r: [-12, 0, 0] }), box([0, 0.06, -0.1], [0.16, 0.06, 0.04], dark, { bone: H }));
+      break;
+    case 'ushanka': // Kapkan — fur hat with ear flaps
+      p.push(box([0, 0.23, 0.01], [0.23, 0.1, 0.24], '#5a4632', { bone: H }), box([0.12, 0.12, 0.01], [0.04, 0.12, 0.14], '#5a4632', { bone: H }), box([-0.12, 0.12, 0.01], [0.04, 0.12, 0.14], '#5a4632', { bone: H }), box([0, 0.25, -0.12], [0.16, 0.06, 0.03], '#4a3a29', { bone: H }), box([0, 0.08, -0.1], [0.14, 0.06, 0.03], '#2b2d27', { bone: H }));
+      break;
+    case 'tachanka_helmet': // Tachanka — old steel helmet + face shield
+      p.push(box([0, 0.22, 0.01], [0.25, 0.12, 0.27], '#3f4636', { bone: H }), box([0, 0.12, -0.14], [0.2, 0.18, 0.02], '#2a2e26', { bone: H }), box([0, 0.15, -0.152], [0.12, 0.03, 0.01], '#0e0f10', { bone: H }));
+      break;
     case 'civilian':
       p.push(box([0, 0.22, 0.02], [0.18, 0.05, 0.2], '#3b2a1d', { bone: H }));
       break;
@@ -82,6 +91,12 @@ function gadgetSilhouette(gadget: string): PartSpec[] {
       return [box([-0.09, 0.3, -0.15], [0.08, 0.12, 0.03], '#2b2e33', { bone: T }), box([-0.09, 0.31, -0.165], [0.06, 0.08, 0.004], '#3aff9a', { bone: T, emissive: true })];
     case 'ads':
       return [cyl([0.14, -0.03, 0], 0.045, 0.06, '#3c4136', { bone: T }), sph([0.14, 0.01, 0], 0.035, '#2a2d27', { bone: T })];
+    case 'scanner': // IQ: wrist detector
+      return [box([0, -0.42, -0.08], [0.1, 0.06, 0.09], '#22252a', { bone: 'armL' }), box([0, -0.39, -0.08], [0.08, 0.005, 0.07], '#3a9dff', { bone: 'armL', emissive: true })];
+    case 'edd': // Kapkan: EDD pouches
+      return [box([0.08, 0.26, -0.15], [0.06, 0.1, 0.05], '#3b4031', { bone: T }), box([-0.08, 0.26, -0.15], [0.06, 0.1, 0.05], '#3b4031', { bone: T }), box([0, 0.26, -0.17], [0.02, 0.02, 0.01], '#ff2020', { bone: T, emissive: true })];
+    case 'turret': // Tachanka: folded LMG on the back
+      return [box([0, 0.3, 0.2], [0.14, 0.14, 0.6], '#2b2e33', { bone: T, r: [0, 0, 60] }), cyl([0.05, 0.36, 0.22], 0.12, 0.04, '#4b4a3c', { bone: T, r: [90, 0, 0] })];
     case 'battery':
       return [box([0.08, 0.27, -0.15], [0.08, 0.11, 0.05], '#d9792a', { bone: T }), box([-0.08, 0.27, -0.15], [0.08, 0.11, 0.05], '#d9792a', { bone: T })];
   }

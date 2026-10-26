@@ -4,6 +4,7 @@ import { operatorSpec } from '../assets/operatorModels.ts';
 import { OPERATORS } from '../game/operators.ts';
 import { buildAsset } from '../assets/build.ts';
 import { weaponSpec } from '../game/weapons.ts';
+import { extraGadgetSpec } from '../assets/gadgetModels.ts';
 import { Stance } from '../game/types.ts';
 
 /**
@@ -23,6 +24,8 @@ export class Rig {
   private legL = new THREE.Group();
   private legR = new THREE.Group();
   private gun: THREE.Group | null = null;
+  private shield: THREE.Group | null = null;
+  private shieldExt = false;
   private walk = 0;
   private stanceBlend = 0;
   dead = false;
@@ -55,6 +58,12 @@ export class Rig {
     this.legL.position.set(-0.09, -0.02, 0);
     this.legR.position.set(0.09, -0.02, 0);
     if (weaponId) this.setWeapon(weaponId);
+    if (def.shield) {
+      // Montagne / Blitz carry the shield in front of the left side of the torso
+      this.shield = buildAsset(extraGadgetSpec(def.gadget === 'flash_shield' ? 'flash_shield' : 'shield')!);
+      this.torso.add(this.shield);
+      this.setShieldExtended(false);
+    }
     if (label) {
       const sprite = makeLabel(label, labelColor);
       sprite.position.set(0, 2.15, 0);
@@ -71,6 +80,15 @@ export class Rig {
     this.gun = buildAsset(weaponSpec(id));
     this.gun.position.set(0.12, 0.33, -0.25);
     this.torso.add(this.gun);
+  }
+
+  /** Montagne's Le Roc: extended = full-body cover */
+  setShieldExtended(ext: boolean) {
+    if (!this.shield || (ext === this.shieldExt && this.shield.userData.init)) return;
+    this.shield.userData.init = true;
+    this.shieldExt = ext;
+    this.shield.position.set(ext ? 0.12 : 0.02, ext ? -0.3 : 0.12, 0.02);
+    this.shield.scale.set(ext ? 1.35 : 1, ext ? 1.85 : 1, 1);
   }
 
   /**

@@ -178,20 +178,7 @@ export class Soldier implements Actor {
 
   /** shield follows the body: left-of-centre at the hip, or the whole body when extended */
   private updateShield() {
-    const c = this.shieldCollider;
-    if (!c) return;
-    if (!this.alive) { c.setTranslation({ x: this.pos.x, y: -600, z: this.pos.z }); return; }
-    const fwd = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
-    const right = new THREE.Vector3().crossVectors(fwd, UP);
-    const ext = this.shieldExtended;
-    const crouch = this.stance === Stance.Crouch;
-    const h = ext ? (crouch ? 0.62 : 0.9) : crouch ? 0.42 : 0.5;
-    const cy = ext ? h + 0.02 : (crouch ? 0.62 : 1.0);
-    const p = this.pos.clone().addScaledVector(fwd, 0.5).addScaledVector(right, ext ? 0 : -0.1).add(new THREE.Vector3(0, cy, 0));
-    c.setTranslation({ x: p.x, y: p.y, z: p.z });
-    const q = new THREE.Quaternion().setFromAxisAngle(UP, this.yaw);
-    c.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w });
-    (c as unknown as { setHalfExtents?: (v: { x: number; y: number; z: number }) => void }).setHalfExtents?.({ x: ext ? 0.38 : 0.28, y: h, z: 0.03 });
+    if (this.shieldCollider) placeShield(this.shieldCollider, this.pos, this.yaw, this.stance, this.shieldExtended, this.alive);
   }
 
   mountTurret(turretId: string, at: THREE.Vector3, yaw: number) {
@@ -793,6 +780,21 @@ export class Soldier implements Actor {
 }
 
 /** Rotate `dir` by a random cone. gaussian: σ = spread/2 per axis ; linear: uniform disc of radius spread. */
+/** ballistic shield collider pose (local soldiers and remote peers share it) */
+export function placeShield(c: RAPIER.Collider, pos: THREE.Vector3, yaw: number, stance: Stance, ext: boolean, alive: boolean) {
+  if (!alive) { c.setTranslation({ x: pos.x, y: -600, z: pos.z }); return; }
+  const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+  const right = new THREE.Vector3().crossVectors(fwd, UP);
+  const crouch = stance === Stance.Crouch;
+  const h = ext ? (crouch ? 0.62 : 0.9) : crouch ? 0.42 : 0.5;
+  const cy = ext ? h + 0.02 : (crouch ? 0.62 : 1.0);
+  const p = pos.clone().addScaledVector(fwd, 0.5).addScaledVector(right, ext ? 0 : -0.1).add(new THREE.Vector3(0, cy, 0));
+  c.setTranslation({ x: p.x, y: p.y, z: p.z });
+  const q = new THREE.Quaternion().setFromAxisAngle(UP, yaw);
+  c.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w });
+  (c as unknown as { setHalfExtents?: (v: { x: number; y: number; z: number }) => void }).setHalfExtents?.({ x: ext ? 0.38 : 0.28, y: h, z: 0.03 });
+}
+
 export function applySpread(dir: THREE.Vector3, spreadDeg: number, extraDeg: number, model: 'gaussian' | 'linear'): THREE.Vector3 {
   const total = spreadDeg + extraDeg;
   let ax: number, ay: number;

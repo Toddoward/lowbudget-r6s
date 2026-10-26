@@ -353,10 +353,15 @@ export class Game {
     const p = this.player;
     if (!p) return;
     const [o, d] = this.viewRay();
+    if (this.pingFrom(p, o, d)) this.audio.ui('ping');
+  }
+
+  /** shared by the player (camera ray) and agents (their own eyes); returns true when something was marked */
+  pingFrom(by: Soldier, o: THREE.Vector3, d: THREE.Vector3): boolean {
     let best: { id: string; ang: number } | null = null;
     for (const a of this.world.actors.values()) {
-      if (!a.alive || a.side === p.side || a.side === 'hostage' || a.id === p.id) continue;
-      const c = a.pos.clone().add(new THREE.Vector3(0, a.kind === 'bot' || a.kind === 'remote' ? 1.1 : 1.1, 0));
+      if (!a.alive || a.side === by.side || a.side === 'hostage' || a.id === by.id) continue;
+      const c = a.pos.clone().add(new THREE.Vector3(0, a.stance === Stance.Prone ? 0.3 : a.stance === Stance.Crouch ? 0.8 : 1.1, 0));
       const to = c.clone().sub(o);
       const dist = to.length();
       if (dist > 70) continue;
@@ -366,13 +371,13 @@ export class Game {
       if (!best || ang < best.ang) best = { id: a.id, ang };
     }
     if (best) {
-      this.world.spot(best.id, p.side, 5, true, p.id);
-      this.audio.ui('ping');
-      this.onToast(t('hud.spotted'));
-      return;
+      this.world.spot(best.id, by.side, 5, true, by.id);
+      if (by === this.player) this.onToast(t('hud.spotted'));
+      return true;
     }
     const hit = this.physics.raycast(o, d, 80, G_WORLD);
-    if (hit) { this.world.ping(hit.point, p.side, p.id); this.audio.ui('ping'); }
+    if (hit) { this.world.ping(hit.point, by.side, by.id); return true; }
+    return false;
   }
 
   /* ================================================================ common setup */
@@ -794,7 +799,8 @@ export class Game {
     const mk = (s: Soldier): ActorSnapshot => ({
       id: s.id, t: performance.now(), p: [r2(s.pos.x), r2(s.pos.y), r2(s.pos.z)], v: [r2(s.vel.x), r2(s.vel.y), r2(s.vel.z)],
       yaw: r3(s.yaw), pitch: r3(s.pitch), st: s.mode === 'rappel' ? (s.inverted ? 4 : 3) : s.stance, lean: r2(s.lean), w: s.slot, hp: Math.round(s.hp), alive: s.alive, ads: s.ads > 0.5,
-      dr: this.drone && s === this.player && this.world.phase === 'prep' ? [r2(this.drone.pos.x), r2(this.drone.pos.y), r2(this.drone.pos.z)] : undefined,
+      dr: this.drone && s === this.player && this.view === 'drone' ? [r2(this.drone.pos.x), r2(this.drone.pos.y), r2(this.drone.pos.z)] : undefined,
+      sx: s.shieldExtended || undefined, mt: s.mounted ? true : undefined,
     });
     if (this.player) snaps.push(mk(this.player));
     for (const s of this.slots) snaps.push(mk(s.soldier));
@@ -956,6 +962,7 @@ export class Game {
         }
       }
       const sinp = s.ctl.input(dt);
+      if (sinp.ping && s.soldier.alive) this.pingFrom(s.soldier, s.soldier.eye(), s.soldier.aimDir());
       if (w.phase === 'prep' && s.soldier.side === 'attack') s.soldier.update(dt, emptyInput());
       else s.soldier.update(dt, sinp);
     }
@@ -992,6 +999,7 @@ export class Game {
       rig.root.position.copy(s.pos);
       rig.root.rotation.y = s.yaw;
       if (rig.dead !== !s.alive) rig.setDead(!s.alive);
+      rig.setShieldExtended(s.shieldExtended);
       rig.pose(dt, s.mode === 'rappel' ? Stance.Rappel : s.stance, s.pitch, s.lean, Math.hypot(s.vel.x, s.vel.z), s.mode === 'rappel' && s.inverted);
     }
     // camera
