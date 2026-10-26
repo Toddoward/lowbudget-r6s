@@ -160,6 +160,8 @@ export class Rig {
 }
 
 function makeLabel(text: string, color: string): THREE.Sprite {
+  // headless (node tests / tools): no canvas, an empty sprite keeps the rig's shape
+  if (typeof document === 'undefined') return new THREE.Sprite();
   const c = document.createElement('canvas');
   c.width = 256;
   c.height = 64;

@@ -11,7 +11,18 @@ import { box } from '../assets/spec.ts';
 import type { Soldier } from './Soldier.ts';
 import type { World } from './World.ts';
 
-export type Mission = 'hostage' | 'secure' | 'bomb' | 'elimination';
+/**
+ * Terrorist Hunt: attack = elimination · bomb (plant a defuser, defend it) · hostage (rescue);
+ * defense = protect (hostage protection). 'secure' is a PvP mode only.
+ */
+export type Mission = 'hostage' | 'secure' | 'bomb' | 'elimination' | 'protect';
+/** TH missions the player picks from */
+export const TH_MISSIONS: Mission[] = ['elimination', 'bomb', 'hostage', 'protect'];
+/** TH: seconds a defuser needs on a bomb; White Masks need DISABLE_TIME next to it to cut it */
+export const DEFUSE_TIME = 40;
+export const DISABLE_TIME = 3.5;
+/** White Masks need this long next to the hostage to take it (Hostage Protection) */
+export const GRAB_TIME = 3;
 
 /** The hostage NPC: kneels until an attacker picks them up, then follows the carrier. */
 export class Hostage implements Actor {
@@ -46,7 +57,7 @@ export class Hostage implements Actor {
   }
 }
 
-interface Bomb { id: number; pos: THREE.Vector3; room: string; state: 'armed' | 'defused'; mesh: THREE.Object3D }
+interface Bomb { id: number; pos: THREE.Vector3; room: string; state: 'armed' | 'defused'; mesh: THREE.Object3D; /** TH: defuser seconds done (kept when a defuser is cut) */ done: number }
 
 export interface ObjectiveStatus {
   mission: Mission;
@@ -88,15 +99,27 @@ export class Objectives {
     world.scene.add(this.group);
     world.onKill.push((k) => {
       if (this.hostage && k.victim === this.hostage.id) {
+        if (this.mode === 'th') {
+          // Terrorist Hunt: losing the hostage fails the mission whoever fired
+          this.announce('hostageDown', 'alarm');
+          this.finish(this.mission === 'protect', 'Hostage killed');
+          return;
+        }
         const killer = world.actors.get(k.killer);
         const byAttacker = !killer || killer.side === 'attack';
-        if (this.mode === 'pvp') world.emit({ t: 'objective', kind: 'hostage_killed', actor: k.killer });
+        world.emit({ t: 'objective', kind: 'hostage_killed', actor: k.killer });
         this.finish(!byAttacker, byAttacker ? 'Hostage killed by attackers' : 'Hostage killed by defenders');
       }
     });
   }
 
   hostageIds() { return this.hostage ? [this.hostage.id] : []; }
+
+  /** round-state callouts (banner + sound on the local client) */
+  onAnnounce?: (key: string, tone: 'plant' | 'alarm' | 'success' | 'info', args?: string[]) => void;
+  private announce(key: string, tone: 'plant' | 'alarm' | 'success' | 'info', args?: string[]) { this.onAnnounce?.(key, tone, args); }
+  /** White Masks working an objective (defuser, hostage): actor id → seconds */
+  private work = new Map<string, number>();
 
   siteLabel(id: string = this.site) {
     return SITES.find((s) => s.id === id)?.label ?? ROOMS.find((r) => r.id === id)?.name ?? id;
@@ -125,7 +148,7 @@ export class Objectives {
     this.site = site;
     this.mode = mode;
     this.done = false;
-    if (mission === 'hostage') {
+    if (mission === 'hostage' || mission === 'protect') {
       this.hostage = new Hostage(this.world.scene);
       this.hostage.pos.copy(this.spotOf(site));
       this.world.actors.set(this.hostage.id, this.hostage);
@@ -136,7 +159,7 @@ export class Objectives {
         const pos = this.spotOf(room);
         mesh.position.copy(pos);
         this.group.add(mesh);
-        this.bombs.push({ id: i, pos, room, state: 'armed', mesh });
+        this.bombs.push({ id: i, pos, room, state: 'armed', mesh, done: 0 });
       });
     } else if (mission === 'secure') {
       const mesh = buildAsset({ id: 'biohazard', category: 'prop', parts: [box([0, 0.45, 0], [0.7, 0.9, 0.7], '#c9b23a'), box([0, 0.92, 0], [0.5, 0.06, 0.5], '#222'), box([0, 0.5, -0.36], [0.3, 0.3, 0.02], '#141414')] });
@@ -160,6 +183,7 @@ export class Objectives {
     this.defuser = null;
     this.secureProgress = 0;
     this.hold.clear();
+    this.work.clear();
   }
 
   private finish(attackWin: boolean, reason: string) {
@@ -195,8 +219,7 @@ export class Objectives {
     if (this.mission === 'bomb') {
       for (const b of this.bombs) {
         if (b.state !== 'armed' || b.pos.distanceTo(s.pos) > 1.7) continue;
-        if (this.mode === 'th' && attack) return { key: `dis${b.id}`, label: 'action.disarmBomb', hold: 6, run: () => this.disarmTH(b) };
-        if (this.mode === 'pvp' && attack && !this.defuser) return { key: `plant${b.id}`, label: 'action.plantDefuser', hold: 4, run: () => this.plantDefuser(b.id, s.id, true) };
+        if (attack && !this.defuser) return { key: `plant${b.id}`, label: 'action.plantDefuser', hold: 4, run: () => this.plantDefuser(b.id, s.id, this.mode === 'pvp') };
       }
       if (this.mode === 'pvp' && defend && this.defuser && this.defuser.pos.distanceTo(s.pos) < 1.7) {
         return { key: 'disable', label: 'action.disableDefuser', hold: 4, run: () => { this.world.emit({ t: 'objective', kind: 'defuser_disabled', actor: s.id }); this.removeDefuser(); } };
@@ -207,27 +230,80 @@ export class Objectives {
 
   setCarrier(id: string | null, broadcast: boolean) {
     if (!this.hostage) return;
+    if (this.mission === 'hostage' && id && !this.hostage.carrier) this.announce('hostageSecured', 'success');
     this.hostage.carrier = id;
     this.hostage.stance = id ? Stance.Stand : Stance.Crouch;
     if (broadcast) this.world.emit({ t: 'objective', kind: id ? 'hostage_pickup' : 'hostage_drop', actor: id ?? '', data: { p: this.hostage.pos.toArray() } });
   }
 
-  private disarmTH(b: Bomb) {
+  /** the defuser finished its bomb (TH) */
+  private bombDefused(b: Bomb) {
     b.state = 'defused';
     const glow = b.mesh.getObjectByName('_glow');
     if (glow) glow.visible = false;
+    this.removeDefuser();
     this.world.sound({ type: 'voice', pos: b.pos.clone(), radius: 80, source: 'bomb', intensity: 1, label: 'bomb_disarmed' });
     if (this.bombs.every((x) => x.state === 'defused')) this.finish(true, 'Bombs disarmed');
+    else this.announce('bombDefused', 'success', [this.siteLabel(this.bombs.find((x) => x.state === 'armed')!.room)]);
+  }
+
+  /** a White Mask next to the running defuser cuts it after DISABLE_TIME (TH) — returns true while working */
+  botWorkDefuser(id: string, dt: number): boolean {
+    if (!this.defuser || this.mode !== 'th') return false;
+    const t = (this.work.get(id) ?? 0) + dt;
+    this.work.set(id, t);
+    if (t >= DISABLE_TIME) {
+      this.work.clear();
+      this.removeDefuser();
+      this.world.sound({ type: 'voice', pos: this.bombs[0].pos.clone(), radius: 80, source: id, intensity: 1, label: 'defuser_disabled' });
+      this.announce('defuserCut', 'alarm');
+    }
+    return true;
+  }
+
+  /** a White Mask next to the hostage takes it after GRAB_TIME (Hostage Protection) */
+  botWorkHostage(id: string, dt: number): boolean {
+    const h = this.hostage;
+    if (!h || !h.alive || h.carrier || this.mission !== 'protect') return false;
+    const t = (this.work.get(id) ?? 0) + dt;
+    this.work.set(id, t);
+    if (t >= GRAB_TIME) {
+      this.work.clear();
+      this.setCarrier(id, false);
+      this.announce('hostageTaken', 'alarm');
+    }
+    return true;
+  }
+
+  /** where a White Mask should go for the objective right now (null: nothing to do) */
+  botGoal(id: string): { pos: THREE.Vector3; reach: number; work?: (dt: number) => boolean } | null {
+    if (this.done) return null;
+    if (this.mission === 'bomb' && this.defuser) return { pos: this.defuser.pos, reach: 1.1, work: (dt) => this.botWorkDefuser(id, dt) };
+    const h = this.hostage;
+    if (this.mission === 'protect' && h?.alive) {
+      if (!h.carrier) return { pos: h.pos, reach: 1.2, work: (dt) => this.botWorkHostage(id, dt) };
+      if (h.carrier === id) {
+        // carry it to the closest extraction (the attackers' spawn pads)
+        let best: THREE.Vector3 | null = null;
+        for (const z of SPAWN_ZONES) { const c = new THREE.Vector3(...z.center); if (!best || c.distanceTo(h.pos) < best.distanceTo(h.pos)) best = c; }
+        return best ? { pos: best, reach: 1 } : null;
+      }
+      const carrier = this.world.actors.get(h.carrier);
+      return carrier ? { pos: carrier.pos, reach: 3.5 } : null;
+    }
+    return null;
   }
 
   plantDefuser(bombId: number, actor: string, broadcast: boolean, endsAt?: number) {
     const b = this.bombs[bombId];
-    if (!b || this.defuser) return;
+    if (!b || this.defuser || b.state !== 'armed') return;
+    this.work.clear();
     const mesh = buildAsset({ id: 'defuser', category: 'gadget', parts: [box([0, 0.08, 0], [0.25, 0.16, 0.18], '#2a2c30'), box([0, 0.17, 0], [0.12, 0.02, 0.08], '#ff2020', { emissive: true })] });
     mesh.position.copy(b.pos).add(new THREE.Vector3(0.45, 0, 0));
     this.group.add(mesh);
     this.defuser = { bomb: bombId, pos: mesh.position.clone(), endsAt: endsAt ?? this.world.time + 30, mesh };
     this.world.sound({ type: 'voice', pos: b.pos.clone(), radius: 80, source: actor, intensity: 1, label: 'defuser_planted' });
+    this.announce(b.done > 0 ? 'defuserResumed' : 'defuserPlanted', 'plant', [this.siteLabel(b.room)]);
     if (broadcast) this.world.emit({ t: 'objective', kind: 'defuser_planted', actor, data: { bomb: bombId } });
   }
 
@@ -250,7 +326,7 @@ export class Objectives {
     const h = this.hostage;
     if (h) {
       const carrier = h.carrier ? w.actors.get(h.carrier) : null;
-      if (carrier && (!carrier.alive)) h.carrier = null;
+      if (carrier && !carrier.alive) { h.carrier = null; h.stance = Stance.Crouch; this.work.clear(); this.announce('hostageDropped', 'info'); }
       if (h.carrier && carrier) {
         const back = new THREE.Vector3(Math.sin(carrier.yaw), 0, Math.cos(carrier.yaw)).multiplyScalar(0.7);
         const target = carrier.pos.clone().add(back);
@@ -259,7 +335,8 @@ export class Objectives {
         h.stance = carrier.stance === Stance.Prone ? Stance.Crouch : carrier.stance === Stance.Crouch ? Stance.Crouch : Stance.Stand;
         if (this.inExtraction(h.pos) && w.isLocal(h.carrier)) {
           if (this.mode === 'pvp') w.emit({ t: 'objective', kind: 'hostage_extracted', actor: h.carrier });
-          this.finish(true, 'Hostage extracted');
+          // Hostage Protection: the White Masks got it out — a win for the attacking side (= the player loses)
+          this.finish(true, this.mission === 'protect' ? 'Hostage taken' : 'Hostage extracted');
         }
       }
       h.rig.root.position.copy(h.pos);
@@ -283,6 +360,12 @@ export class Objectives {
       }
     }
     if (this.defuser) this.defuser.mesh.rotation.y += dt;
+    // TH: the defuser works its bomb; work by White Masks decays when they stop
+    if (this.mode === 'th' && this.defuser && !this.done) {
+      const b = this.bombs[this.defuser.bomb];
+      b.done += dt;
+      if (b.done >= DEFUSE_TIME) this.bombDefused(b);
+    }
     for (const b of this.bombs) {
       const glow = b.state === 'armed' ? b.mesh.getObjectByName('_glow') : undefined;
       if (glow) glow.visible = Math.floor(w.time * 2) % 2 === 0;
@@ -304,7 +387,15 @@ export class Objectives {
           const defIn = this.defuser ? Math.max(0, this.defuser.endsAt - (Date.now() + this.serverClockOffset) / 1000) : undefined;
           return { mission: 'bomb', site: this.site, siteLabel: `${label} / ${this.siteLabel(this.bombs[1]?.room)}`, text: this.defuser ? 'Defuser planted — protect it!' : 'Plant the defuser on a bomb', key: this.defuser ? 'obj.protectDefuser' : 'obj.plantDefuser', args: [], progress: 0, defuserEndsIn: defIn };
         }
-        return { mission: 'bomb', site: this.site, siteLabel: `${label} / ${this.siteLabel(this.bombs[1]?.room)}`, text: `Disarm the bombs (${left} left)`, key: 'obj.disarm', args: [String(left)], progress: 0 };
+        const b = this.defuser ? this.bombs[this.defuser.bomb] : null;
+        if (b) return { mission: 'bomb', site: this.site, siteLabel: this.siteLabel(b.room), text: `Defuser running — hold ${this.siteLabel(b.room)}`, key: 'obj.defusing', args: [this.siteLabel(b.room), String(Math.ceil(DEFUSE_TIME - b.done))], progress: b.done / DEFUSE_TIME };
+        return { mission: 'bomb', site: this.site, siteLabel: `${label} / ${this.siteLabel(this.bombs[1]?.room)}`, text: `Plant the defuser on a bomb (${left} left)`, key: 'obj.plantTH', args: [String(left)], progress: 0 };
+      }
+      case 'protect': {
+        const h = this.hostage;
+        const text = !h ? '' : !h.alive ? 'Hostage KIA' : h.carrier ? 'They have the hostage — stop the carrier!' : `Protect the hostage — ${label}`;
+        const key = !h ? '' : !h.alive ? 'obj.hostageKia' : h.carrier ? 'obj.stopCarrier' : 'obj.protectHostage';
+        return { mission: 'protect', site: this.site, siteLabel: label, text, key, args: [label], progress: 0 };
       }
       case 'secure':
         return { mission: 'secure', site: this.site, siteLabel: label, text: this.secureContested ? 'CONTESTED — clear the room' : `Secure the biohazard container — ${label}`, key: this.secureContested ? 'obj.contested' : 'obj.secure', args: [label], progress: this.secureProgress / 10 };
@@ -313,8 +404,11 @@ export class Objectives {
     }
   }
 
+  /** TH: no White Masks left — a win in every mission but a rescue (the hostage still has to get out) */
   checkElimination(enemiesAlive: number) {
-    if (this.mission === 'elimination' && enemiesAlive === 0) this.finish(true, 'All hostiles eliminated');
+    if (enemiesAlive !== 0 || this.done) return;
+    if (this.mission === 'elimination' || this.mission === 'bomb') this.finish(true, 'All hostiles eliminated');
+    else if (this.mission === 'protect') this.finish(false, 'All hostiles eliminated');
   }
 
   get finished() { return this.done; }

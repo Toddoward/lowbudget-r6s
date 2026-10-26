@@ -191,7 +191,7 @@ export class Game {
       agents: () => this.agentList(),
       match: (id) => this.matchState(id),
       join: (n, c, m) => this.joinRoom(n, c, m, true),
-      startTH: (o) => this.startTH({ ...this.defaultTH(), difficulty: (o.difficulty as BotDifficulty['name']) ?? 'Normal', mission: (o.mission as Mission) ?? 'random' }),
+      startTH: (o) => this.startTH({ ...this.defaultTH(), difficulty: (o.difficulty as BotDifficulty['name']) ?? 'Normal', mission: (o.mission as Mission) ?? 'random', operator: o.mission === 'protect' ? 'smoke' : 'ash' }),
       loadout: (o) => this.setLoadout(this.room?.selfId ?? '', o),
       mapKnowledge: () => this.mapKnowledge(),
       aspect: () => this.camera.aspect,
@@ -268,8 +268,10 @@ export class Game {
     });
     this.destruction.onBroke = (panel, cells) => this.onCellsBroke(panel, cells);
     w.objectives.onResult = (attackWin, reason) => {
-      if (this.mode === 'th') this.endTH(attackWin, reason);
+      // the player attacks in every TH mission but Hostage Protection
+      if (this.mode === 'th') this.endTH(w.objectives.mission === 'protect' ? !attackWin : attackWin, reason);
     };
+    w.objectives.onAnnounce = (key, tone, args) => this.announce(key, tone, args);
   }
 
   private onCellsBroke(panel: Panel, cells: number[]) {
@@ -473,7 +475,11 @@ export class Game {
     this.thKills = 0;
     const seed = Math.floor(Math.random() * 2 ** 31);
     const rand = mulberry32(seed);
-    const mission: Mission = opts.mission === 'random' ? pick<Mission>(['elimination', 'bomb', 'hostage', 'secure'], rand) : opts.mission;
+    // the operator decides the side: defenders play Hostage Protection, attackers the three attack missions
+    const defending = (DEFENDERS as readonly string[]).includes(opts.operator);
+    const mission: Mission = opts.mission === 'random' ? (defending ? 'protect' : pick<Mission>(['elimination', 'bomb', 'hostage'], rand)) : opts.mission === 'secure' ? 'elimination' : opts.mission;
+    const side = mission === 'protect' ? 'defend' : 'attack';
+    const operator = side === 'defend' ? (defending ? opts.operator : 'smoke') : defending ? 'ash' : opts.operator;
     const site = pick(SITES, rand).id;
     const tod: TimeOfDay = opts.tod === 'random' ? (rand() < 0.5 ? 'day' : 'night') : opts.tod;
     this.applyTod(tod, seed);
@@ -484,48 +490,53 @@ export class Game {
     w.objectives.authority = true;
     // player
     const zone: SpawnId = opts.spawn === 'random' ? pick(SPAWN_ZONES.map((z) => z.id), rand) : opts.spawn;
-    const sp = this.spawnPoint(zone, rand);
+    // defenders start in the objective room
+    const sp = side === 'defend' ? this.spawnInRoom(site, rand) : this.spawnPoint(zone, rand);
     const nick = (localStorage.getItem('r6.nick') ?? 'Recruit');
-    this.player = this.makeSoldier('self', nick, 'attack', opts.operator, 'local', sp.p, sp.yaw);
+    this.player = this.makeSoldier('self', nick, side, operator, 'local', sp.p, sp.yaw);
     w.localId = 'self';
     this.playerCtl = new AgentController(w, this.player);
     this.vm.setCloth(this.player.op.cloth);
     // WebMCP agent teammates
-    for (let i = 0; i < opts.agents; i++) this.addLocalAgentSlot(`agent${i + 1}`, `WebMCP-Agent-${i + 1}`, 'attack', ATTACKERS[(ATTACKERS.indexOf(opts.operator as never) + i + 1) % ATTACKERS.length], this.spawnPoint(zone, rand));
+    if (side === 'attack') for (let i = 0; i < opts.agents; i++) this.addLocalAgentSlot(`agent${i + 1}`, `WebMCP-Agent-${i + 1}`, 'attack', ATTACKERS[(ATTACKERS.indexOf(opts.operator as never) + i + 1) % ATTACKERS.length], this.spawnPoint(zone, rand));
     // terrorists
     const diff = DIFFICULTY[opts.difficulty];
     const siteRooms = w.objectives.roomOfSite();
     const allRooms = ROOMS.filter((r) => r.id !== 'closet' && !r.transit).map((r) => r.id);
     for (let i = 0; i < diff.count; i++) {
-      const guard = i < 3;
-      const exterior = i === diff.count - 1 || i === diff.count - 2;
+      // Hostage Protection: the White Masks are the attackers — everyone starts outside on the spawn pads
+      const guard = i < 3 && side === 'attack';
+      const exterior = side === 'defend' || i === diff.count - 1 || i === diff.count - 2;
       const home = guard ? siteRooms[i % siteRooms.length] : pick(allRooms, rand);
       const homeFloor = ROOMS.find((r) => r.id === home)!.floor;
       const near = ROOMS.filter((r) => r.floor === homeFloor && r.id !== home && !r.transit).map((r) => r.id);
       const patrol = exterior ? ['__ext'] : [home, pick(near, rand), pick(near, rand)];
-      const spn = exterior ? this.spawnOutside(rand) : this.spawnInRoom(home, rand);
+      const spn = side === 'defend' ? this.spawnPoint(SPAWN_ZONES[i % SPAWN_ZONES.length].id, rand) : exterior ? this.spawnOutside(rand) : this.spawnInRoom(home, rand);
       const s = this.makeSoldier(`tango${i}`, `White Mask ${i + 1}`, 'terrorist', 'terrorist', 'bot', spn.p, spn.yaw);
       if (rand() < 0.2) { s.weapons[0] = { def: WEAPONS.spas12t, mag: 7, reserve: 600 }; this.rigs.get(s.id)?.setWeapon('spas12t'); }
       const bot = new Bot(w, this.nav, s, diff, patrol, guard && !exterior);
       bot.isNight = tod === 'night';
+      // standing order: whatever the mission needs of them right now (defuser, hostage) once the action phase is on
+      bot.order = () => (w.phase === 'action' ? w.objectives.botGoal(s.id) : null);
       this.bots.push(bot);
     }
-    // White Masks fortify: barricades + a few reinforced walls around the site
-    for (const op of this.house.openings) if (op.barricadeable && rand() < 0.5) w.interactions.placeBarricade(op, 'wood', false);
+    // White Masks fortify: barricades + a few reinforced walls around the site (not when they are the ones attacking)
+    if (side === 'attack') for (const op of this.house.openings) if (op.barricadeable && rand() < 0.5) w.interactions.placeBarricade(op, 'wood', false);
     const siteSoft = this.house.wallPanels.filter((p) => p.reinforceable && p.rooms.some((r) => r && siteRooms.includes(r)));
-    for (let i = 0; i < Math.min(4, siteSoft.length); i++) w.interactions.reinforce(null, siteSoft[Math.floor(rand() * siteSoft.length)], false);
-    for (const h of HATCHES) if (rand() < 0.35) { const p = [...this.destruction.panels.values()].find((x) => x.label === h.label); if (p) w.interactions.reinforce(null, p, false); }
-    // drone prep phase
+    if (side === 'attack') for (let i = 0; i < Math.min(4, siteSoft.length); i++) w.interactions.reinforce(null, siteSoft[Math.floor(rand() * siteSoft.length)], false);
+    if (side === 'attack') for (const h of HATCHES) if (rand() < 0.35) { const p = [...this.destruction.panels.values()].find((x) => x.label === h.label); if (p) w.interactions.reinforce(null, p, false); }
+    // prep: attackers drone (20 s); defenders fortify the hostage room (45 s)
     w.phase = 'prep';
-    this.phaseEnds = w.time + 20;
-    this.drone = w.gadgets.spawnDrone(this.player, this.dronePoint(zone));
+    this.phaseEnds = w.time + (side === 'attack' ? 20 : 45);
+    this.drone = side === 'attack' ? w.gadgets.spawnDrone(this.player, this.dronePoint(zone)) : null;
     this.mode = 'th';
     this.input.resetStance();
     this.hud.show(true);
     this.onMatchStart();
-    this.view = 'drone';
+    this.view = side === 'attack' ? 'drone' : 'body';
     this.thStats = { shots: 0, hits: 0, heads: 0, start: w.time };
-    this.hud.showBanner(t('banner.th', missionName(mission)), t('banner.thSub', t(tod === 'day' ? 'hud.day' : 'hud.night'), localizePlace(w.objectives.siteLabel()), t(`diff.${diff.name}`)), 5);
+    this.thLeft = diff.count;
+    this.hud.showBanner(t('banner.th', missionName(mission)), t(side === 'attack' ? 'banner.thSub' : 'banner.thSubDef', t(tod === 'day' ? 'hud.day' : 'hud.night'), localizePlace(w.objectives.siteLabel()), t(`diff.${diff.name}`)), 5);
     this.audio.ensure();
     this.input.lock();
   }
@@ -860,6 +871,15 @@ export class Game {
     this.bloom.threshold = tod === 'day' ? 0.88 : 0.95;
   }
 
+  /** White Masks left (TH callouts) */
+  private thLeft = 0;
+
+  /** round-state callout: a short banner + its sound */
+  announce(key: string, tone: 'plant' | 'alarm' | 'success' | 'info', args: string[] = []) {
+    this.hud.showBanner(t(`ann.${key}`, ...args.map((a) => localizePlace(a))), has(`ann.${key}.sub`) ? t(`ann.${key}.sub`, ...args.map((a) => localizePlace(a))) : '', 2.6);
+    this.audio.ui(tone);
+  }
+
   private endDronePhase() {
     // the drone stays on the map for the action phase ([3] to drive it again)
     if (this.view !== 'body') this.view = 'body';
@@ -957,7 +977,11 @@ export class Game {
         w.phase = 'action';
         this.phaseEnds = w.time + 360;
         this.endDronePhase();
-      } else if (w.phase === 'action' && w.time >= this.phaseEnds) this.endTH(false, 'Time expired');
+      } else if (w.phase === 'action' && w.time >= this.phaseEnds) {
+        // Hostage Protection: holding out is the job
+        if (w.objectives.mission === 'protect') this.endTH(true, 'Hostage protected');
+        else this.endTH(false, 'Time expired');
+      }
     }
     // --- views: drone (attackers; forced during prep) · CCTV (defenders) · body
     if (this.mode === 'th' && w.phase === 'prep' && enterPressed) this.phaseEnds = w.time;
@@ -1023,9 +1047,14 @@ export class Game {
     // --- win/lose (TH)
     if (this.mode === 'th' && !this.thResult && w.phase === 'action') {
       const alive = this.bots.filter((b) => b.s.alive).length;
+      // callouts as the White Masks thin out
+      if (alive < this.thLeft) {
+        this.thLeft = alive;
+        if (alive === 3 || alive === 1) this.announce(alive === 1 ? 'lastEnemy' : 'enemiesLeft', 'info', [String(alive)]);
+      }
       w.objectives.checkElimination(alive);
-      const attackersAlive = (p?.alive ? 1 : 0) + this.slots.filter((s) => s.soldier.alive).length;
-      if (attackersAlive === 0) this.endTH(false, 'All operators down');
+      const operatorsAlive = (p?.alive ? 1 : 0) + this.slots.filter((s) => s.soldier.alive).length;
+      if (operatorsAlive === 0) this.endTH(false, 'All operators down');
     }
     // --- net
     this.snapT -= dt;
@@ -1268,7 +1297,7 @@ export class Game {
     const o = w.objectives;
     let obj: THREE.Vector3 | null = null;
     if (o.mission === 'bomb') obj = o.defuser?.pos ?? o.bombs.find((b) => b.state === 'armed')?.pos ?? null;
-    else if (o.mission === 'hostage' && o.hostage?.alive) obj = o.hostage.carrier === p.id ? null : o.hostage.pos.clone().add(new THREE.Vector3(0, 1.2, 0));
+    else if ((o.mission === 'hostage' || o.mission === 'protect') && o.hostage?.alive) obj = o.hostage.carrier === p.id ? null : o.hostage.pos.clone().add(new THREE.Vector3(0, 1.2, 0));
     else if (o.mission === 'secure') obj = o.spotOf(o.site);
     if (obj && p.alive && this.view === 'body' && obj.distanceTo(p.pos) > 3) push(this.project(obj, 'obj', t(`missionShort.${o.mission}`)));
     // teammates out of sight: small name tags
@@ -1328,6 +1357,7 @@ export function missionName(m: string) {
 const REASON_KEYS: Record<string, string> = {
   'Time expired': 'reason.timeout', 'All operators down': 'reason.allDown', 'All hostiles eliminated': 'reason.eliminated', 'Bombs disarmed': 'reason.bombs',
   'Hostage extracted': 'reason.extracted', 'Area secured': 'reason.secured', 'Hostage killed by attackers': 'reason.hostageKilledAtk', 'Hostage killed by defenders': 'reason.hostageKilledDef',
+  'Hostage protected': 'reason.protected', 'Hostage taken': 'reason.hostageTaken', 'Hostage killed': 'reason.hostageKilled',
   'Defuser disabled': 'reason.defuserDisabled', 'Bomb defused': 'reason.bombDefused', 'Defuser completed': 'reason.defuserDone', 'Attackers eliminated': 'reason.atkDead', 'Defenders eliminated': 'reason.defDead',
 };
 /** objective / server reasons are English (agents read them); show them localized */

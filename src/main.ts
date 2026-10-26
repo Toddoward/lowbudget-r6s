@@ -59,8 +59,13 @@ onLangChange(relabel);
 document.querySelectorAll<HTMLElement>('.lang-switch button').forEach((b) => (b.onclick = () => setLang(b.dataset.lang as Lang)));
 
 /* ================================================================ home */
+// one remembered pick per side: Hostage Protection is played as a defender
 let thOperator = localStorage.getItem('r6.op') ?? 'ash';
 if (!(ATTACKERS as readonly string[]).includes(thOperator)) thOperator = 'ash';
+let thDefender = localStorage.getItem('r6.opDef') ?? 'smoke';
+if (!(DEFENDERS as readonly string[]).includes(thDefender)) thDefender = 'smoke';
+const thDefending = () => $<HTMLSelectElement>('#th-mission').value === 'protect';
+const thPick = () => (thDefending() ? thDefender : thOperator);
 let thAgents = 0;
 function renderQuickSub() {
   $('#quick-sub').textContent = t('menu.quickSub2', OPERATORS[thOperator]?.name ?? thOperator);
@@ -75,12 +80,12 @@ $('#nav-controls').onclick = () => openSettings('controls');
 const ROLE_ORDER: Role[] = ['breacher', 'hardBreacher', 'shield', 'support', 'intel', 'fragger', 'antiGadget', 'anchor', 'trapper', 'flank'];
 function renderOps() {
   const groups = new Map<Role, string[]>();
-  for (const id of ATTACKERS) {
+  for (const id of thDefending() ? DEFENDERS : ATTACKERS) {
     const r = OPERATORS[id].roles?.[0] ?? 'support';
     groups.set(r, [...(groups.get(r) ?? []), id]);
   }
   $('#th-ops').innerHTML = ROLE_ORDER.filter((r) => groups.has(r)).map((r) => `<div class="op-group"><h4>${esc(t(`role.${r}`))}</h4><div class="ops">${groups.get(r)!.map((id) => opCard(id)).join('')}</div></div>`).join('');
-  const o = OPERATORS[thOperator];
+  const o = OPERATORS[thPick()];
   $('#th-op-info').innerHTML = `<b>${esc(o.name)}</b> <small>${esc(o.unit)} · ${(o.roles ?? []).map((r) => t(`role.${r}`)).join(' / ')}</small>
     <div class="pips"><span>${t('menu.armor')}</span>${pips(o.armor)}<span>${t('menu.speed')}</span>${pips(o.speed)}</div>
     <div class="gadget-line"><kbd>${esc(game.input.binds.cap('gadget'))}</kbd> ${esc(t(`gname.${o.gadget}`))}${o.universal === 'breach' ? ` · <kbd>${esc(game.input.binds.cap('gadget2'))}</kbd> ${esc(t('gname.breach'))} ×${o.universalCount}` : ''}</div>
@@ -89,13 +94,13 @@ function renderOps() {
 const pips = (n: number) => `<i class="pip on"></i>`.repeat(n) + `<i class="pip"></i>`.repeat(3 - n);
 function opCard(id: string) {
   const o = OPERATORS[id];
-  return `<button class="op ${id === thOperator ? 'on' : ''}" data-op="${id}"><span class="badge" style="background:${o.cloth};border-color:${o.accent}">${esc(o.name.slice(0, 2).toUpperCase())}</span>${esc(o.name)}<small>${esc(o.unit)}</small></button>`;
+  return `<button class="op ${id === thPick() ? 'on' : ''}" data-op="${id}"><span class="badge" style="background:${o.cloth};border-color:${o.accent}">${esc(o.name.slice(0, 2).toUpperCase())}</span>${esc(o.name)}<small>${esc(o.unit)}</small></button>`;
 }
 $('#th-ops').addEventListener('click', (e) => {
   const el = (e.target as HTMLElement).closest<HTMLElement>('.op');
   if (!el) return;
-  thOperator = el.dataset.op!;
-  localStorage.setItem('r6.op', thOperator);
+  if (thDefending()) { thDefender = el.dataset.op!; localStorage.setItem('r6.opDef', thDefender); }
+  else { thOperator = el.dataset.op!; localStorage.setItem('r6.op', thOperator); }
   renderOps();
   renderQuickSub();
 });
@@ -103,8 +108,10 @@ $('#th-ops').addEventListener('dblclick', (e) => { if ((e.target as HTMLElement)
 for (const id of ['#th-mission', '#th-diff', '#th-tod', '#th-spawn']) {
   const el = $<HTMLSelectElement>(id);
   el.value = localStorage.getItem(`r6.th${id}`) ?? el.value;
-  el.addEventListener('change', () => localStorage.setItem(`r6.th${id}`, el.value));
+  el.addEventListener('change', () => { localStorage.setItem(`r6.th${id}`, el.value); if (id === '#th-mission') renderOps(); });
 }
+// (an old saved 'secure' choice: Secure Area is PvP-only now)
+if ($<HTMLSelectElement>('#th-mission').value === '' || $<HTMLSelectElement>('#th-mission').value === 'secure') $<HTMLSelectElement>('#th-mission').value = 'random';
 $('#th-add-agent').onclick = () => { thAgents = Math.min(4, thAgents + 1); $('#th-agents').textContent = String(thAgents); };
 $('#th-clear-agents').onclick = () => { thAgents = 0; $('#th-agents').textContent = '0'; };
 $('#th-start').onclick = () => startTH();
@@ -120,7 +127,7 @@ function startTH(quick = false) {
     mission: v('#th-mission') as Mission | 'random',
     tod: v('#th-tod') as 'random',
     spawn: v('#th-spawn') as 'random',
-    operator: thOperator,
+    operator: quick ? thOperator : thPick(),
     agents: QA ? thAgents : 0,
   });
 }

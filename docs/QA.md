@@ -62,15 +62,20 @@ Manual: look along the 2F west wall, soft walls next to hard walls and the hatch
 |---|---|---|---|---|
 | 6.1 | Inverted rappel: W/S reversed | controls follow the view: inverted, W descends, S climbs, A/D mirror | `rules.test.ts` | ✅ |
 
-## 7. Open items (in progress, in this order)
+## 7. Rules: destruction, missions, round state
+
+| # | Problem | Fix | Verified by | Status |
+|---|---|---|---|---|
+| 7.1 | Soft walls & hatches vanished under punches / bullets | the wooden stud frame stays after melee and bullets (bullets pass between studs, bodies don't); only explosives, sledge, shotgun and breach charges break it | `destruction.test.ts` | ✅ |
+| 7.2 | Terrorist Hunt had Secure Area and no defense mission | attack: Elimination, Bomb (plant the defuser, White Masks rush and cut it, progress is kept, two bombs or elimination wins), Hostage Rescue; defense: Hostage Protection (White Masks grab the hostage and run for an extraction) | `missions.test.ts` (rules + bots from all 10 rooms reach a planted defuser on the real map) | ✅ |
+| 7.3 | Round state was silent | banner + SFX for defuser planted / cut / resumed, bomb defused, hostage picked up / taken / dropped / down, enemies left, round won / lost; HUD progress bar for the defuser | `missions.test.ts` (announcement keys); manual: listen | 🟡 |
+
+## 8. Open items (in progress, in this order)
 
 | # | Item | Status |
 |---|---|---|
-| 7.1 | Soft walls & hatches keep their wooden frame after punches / bullets (bullets pass the studs); only explosives, sledge, shotgun, breach charges break it | ⏳ |
-| 7.2 | Terrorist Hunt missions: Elimination, Bomb (defuser planted, White Masks converge on it), Hostage Rescue; defense: Hostage Protection; no Secure Area | ⏳ |
-| 7.3 | Round state with UI + SFX: defuser planted / disabled, hostage picked up / extracted / down, round won/lost | ⏳ |
-| 7.4 | Shield operators: slot 1 shield front ↔ back, pistol always in hand, RMB turns the shield sideways and aims | ⏳ |
-| 7.5 | Ping and drone scan rework | ⏳ |
-| 7.6 | Interaction detection per type (door/window barricade, hatch, hostage, defuser, gadget pickup) | ⏳ |
-| 7.7 | First-person arms per item (hands on the grip/handguard, shoulder out of view), gadget / interaction viewmodels | ⏳ |
-| 7.8 | Corpses: proper death pose, no walking pose, not blocking movement | ⏳ |
+| 8.1 | Shield operators: slot 1 shield front ↔ back, pistol always in hand, RMB turns the shield sideways and aims | ⏳ |
+| 8.2 | Ping and drone scan rework | ⏳ |
+| 8.3 | Interaction detection per type (door/window barricade, hatch, hostage, defuser, gadget pickup) | ⏳ |
+| 8.4 | First-person arms per item (hands on the grip/handguard, shoulder out of view), gadget / interaction viewmodels | ⏳ |
+| 8.5 | Corpses: proper death pose, no walking pose, not blocking movement | ⏳ |

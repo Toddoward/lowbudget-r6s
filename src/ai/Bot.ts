@@ -27,7 +27,10 @@ import type { NavGraph } from './NavGraph.ts';
  * extra Gaussian (or linear-disc) spread scaled by distance, motion and the
  * current residual error.
  */
-export enum BotState { Patrol = 'PATROL', Alert = 'ALERT', Attack = 'ATTACK', Cover = 'COVER', Dead = 'DEAD' }
+export enum BotState { Patrol = 'PATROL', Alert = 'ALERT', Attack = 'ATTACK', Cover = 'COVER', Rush = 'RUSH', Dead = 'DEAD' }
+
+/** a mission order: where to go now (re-asked every frame), how close is close enough, what to do there */
+export type BotOrder = () => { pos: THREE.Vector3; reach: number; work?: (dt: number) => boolean } | null;
 
 export interface BotDifficulty {
   name: 'Normal' | 'Hard' | 'Realistic';
@@ -90,6 +93,8 @@ export class Bot {
   private acquireErr = new THREE.Vector3();
   private acquiredAt = -99;
   readonly guard: boolean;
+  /** mission order (TH: rush the defuser, take the hostage) — overrides patrol / search, not a fight */
+  order: BotOrder | null = null;
   /** human-readable debug of the last transition */
   reason = 'spawn';
 
@@ -248,7 +253,31 @@ export class Bot {
     const w = s.weapon;
     this.strafeSlow = false;
 
+    // a standing order pulls patrolling / searching bots onto the objective (they still fight what they see)
+    const goal = this.order?.() ?? null;
+    if (goal && (this.state === BotState.Patrol || this.state === BotState.Alert)) this.setState(BotState.Rush, 'objective');
+    if (!goal && this.state === BotState.Rush) this.setState(BotState.Alert, 'objective over');
+
     switch (this.state) {
+      case BotState.Rush: {
+        if (!goal) break;
+        const d = Math.hypot(goal.pos.x - s.pos.x, goal.pos.z - s.pos.z);
+        if (d > goal.reach || Math.abs(goal.pos.y - s.pos.y) > 1.2) {
+          if (!this.path.length || this.pathGoal.distanceTo(goal.pos) > 1.2) this.planTo(goal.pos);
+          moveTo = this.followPath(dt);
+          if (!moveTo) this.planTo(goal.pos);
+          inp.sprint = d > 6;
+          // a wooden barricade right in front: melee it down
+          const ahead = this.world.physics.raycast(s.eye().add(new THREE.Vector3(0, -0.5, 0)), new THREE.Vector3(-Math.sin(s.yaw), 0, -Math.cos(s.yaw)), 1.1, G_WORLD);
+          if (ahead?.tag?.kind === 'panel' && this.world.destruction.get(ahead.tag.panelId)?.kind === 'barricade') inp.melee = true;
+        } else {
+          // on the objective: crouch over it and work it
+          lookTarget = goal.pos.clone().add(new THREE.Vector3(0, 0.3, 0));
+          wantStance = Stance.Crouch;
+          goal.work?.(dt);
+        }
+        break;
+      }
       case BotState.Patrol: {
         if (this.guard) {
           this.waitT -= dt;
@@ -401,6 +430,8 @@ export class Bot {
   }
 
   private toAlertForce(p: THREE.Vector3, why: string) {
+    // with a standing order, a lost fight goes back to the objective
+    if (this.order?.()) { this.setState(BotState.Rush, `${why} → objective`); return; }
     this.state = BotState.Patrol;
     this.toAlert(p, why);
   }
@@ -436,7 +467,8 @@ export class Bot {
   /* ================================================================ pathing */
   private planTo(goal: THREE.Vector3) {
     this.pathGoal.copy(goal);
-    const p = this.nav.path(this.s.pos, goal);
+    // on a mission order, barricaded doors are a way in (the bot knocks them down when it gets there)
+    const p = this.nav.path(this.s.pos, goal) ?? (this.state === BotState.Rush ? this.nav.path(this.s.pos, goal, true) : null);
     this.path = p ?? [];
     this.pathIdx = 0;
     this.repathT = 3;
