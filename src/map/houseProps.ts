@@ -28,7 +28,7 @@ export const PROPS: PropDef[] = [
   // Every prop keeps the clearance zones in src/map/clearance.ts free (doorways ±1.2 m,
   // stair ends, hatches) — enforced by tools/tests/props.test.ts and the walk E2E.
   // ---------------- Basement: Storage (shelving along the walls, aisle to both doors)
-  P('Metal Shelves', -1, -4.9, -7.15, [1.6, 2.0, 0.5], 'metal', '#7d8186', 'rack'),
+  P('Metal Shelves', -1, -5.45, -7.03, [1.2, 2.0, 0.5], 'metal', '#7d8186', 'rack'),
   P('Metal Shelves', -1, -2.5, -7.1, [1.4, 2.0, 0.5], 'metal', '#7d8186', 'rack'),
   P('Metal Shelves', -1, -2.0, -5.6, [0.5, 2.0, 1.4], 'metal', '#7d8186', 'rack'),
   P('Boxes', -1, -3.65, -6.95, [0.8, 0.8, 0.8], 'wood', '#9b7f57', 'box'),
@@ -43,7 +43,7 @@ export const PROPS: PropDef[] = [
   // Garage: black sedan nosed at shutter B + white boat on a trailer (the two big hard covers)
   { ...P('Sedan', -1, 3.4, -2.6, [4.6, 1.45, 1.9], 'vehicle', '#141619', 'car'), rot90: true },
   P('Shelves', -1, 1.4, -4.4, [1.6, 2.0, 0.5], 'metal', '#7d8186', 'rack'),
-  P('Workbench', -1, 8.3, 4.45, [2.0, 0.9, 0.7], 'wood', '#6b4f33', 'desk'),
+  P('Workbench', -1, 8.0, 4.45, [2.0, 0.9, 0.7], 'wood', '#6b4f33', 'desk'),
   P('Oil Drums', -1, 2.4, 1.2, [0.6, 0.9, 0.6], 'metal', '#3e5a7a', 'cylinder'),
   // Laundry Room: washer, dryer, folding table, shelf
   P('Washer', -1, -3.05, 1.2, [0.65, 0.9, 0.65], 'metal', '#e8e8e4', 'appliance'),
@@ -61,7 +61,7 @@ export const PROPS: PropDef[] = [
 
   // ---------------- 1F: Living Room (sofa + side sofa facing the TV, path to the arch and both french windows)
   P('Sofa', 0, -5.4, -1.2, [2.6, 0.85, 0.95], 'fabric', '#5a6a7a', 'sofa'),
-  P('Sofa', 0, -6.3, -3.4, [0.95, 0.85, 1.9], 'fabric', '#5a6a7a', 'sofa'),
+  P('Sofa', 0, -6.15, -3.4, [0.95, 0.85, 1.9], 'fabric', '#5a6a7a', 'sofa'),
   P('Coffee Table', 0, -5.2, -2.0, [1.2, 0.45, 0.65], 'wood', '#5a4330', 'table'),
   P('TV Stand', 0, -5.1, -5.0, [2.0, 0.55, 0.45], 'wood', '#3a2c20', 'counter'),
   P('TV', 0, -5.1, -5.05, [1.4, 0.8, 0.08], 'metal', '#111214', undefined, 0.55),
@@ -81,14 +81,14 @@ export const PROPS: PropDef[] = [
     P('Chair', 0, x, 1.55, [0.48, 0.95, 0.48], 'wood', '#4f3a26', 'chair'),
     P('Chair', 0, x, 3.65, [0.48, 0.95, 0.48], 'wood', '#4f3a26', 'chair'),
   ]),
-  P('Sideboard', 0, 5.4, 4.5, [1.8, 0.9, 0.5], 'wood', '#4f3a26', 'counter'),
+  P('Sideboard', 0, 6.1, 4.5, [1.8, 0.9, 0.5], 'wood', '#4f3a26', 'counter'),
   P('Ammo Crate', 0, 9.2, 4.3, [0.75, 0.45, 0.45], 'wood', '#4b5a37', 'ammo'),
-  // Kitchen: island, fridge, counters + stove along the south wall
+  // Kitchen: island, counters + stove + fridge along the south wall (clear of the kitchen|dining drone vent)
   P('Kitchen Island', 0, 0.6, 2.6, [2.2, 0.92, 1.0], 'concrete', '#d9d4c8', 'counter'),
-  P('Fridge', 0, 3.75, 4.45, [0.8, 1.9, 0.7], 'metal', '#c9cbcd', 'appliance'),
-  P('Counter', 0, -0.2, 4.55, [1.6, 0.92, 0.6], 'concrete', '#d9d4c8', 'counter'),
-  P('Stove', 0, 1.0, 4.55, [0.75, 0.92, 0.6], 'metal', '#2c2f33', 'appliance'),
-  P('Counter', 0, 2.3, 4.55, [1.8, 0.92, 0.6], 'concrete', '#d9d4c8', 'counter'),
+  P('Fridge', 0, 3.2, 4.45, [0.8, 1.9, 0.7], 'metal', '#c9cbcd', 'appliance'),
+  P('Counter', 0, -0.6, 4.55, [1.6, 0.92, 0.6], 'concrete', '#d9d4c8', 'counter'),
+  P('Stove', 0, 0.6, 4.55, [0.75, 0.92, 0.6], 'metal', '#2c2f33', 'appliance'),
+  P('Counter', 0, 1.9, 4.55, [1.8, 0.92, 0.6], 'concrete', '#d9d4c8', 'counter'),
   // Back Entrance
   P('Shoe Bench', 0, -7.6, 3.45, [1.2, 0.5, 0.4], 'wood', '#5a4330', 'bench'),
   P('Umbrella Stand', 0, -8.3, 0.9, [0.3, 0.7, 0.3], 'metal', '#2c2f33', 'cylinder'),
@@ -106,7 +106,7 @@ export const PROPS: PropDef[] = [
   P('Bench', 1, -6.6, 3.45, [1.4, 0.45, 0.45], 'wood', '#6b4f33', 'bench'),
   P('Plant', 1, -7.6, 0.2, [0.45, 1.2, 0.45], 'fabric', '#3f5a2e', 'cylinder'),
   // Upper Hallway
-  P('Hall Table', 1, -0.8, -5.1, [1.2, 0.8, 0.4], 'wood', '#4f3a26', 'table'),
+  P('Hall Table', 1, -0.5, -5.1, [1.2, 0.8, 0.4], 'wood', '#4f3a26', 'table'),
   // Workshop: workbench, tool shelf, table saw, ammo crate
   P('Workbench', 1, 6.0, -4.65, [2.2, 0.95, 0.8], 'wood', '#6b4f33', 'desk'),
   P('Tool Shelf', 1, 8.0, -3.0, [0.5, 1.9, 1.4], 'metal', '#5d6268', 'rack'),

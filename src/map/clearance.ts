@@ -12,6 +12,9 @@ export interface Zone { floor: FloorId; rect: Rect; why: string }
 /** metres kept free on each side of a doorway, and to its left/right */
 export const DOOR_DEPTH = 1.2;
 export const DOOR_SIDE = 0.25;
+/** metres kept free in front of / behind a drone vent, and to its left/right */
+export const VENT_DEPTH = 0.6;
+export const VENT_SIDE = 0.1;
 /** metres kept free past each end of a staircase */
 export const STAIR_APPROACH = 1.3;
 
@@ -26,6 +29,16 @@ export function clearanceZones(): Zone[] {
       const b = o.at + o.w / 2 + DOOR_SIDE;
       const rect = w.run === 'x' ? { x0: a, x1: b, z0: w.c - DOOR_DEPTH, z1: w.c + DOOR_DEPTH } : { x0: w.c - DOOR_DEPTH, x1: w.c + DOOR_DEPTH, z0: a, z1: b };
       out.push({ floor: w.floor, rect, why: `${o.kind} @${w.run === 'x' ? `z=${w.c} x=${o.at}` : `x=${w.c} z=${o.at}`}` });
+    }
+  }
+  // drone vents: a straight run in and out for the drone, on both sides of the wall
+  for (const w of WALLS) {
+    for (const o of w.openings ?? []) {
+      if (o.kind !== 'vent') continue;
+      const a = o.at - o.w / 2 - VENT_SIDE;
+      const b = o.at + o.w / 2 + VENT_SIDE;
+      const rect = w.run === 'x' ? { x0: a, x1: b, z0: w.c - VENT_DEPTH, z1: w.c + VENT_DEPTH } : { x0: w.c - VENT_DEPTH, x1: w.c + VENT_DEPTH, z0: a, z1: b };
+      out.push({ floor: w.floor, rect, why: `vent @${w.run === 'x' ? `z=${w.c} x=${o.at}` : `x=${w.c} z=${o.at}`}` });
     }
   }
   for (const s of STAIRS) {

@@ -5,14 +5,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { Physics } from '../../src/core/Physics.ts';
+import { G_CLIP, G_WORLD, groups, Physics } from '../../src/core/Physics.ts';
 import { DestructionSystem } from '../../src/world/Destruction.ts';
 import { buildHouse } from '../../src/map/MapBuilder.ts';
 import { buildOutdoor } from '../../src/map/Outdoor.ts';
 import { decodeHouseDatamap512Headless } from '../../src/map/houseDatamap.ts';
 import { FLOOR_Y, MAP_BOUNDS, ROOMS, SPAWN_ZONES, STAIRS } from '../../src/map/houseLayout.ts';
 import { NavGraph } from '../../src/ai/NavGraph.ts';
-import { BODY_R, buildWalkGrid, clearWidth, gridDistance, MAX_LAYERS, moves, nearestFit, reach, surfaceAt, surfacePos } from '../../src/map/walkGrid.ts';
+import { BODY_R, buildWalkGrid, clearWidth, gridDistance, lineWalk, MAX_LAYERS, moves, nearestFit, reach, surfaceAt, surfacePos } from '../../src/map/walkGrid.ts';
 import { SITES } from '../../shared/constants.ts';
 
 const ph = await Physics.create();
@@ -160,6 +160,77 @@ test('both ends of every staircase are reached upright', () => {
     for (const [x, y, z] of ends) if (reachedNear(x, y, z, 0.6, 0.3) < 0) bad.push(`${s.id} end ${fmt([x, y, z])}`);
   }
   assert.deepEqual(bad, []);
+});
+
+test('every flight walks end to end upright along its centre line (nothing built across a staircase)', () => {
+  const bad: string[] = [];
+  for (const s of STAIRS) {
+    const r = s.rect;
+    const along = s.axis === 'x' ? r.x1 - r.x0 : r.z1 - r.z0;
+    // a body radius (and a bit) inside each end, on the slope — the approaches are the test above
+    const pt = (f: number) => {
+      const y = s.yMin + (s.yMax - s.yMin) * f;
+      return s.axis === 'x' ? { x: r.x0 + along * f, y, z: (r.z0 + r.z1) / 2 } : { x: (r.x0 + r.x1) / 2, y, z: r.z0 + along * f };
+    };
+    const e = 0.45 / along;
+    if (!lineWalk(grid, pt(e), pt(1 - e))) bad.push(s.id);
+  }
+  assert.deepEqual(bad, []);
+});
+
+test('no bottomless holes: a drone-sized ball dropped next to any reachable floor lands on something', () => {
+  const R = 0.085; // the drone, the smallest thing that rolls or falls around
+  const ball = new ph.R.Ball(R);
+  const rot = { x: 0, y: 0, z: 0, w: 1 };
+  const down = { x: 0, y: -1, z: 0 };
+  const mask = groups(0xffff, G_WORLD | G_CLIP);
+  const checked = new Set<number>();
+  const holes: [number, number, number][] = [];
+  for (let s = 0; s < anyStance.bits.length; s++) {
+    if (!anyStance.bits[s]) continue;
+    const c = Math.floor(s / MAX_LAYERS);
+    const y = grid.y[s];
+    const ix = c % grid.nx;
+    const iz = Math.floor(c / grid.nx);
+    // body centres stay BODY_R from edges: look that far out (and a cell more)
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      for (let k = 1; k <= Math.ceil(BODY_R / grid.cell) + 1; k++) {
+        const jx = ix + dx * k;
+        const jz = iz + dz * k;
+        if (jx < 0 || jz < 0 || jx >= grid.nx || jz >= grid.nz) break;
+        const d = jz * grid.nx + jx;
+        // the grid has something to land on below → fine
+        let floor = false;
+        for (let m = 0; m < grid.n[d]; m++) if (grid.y[d * MAX_LAYERS + m] <= y + 0.36) { floor = true; break; }
+        if (floor || checked.has(d)) continue;
+        checked.add(d);
+        const x = grid.x0 + jx * grid.cell;
+        const z = grid.z0 + jz * grid.cell;
+        const p = { x, y: y + 0.3, z };
+        if (ph.world.intersectionWithShape(p, rot, ball, undefined, mask)) continue; // inside a wall
+        if (!ph.world.castShape(p, rot, down, ball, 0, 40, true, undefined, mask)) holes.push([x, y, z]);
+      }
+    }
+  }
+  // one line per hole: cluster neighbouring cells
+  const out: string[] = [];
+  const used = new Set<number>();
+  holes.forEach((h, i) => {
+    if (used.has(i)) return;
+    const box = [h[0], h[2], h[0], h[2]];
+    used.add(i);
+    for (let grow = true; grow;) {
+      grow = false;
+      holes.forEach((o, j) => {
+        if (used.has(j) || o[0] < box[0] - 0.15 || o[0] > box[2] + 0.15 || o[2] < box[1] - 0.15 || o[2] > box[3] + 0.15) return;
+        used.add(j);
+        grow = true;
+        box[0] = Math.min(box[0], o[0]); box[1] = Math.min(box[1], o[2]); box[2] = Math.max(box[2], o[0]); box[3] = Math.max(box[3], o[2]);
+      });
+    }
+    out.push(`x ${box[0].toFixed(2)}..${box[2].toFixed(2)} z ${box[1].toFixed(2)}..${box[3].toFixed(2)} (next to floor at y ${h[1].toFixed(2)})`);
+  });
+  assert.deepEqual(out, []);
 });
 
 test('every bot nav node stands on reachable floor and every nav edge is a real walkway', () => {

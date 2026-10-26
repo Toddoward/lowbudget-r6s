@@ -3,7 +3,7 @@ import { G_CLIP, type Physics, type SurfaceMaterial } from '../core/Physics.ts';
 import { BoxBatch } from '../world/BoxBatch.ts';
 import { greedy } from '../world/Destruction.ts';
 import { vcMaterial } from '../render/palette.ts';
-import { DRIVEWAY, FLOORS, GARAGE_RAMP, LOWER_GROUND_Y, MAP_BOUNDS, NW_STAIRWELL_PIT, ROOF_Y, STAIRS, VENT_SHAFT, type Rect } from './houseLayout.ts';
+import { DRIVEWAY, FLOORS, GARAGE_RAMP, GARAGE_VENT_WELL, LOWER_GROUND_Y, MAP_BOUNDS, NW_STAIRWELL_PIT, ROOF_Y, STAIRS, VENT_SHAFT, type Rect } from './houseLayout.ts';
 import { subtractRects } from './geometry.ts';
 import { FORM, HOUSE_POLICE_CRUISERS, setActiveDatamap, uToX, vToZ, xToU, zToV, ZONE, type HouseDatamap } from './houseDatamap.ts';
 
@@ -36,7 +36,8 @@ const UP = new THREE.Vector3(0, 1, 0);
 /** the House's below-grade volumes and pits: no terrain there */
 export const HOUSE_HOLES: Rect[] = [
   { x0: -7.4, z0: -7.55, x1: -1.55, z1: -4.65 }, // storage
-  { x0: -8.1, z0: -4.95, x1: 7.35, z1: -0.45 },
+  { x0: -7.4, z0: -4.95, x1: 7.35, z1: -2.45 }, // (west of the living room the basement wall is at x −7.25: the yard runs up to the House)
+  { x0: -8.1, z0: -2.6, x1: 7.35, z1: -0.45 },
   { x0: -8.1, z0: -0.75, x1: 9.85, z1: 0.7 },
   { x0: -8.8, z0: 0.4, x1: 9.85, z1: 3.85 }, // (the B side stairs reach out to x −8.65 only south of z 0.55)
   { x0: -9.6, z0: 1.0, x1: -8.5, z1: 3.4 }, // bay
@@ -47,11 +48,12 @@ export const HOUSE_HOLES: Rect[] = [
   DRIVEWAY,
   { x0: GARAGE_RAMP.x0, z0: GARAGE_RAMP.z0, x1: GARAGE_RAMP.x1, z1: GARAGE_RAMP.z1 },
   VENT_SHAFT,
+  GARAGE_VENT_WELL,
 ];
 
 const inR = (r: Rect, x: number, z: number) => x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1;
-/** the House's ground-floor slabs and decks (+ wall thickness): the terrain stays under them */
-const UNDER_FLOORS: Rect[] = FLOORS.filter((f) => f.y === 0).map((f) => ({ x0: f.rect.x0 - 0.2, z0: f.rect.z0 - 0.2, x1: f.rect.x1 + 0.2, z1: f.rect.z1 + 0.2 }));
+/** the House's ground-floor slabs and decks: the terrain stays under them (no margin — a margin is a slot along every wall and deck edge that drones fall into) */
+const UNDER_FLOORS: Rect[] = FLOORS.filter((f) => f.y === 0).map((f) => f.rect);
 
 /** zone → ground colour (top) */
 function zoneColor(zone: number, h: number): string {
@@ -214,7 +216,7 @@ export function buildOutdoor(physics: Physics, scene: THREE.Scene, map: HouseDat
   {
     const keys = new Map<string, number[]>();
     for (let i = 0; i < N * N; i++) {
-      if (Z[i] === ZONE.garageRamp || Z[i] === ZONE.nwStairs) continue; // built below / by the House
+      if (cut[i] || (Z[i] === ZONE.garageRamp && inR(GARAGE_RAMP, px(i % N), pz((i / N) | 0)))) continue; // built below / by the House
       const isStair = stair[i] > H[i];
       const k = `${G[i].toFixed(2)}|${isStair ? 's' : Z[i]}`;
       (keys.get(k) ?? keys.set(k, []).get(k)!).push(i);
@@ -254,6 +256,26 @@ export function buildOutdoor(physics: Physics, scene: THREE.Scene, map: HouseDat
         idx.push(a, c, b2, a, d, c);
       }
       if (idx.length) physics.addTrimesh(new Float32Array(verts), new Uint32Array(idx), { kind: 'static', mat: 'concrete', exterior: true });
+      // the slope is a surface, not a volume: fill under it (to 5 cm steps just below its lowest corner), so nothing rolls
+      // in from a flank and falls out of the world
+      const fill = new Map<number, number[]>();
+      for (let i = 0; i < N * N; i++) {
+        if (!isStair(i)) continue;
+        const u = i % N;
+        const v = (i / N) | 0;
+        const low = Math.min(...[[u, v], [u + 1, v], [u + 1, v + 1], [u, v + 1]].map(([cu, cv]) => verts[corner.get(cv * (N + 1) + cu)! * 3 + 1]));
+        const top = Math.round(Math.floor((low - 0.01) / 0.05) * 5);
+        (fill.get(top) ?? fill.set(top, []).get(top)!).push(i);
+      }
+      for (const [top, ids] of fill) {
+        mask.fill(0);
+        for (const i of ids) mask[i] = 1;
+        for (const [u0, v0, u1, v1] of greedy(mask, N, N)) {
+          const x0 = uToX(u0), z0 = vToZ(v0), x1 = uToX(u1), z1 = vToZ(v1);
+          const y1 = top / 100;
+          physics.addBox((x0 + x1) / 2, (BASE_Y + y1) / 2, (z0 + z1) / 2, (x1 - x0) / 2, (y1 - BASE_Y) / 2, (z1 - z0) / 2, { kind: 'static', mat: 'concrete', exterior: true });
+        }
+      }
     }
     for (const [k, idx] of keys) {
       mask.fill(0);
@@ -277,6 +299,9 @@ export function buildOutdoor(physics: Physics, scene: THREE.Scene, map: HouseDat
   solid([DRIVEWAY.x0, BASE_Y, DRIVEWAY.z0], [9.7, LOWER_GROUND_Y, -0.6], '#55575a');
   solid([9.7, BASE_Y, DRIVEWAY.z0], [DRIVEWAY.x1, LOWER_GROUND_Y, DRIVEWAY.z1], '#55575a');
   solid([VENT_SHAFT.x0, BASE_Y, VENT_SHAFT.z0], [VENT_SHAFT.x1, LOWER_GROUND_Y, VENT_SHAFT.z1], '#4a4a48');
+  solid([GARAGE_VENT_WELL.x0, BASE_Y, GARAGE_VENT_WELL.z0], [GARAGE_VENT_WELL.x1, LOWER_GROUND_Y, GARAGE_VENT_WELL.z1], '#55575a');
+  // a foundation under every cut-out: whatever slips past a wall into a cut-out lands, it never falls out of the world
+  for (const r of HOUSE_HOLES) physics.addBox((r.x0 + r.x1) / 2, (BASE_Y + LOWER_GROUND_Y - 0.05) / 2, (r.z0 + r.z1) / 2, (r.x1 - r.x0) / 2, (LOWER_GROUND_Y - 0.05 - BASE_Y) / 2, (r.z1 - r.z0) / 2, { kind: 'static', mat: 'concrete', exterior: true });
   // vent shaft grille at grade (drones drop through, boots don't)
   for (let k = 0; k <= 5; k++) {
     const x = VENT_SHAFT.x0 + ((VENT_SHAFT.x1 - VENT_SHAFT.x0) * k) / 5;

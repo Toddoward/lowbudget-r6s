@@ -19,6 +19,8 @@ Status: ✅ fixed and covered by a test · 🟡 fixed, manual check only · ⏳ 
 | 1.7 | Traps: pits you can fall into and not leave | no-trap check (fall in → walk/vault out); two pits fixed (living-room French windows, back of the house) | `walk.test.ts` no traps | ✅ |
 | 1.8 | Outdoor stairs had step edges (drones / smooth walking) | stepped visuals, one sloped triangle-mesh collider per flight | `walk.test.ts`; manual: drive the drone up the sidewalk steps | 🟡 |
 | 1.9 | Objective spots under furniture | spots moved onto free floor, enforced | `walk.test.ts` objective spots | ✅ |
+| 1.10 | A full-height wall "closing the void under the basement steps" cut the flight in half (the stair test only checked that both ends were reachable — they were, by other routes); another B wall poked 6 cm above the top steps | walls under a flight stop at its underside (`WallDef.h`) | `walk.test.ts` every flight walks end to end; `drone.test.ts` | ✅ |
+| 1.11 | Bottomless holes: a 0.6 m trench outside the living-room wall, slits at the bay, under every outdoor stair slope (a surface, no volume), the training room's west floor strip, the garage vent opening into earth, a pocket under every floor-level opening in an outer wall | yard runs up to the House; foundation under every cut-out; stair slopes filled below; B slab strip; a vent well at the garage; thresholds | `walk.test.ts` no bottomless holes (a 17 cm ball dropped next to every reachable floor lands) | ✅ |
 
 Manual: walk every room in each stance; the walk maps (`tools/level/walkmap.ts`) show what the grid thinks — green reached, yellow crouch/prone only, black solid, grey body margin, red unreachable floor.
 
@@ -70,12 +72,22 @@ Manual: look along the 2F west wall, soft walls next to hard walls and the hatch
 | 7.2 | Terrorist Hunt had Secure Area and no defense mission | attack: Elimination, Bomb (plant the defuser, White Masks rush and cut it, progress is kept, two bombs or elimination wins), Hostage Rescue; defense: Hostage Protection (White Masks grab the hostage and run for an extraction) | `missions.test.ts` (rules + bots from all 10 rooms reach a planted defuser on the real map) | ✅ |
 | 7.3 | Round state was silent | banner + SFX for defuser planted / cut / resumed, bomb defused, hostage picked up / taken / dropped / down, enemies left, round won / lost; HUD progress bar for the defuser | `missions.test.ts` (announcement keys); manual: listen | 🟡 |
 
-## 8. Open items (in progress, in this order)
+## 8. Drone, ping, scan
+
+| # | Problem | Fix | Verified by | Status |
+|---|---|---|---|---|
+| 8.1 | The drone moved by axis raycasts: a sloped stair stopped it dead (hop up every step) | rolls with a character controller (slides along walls, climbs ≤ 50°, snaps down; 4 mm skin so it still fits a 19 cm barricade gap) | `drone.test.ts`: up and down every flight without hopping, under every door barricade, through every vent both ways | ✅ |
+| 8.2 | Vents blocked by furniture (kitchen fridge + dining sideboard, storage shelves) | vent clearance zones (0.6 m each side) for props | `props.test.ts` | ✅ |
+| 8.3 | One key press pinged twice (UI action + input sample) | single path | code | ✅ |
+| 8.4 | Ping missed anyone whose chest was behind cover; cone fixed in degrees | one resolver: head / chest / hips / knees, cone = the body's size at that range, nearest to the crosshair wins | `spotting.test.ts` | ✅ |
+| 8.5 | No drone / camera scan | hold the reticle on an enemy 0.5 s: identified (operator name), spotted for the team, refreshed while held; ring + label on the feed; jammed drones don't scan | `spotting.test.ts`; manual: watch the ring fill | ✅ |
+| 8.6 | Spot markers floated 2 m up whatever the stance, labelled "SPOTTED" | above the head, labelled with the operator | manual | 🟡 |
+
+## 9. Open items (in progress, in this order)
 
 | # | Item | Status |
 |---|---|---|
-| 8.1 | Shield operators: slot 1 shield front ↔ back, pistol always in hand, RMB turns the shield sideways and aims | ⏳ |
-| 8.2 | Ping and drone scan rework | ⏳ |
-| 8.3 | Interaction detection per type (door/window barricade, hatch, hostage, defuser, gadget pickup) | ⏳ |
-| 8.4 | First-person arms per item (hands on the grip/handguard, shoulder out of view), gadget / interaction viewmodels | ⏳ |
-| 8.5 | Corpses: proper death pose, no walking pose, not blocking movement | ⏳ |
+| 9.1 | Shield operators: slot 1 shield front ↔ back, pistol always in hand, RMB turns the shield sideways and aims | ⏳ |
+| 9.2 | Interaction detection per type (door/window barricade, hatch, hostage, defuser, gadget pickup) | ⏳ |
+| 9.3 | First-person arms per item (hands on the grip/handguard, shoulder out of view), gadget / interaction viewmodels | ⏳ |
+| 9.4 | Corpses: proper death pose, no walking pose, not blocking movement | ⏳ |

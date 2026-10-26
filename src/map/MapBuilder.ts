@@ -116,6 +116,7 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
   function sliceWall(wall: WallDef) {
     const fy = FLOOR_Y[wall.floor];
     const t = thicknessOf(wall);
+    const wh = wall.h ?? WALL_H;
     const e = wall.ext ? t / 2 : 0;
     const a = wall.from - e;
     const b = wall.to + e;
@@ -128,9 +129,9 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
       const d = OPENING_DIMS[o.kind];
       const u0 = o.at - o.w / 2;
       const u1 = o.at + o.w / 2;
-      if (u0 > cur + 1e-3) rects.push({ u0: cur, u1: u0, v0: fy, v1: fy + WALL_H, full: true });
+      if (u0 > cur + 1e-3) rects.push({ u0: cur, u1: u0, v0: fy, v1: fy + wh, full: true });
       if (d.y0 > 0.001) rects.push({ u0, u1, v0: fy, v1: fy + d.y0, full: false });
-      if (d.y0 + d.h < WALL_H - 1e-3) rects.push({ u0, u1, v0: fy + d.y0 + d.h, v1: fy + WALL_H, full: false });
+      if (d.y0 + d.h < wh - 1e-3) rects.push({ u0, u1, v0: fy + d.y0 + d.h, v1: fy + wh, full: false });
       cur = u1;
       const center = wall.run === 'x' ? new THREE.Vector3(o.at, fy + d.y0 + d.h / 2, wall.c) : new THREE.Vector3(wall.c, fy + d.y0 + d.h / 2, o.at);
       const sideA = roomAt(TMP.copy(center).addScaledVector(nrm, -0.6).setY(fy + 0.2));
@@ -142,6 +143,13 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
         rooms: [sideA?.id ?? null, sideB?.id ?? null], barricadePanel: null, barricadeKind: 'none', barricadeGen: 0,
       });
       frameOpening(wall.run, wall.c, t, o.kind, u0, u1, fy + d.y0, fy + d.y0 + d.h);
+      // floor-level openings in an outer wall: the slab ends at the wall's centre line and the wall below stops a slab lower —
+      // fill the threshold so nothing (a drone, a grenade) drops into the pocket under the opening
+      if (wall.ext && d.y0 < 0.05 && wall.floor >= 0) {
+        const [mn, mx] = box(wall.run, wall.c, t, u0, u1, fy - SLAB_T, fy);
+        physics.addBox((mn[0] + mx[0]) / 2, (mn[1] + mx[1]) / 2, (mn[2] + mx[2]) / 2, (mx[0] - mn[0]) / 2, (mx[1] - mn[1]) / 2, (mx[2] - mn[2]) / 2, { kind: 'static', mat: 'concrete' });
+        stat.box(mn as [number, number, number], mx as [number, number, number], PAL.concrete, PAL.concrete, 1);
+      }
       if (o.kind === 'shutter') {
         // shutter = three reinforceable metal sections
         const n = 3;
@@ -154,7 +162,7 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
         }
       }
     }
-    if (b > cur + 1e-3) rects.push({ u0: cur, u1: b, v0: fy, v1: fy + WALL_H, full: true });
+    if (b > cur + 1e-3) rects.push({ u0: cur, u1: b, v0: fy, v1: fy + wh, full: true });
 
     const extColor = wall.floor === -1 ? PAL.concrete : PAL.solidExt;
     for (const r0 of rects) {

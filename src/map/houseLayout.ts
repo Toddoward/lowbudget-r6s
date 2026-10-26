@@ -73,6 +73,8 @@ export interface WallDef {
   spans?: SpanDef[];
   /** thickness override */
   t?: number;
+  /** height override (default WALL_H) */
+  h?: number;
 }
 /** non-axis-aligned exterior walls (bay window, NE chamfer) — always solid */
 export interface DiagWallDef { floor: FloorId; a: [number, number]; b: [number, number]; window?: { at: number; w: number } }
@@ -126,8 +128,9 @@ export const WALLS: WallDef[] = [
   W(-1, 'x', -4.8, -7.25, -1.7, 'soft', [door(-3.6)]), // storage | training — fully soft (wallbang city)
   W(-1, 'z', 0.35, -4.8, -0.95, 'soft'), // training | garage
   W(-1, 'x', -0.95, -2.35, 1.95, 'solid'), // training & garage | basement stairs
-  W(-1, 'z', 1.95, -0.95, 0.55, 'solid'), // basement stairs | garage
-  W(-1, 'z', 0.26, -0.95, 0.55, 'solid'), // closes the void under the upper basement steps (model)
+  { ...W(-1, 'z', 1.95, -0.95, 0.55, 'solid'), h: 2.85 }, // basement stairs | garage — under the top steps, up to their underside
+  // closes the void under the upper basement steps (model) — only up to the steps' underside, the flight runs over it
+  { ...W(-1, 'z', 0.26, -0.95, 0.55, 'solid'), h: 1.65 },
   W(-1, 'x', -0.6, 5.83, 7.2, 'solid'), // garage: stub wall west of the shutter pillar (model)
   W(-1, 'x', 0.55, -7.95, -5.28, 'solid'), // training | side stairs: the model's wall, open east of x −5.28
   W(-1, 'x', 0.55, -3.6, 1.95, 'solid', [], false, [S(-3.6, -2.15, 'soft')]), // training (NW part soft) & stairs | laundry
@@ -293,6 +296,7 @@ export const CCTVS: { id: string; label: string; pos: [number, number, number]; 
 export const FLOORS: FloorDef[] = [
   // basement floor (ground-bearing concrete)
   { id: 'slab_b_a', y: -3.5, rect: R(-7.25, -7.4, 7.2, -0.6), tier: 'solid', kind: 'concrete' },
+  { id: 'slab_b_w', y: -3.5, rect: R(-7.95, -2.45, -7.25, -0.6), tier: 'solid', kind: 'concrete' }, // training room's west strip
   { id: 'slab_b_b', y: -3.5, rect: R(-9.45, -0.6, 9.7, 3.7), tier: 'solid', kind: 'concrete' },
   { id: 'slab_b_c', y: -3.5, rect: R(-5.45, 3.7, 2.05, 6.45), tier: 'solid', kind: 'concrete' },
   { id: 'slab_b_d', y: -3.5, rect: R(2.05, 3.7, 9.7, 4.85), tier: 'solid', kind: 'concrete' },
@@ -403,6 +407,8 @@ export const DRIVEWAY = R(7.05, -4.95, 10.93, 3.89);
 export const GARAGE_RAMP = { x0: 10.93, x1: 14.13, z0: -4.11, z1: 3.89, y0: -3.49, y1: -1.51 };
 /** drone vent shaft from the north yard down to the storage room (grille at grade) */
 export const VENT_SHAFT = R(-4.85, -8.05, -4.15, -7.55);
+/** a well outside the garage's B-level drone vent (x 9.7, z 4.35), open to the driveway apron on its south side */
+export const GARAGE_VENT_WELL = R(9.85, 3.85, 10.6, 4.85);
 
 /** Simple outdoor zone naming for HUD / WebMCP when not inside a room. */
 export function exteriorZoneName(x: number, y: number, z: number): string {

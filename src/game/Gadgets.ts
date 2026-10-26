@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
-import { G_GADGET, G_WORLD } from '../core/Physics.ts';
+import { G_CLIP, G_GADGET, G_WORLD, groups, type Physics } from '../core/Physics.ts';
 import { buildAsset } from '../assets/build.ts';
 import { chargeSpec, deviceSpec, droneSpec, throwableSpec } from '../assets/weaponModels.ts';
 import { extraGadgetSpec } from '../assets/gadgetModels.ts';
@@ -54,6 +54,18 @@ export interface Gadget {
 
 const THROW_SPEED = 13;
 export const DRONE_R = 0.085;
+/** KCC skin: small enough that the 17 cm ball still rolls under a 19 cm barricade gap */
+const DRONE_SKIN = 0.004;
+
+function makeDroneController(ph: Physics) {
+  const k = ph.world.createCharacterController(DRONE_SKIN);
+  k.enableAutostep(0.05, 0.04, false); // door thresholds, rug edges
+  k.enableSnapToGround(0.12);
+  k.setMaxSlopeClimbAngle((50 * Math.PI) / 180);
+  k.setMinSlopeSlideAngle((55 * Math.PI) / 180);
+  k.setApplyImpulsesToDynamicBodies(false);
+  return k;
+}
 let seq = 0;
 
 export class Gadgets {
@@ -67,6 +79,7 @@ export class Gadgets {
   readonly heartbeats = new Map<string, { dir: THREE.Vector3; dist: number; dy: number }[]>();
   onPlace?: (g: Gadget) => void;
   drones = new Map<string, Gadget>();
+  private droneKcc: RAPIER.KinematicCharacterController | null = null;
 
   constructor(private world: World) {
     world.scene.add(this.group);
@@ -760,25 +773,23 @@ export class Gadgets {
     v.y -= 14 * dt;
     // hop high enough for door thresholds, low props and stair steps (spec #6)
     if (inp.jump && g.data.grounded) v.y = 5.4;
-    // simple sphere-vs-world movement (3 sub-steps along axes)
+    // rolls with a character controller: slides along walls, climbs the sloped stair colliders, snaps down steps
     const ph = this.world.physics;
-    const r = DRONE_R;
-    g.data.grounded = false;
-    for (const ax of ['x', 'z', 'y'] as const) {
-      const d = v[ax] * dt;
-      if (Math.abs(d) < 1e-6) continue;
-      const dir = new THREE.Vector3();
-      dir[ax] = Math.sign(d);
-      const hit = ph.raycast(g.pos, dir, Math.abs(d) + r, G_WORLD | 0x0008, (t) => t?.kind === 'gadget');
-      if (hit) {
-        g.pos[ax] += Math.sign(d) * Math.max(0, hit.dist - r);
-        if (ax === 'y' && d < 0) g.data.grounded = true;
-        v[ax] = 0;
-      } else g.pos[ax] += d;
-    }
+    const kcc = (this.droneKcc ??= makeDroneController(ph));
+    const c = g.collider;
+    if (!c) return;
+    const want = v.clone().multiplyScalar(dt);
+    kcc.computeColliderMovement(c, { x: want.x, y: want.y, z: want.z }, undefined, groups(0xffff, G_WORLD | G_CLIP));
+    const m = kcc.computedMovement();
+    g.pos.x += m.x;
+    g.pos.y += m.y;
+    g.pos.z += m.z;
+    g.data.grounded = kcc.computedGrounded();
+    if (g.data.grounded && v.y < 0) v.y = 0;
+    if (want.y > 0 && m.y < want.y - 1e-4) v.y = 0; // bonked
+    c.setTranslation({ x: g.pos.x, y: g.pos.y, z: g.pos.z });
     g.mesh.position.copy(g.pos);
     g.mesh.rotation.set(0, yaw, 0);
-    g.collider?.setTranslation({ x: g.pos.x, y: g.pos.y, z: g.pos.z });
     void pitch;
   }
 

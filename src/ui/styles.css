@@ -212,6 +212,14 @@ small.away { color: var(--gold); font-weight: 500; }
 #feed-overlay .feed-help { position: absolute; bottom: calc(6vh + 10px); left: 50%; transform: translateX(-50%); color: #b6ffd0; font-size: 14px; white-space: nowrap; }
 #hud[data-view="cam"] .feed-frame { border-color: rgba(255, 210, 120, .45); }
 #hud[data-view="cam"] .feed-title, #hud[data-view="cam"] .feed-help { color: #ffe1a6; }
+/* drone / camera scan: a ring around the reticle fills while the enemy under it is being identified */
+#scan-ring { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; }
+#scan-ring::before { content: ''; position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(rgba(255, 200, 80, .95) calc(var(--p, 0) * 360deg), rgba(255, 255, 255, .15) 0);
+  -webkit-mask: radial-gradient(circle, transparent 19px, #000 20px); mask: radial-gradient(circle, transparent 19px, #000 20px); }
+#scan-ring.locked::before { background: var(--red); animation: beat .5s infinite; }
+#scan-label { position: absolute; top: 52px; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 12px; letter-spacing: .14em; color: var(--gold); }
+#scan-ring.locked #scan-label { color: var(--red); }
 #drone-jammed { position: absolute; top: 45%; left: 50%; transform: translateX(-50%); color: var(--red); font-size: 28px; letter-spacing: .3em; animation: beat .5s infinite; }
 #dead-overlay { position: absolute; top: 30%; width: 100%; text-align: center; font-size: 34px; letter-spacing: .3em; color: var(--red); display: flex; flex-direction: column; gap: 4px; }
 #dead-overlay small { font-size: 14px; color: var(--muted); letter-spacing: .1em; }

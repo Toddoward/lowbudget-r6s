@@ -26,6 +26,7 @@ import { Gadgets, type Gadget } from './Gadgets.ts';
 import { Objectives, type Mission } from './Objectives.ts';
 import { Soldier, emptyInput, type SoldierInput } from './Soldier.ts';
 import { OPERATORS } from './operators.ts';
+import { lookTarget, PING_RANGE, Scanner, SPOT_SECS } from './Spotting.ts';
 import { WEAPONS } from './weapons.ts';
 import { Stance, type Side } from './types.ts';
 import { NavGraph } from '../ai/NavGraph.ts';
@@ -310,6 +311,7 @@ export class Game {
   view: 'body' | 'drone' | 'cam' = 'body';
   private camIdx = 0;
   private pingReq = false;
+  private scanner = new Scanner();
   onHelp: () => void = () => {};
 
   private toggleObserve() {
@@ -360,26 +362,33 @@ export class Game {
 
   /** shared by the player (camera ray) and agents (their own eyes); returns true when something was marked */
   pingFrom(by: Soldier, o: THREE.Vector3, d: THREE.Vector3): boolean {
-    let best: { id: string; ang: number } | null = null;
-    for (const a of this.world.actors.values()) {
-      if (!this.world.targetable(a) || a.side === by.side || a.side === 'hostage' || a.id === by.id) continue;
-      const c = a.pos.clone().add(new THREE.Vector3(0, a.stance === Stance.Prone ? 0.3 : a.stance === Stance.Crouch ? 0.8 : 1.1, 0));
-      const to = c.clone().sub(o);
-      const dist = to.length();
-      if (dist > 70) continue;
-      const ang = to.normalize().angleTo(d);
-      if (ang > THREE.MathUtils.degToRad(4) + 0.6 / dist) continue;
-      if (!this.physics.clearLine(o, c)) continue;
-      if (!best || ang < best.ang) best = { id: a.id, ang };
-    }
-    if (best) {
-      this.world.spot(best.id, by.side, 5, true, by.id);
-      if (by === this.player) this.onToast(t('hud.spotted'));
+    const hit = lookTarget(this.world, by.side, by.id, o, d);
+    if (hit) {
+      this.world.spot(hit.id, by.side, SPOT_SECS, true, by.id);
+      if (by === this.player) this.onToast(t('hud.spottedOp', this.opName(hit.id)));
       return true;
     }
-    const hit = this.physics.raycast(o, d, 80, G_WORLD);
-    if (hit) { this.world.ping(hit.point, by.side, by.id); return true; }
+    const surf = this.physics.raycast(o, d, PING_RANGE + 10, G_WORLD);
+    if (surf) { this.world.ping(surf.point, by.side, by.id); return true; }
     return false;
+  }
+
+  private opName(id: string) {
+    const a = this.world.actors.get(id);
+    return a?.side === 'terrorist' ? t('hud.whiteMask') : OPERATORS[a?.operator ?? '']?.name ?? a?.name ?? '';
+  }
+
+  /** drone / CCTV feed: holding the reticle on an enemy identifies and spots them */
+  private updateScan(dt: number) {
+    const p = this.player;
+    const live = p?.alive && ((this.view === 'drone' && this.drone && !this.drone.data.jammed) || this.view === 'cam');
+    if (!live) { this.scanner.reset(); return; }
+    const [o, d] = this.viewRay();
+    const id = this.scanner.update(this.world, p!.side, p!.id, o, d, dt);
+    if (id) {
+      this.audio.ui('ping');
+      this.onToast(t('hud.spottedOp', this.opName(id)));
+    }
   }
 
   /* ================================================================ common setup */
@@ -993,7 +1002,7 @@ export class Game {
       }
       if (this.view !== 'body' && !p.alive) this.view = 'body';
       if (this.pingReq) { this.pingReq = false; if (p.alive) this.doPing(); }
-      if (inp.ping) this.doPing();
+      this.updateScan(dt);
       if (this.view === 'drone' && this.drone) {
         const dinp = { ...inp };
         if (this.playerCtl?.active()) {
@@ -1223,7 +1232,8 @@ export class Game {
       spread: (wpn ? THREE.MathUtils.lerp(wpn.def.hipSpread, wpn.def.adsSpread, s.ads) : 1) + Math.hypot(s.vel.x, s.vel.z) * 0.3,
       ads: s.ads, stance: stance + lean, flags, score,
       view: inDrone ? 'drone' : inCam ? 'cam' : 'body', viewTitle, viewHelp,
-      droneJammed: inDrone && !!(this.drone?.data.jammed), scanning, dead: !p.alive && !this.thResult, spectating,
+      droneJammed: inDrone && !!(this.drone?.data.jammed), scanning,
+      scan: this.scanner.target ? this.scanner.progress : 0, scanLabel: this.scanner.target ? (this.scanner.progress >= 1 ? this.opName(this.scanner.target) : t('hud.scanning')) : '', dead: !p.alive && !this.thResult, spectating,
       markers: this.hudMarkers(p), team: this.hudTeam(p), hints: this.hudHints(p, inDrone, inCam),
     };
     this.hud.update(hs, dt);
@@ -1288,7 +1298,7 @@ export class Game {
       if (sp.until < w.time || sp.team !== p.side) continue;
       const a = w.actors.get(id);
       if (!a || !a.alive) continue;
-      push(this.project(a.pos.clone().add(new THREE.Vector3(0, 2.05, 0)), 'spot', t('hud.spotted')));
+      push(this.project(a.hitboxes().head.c.clone().add(new THREE.Vector3(0, 0.4, 0)), 'spot', this.opName(id) || t('hud.spotted')));
     }
     for (const pg of w.pings) if (pg.until > w.time && pg.team === p.side) push(this.project(pg.pos, 'ping', w.actors.get(pg.by)?.name ?? ''));
     // IQ: enemy electronics through walls
