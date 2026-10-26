@@ -281,11 +281,11 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
     const y1 = f.y;
     const y0 = f.y - (f.t ?? SLAB_T);
     if (f.tier === 'semi') {
-      destruction.add({
-        kind: 'floor_semi', min: [f.rect.x0, y0, f.rect.z0], max: [f.rect.x1, y1, f.rect.z1], nAx: 1,
-        label: f.label ?? f.id, exterior: f.kind === 'roof',
-        voids: (f.holes ?? []).map((h) => ({ u0: h.x0, v0: h.z0, u1: h.x1, v1: h.z1 })),
-      });
+      // one panel per piece around the holes: the pieces end exactly at a hatch / stairwell edge
+      // (void cells of a single grid stop up to half a cell short and leave a crack to the floor below)
+      for (const r of subtractRects(f.rect, f.holes ?? [])) {
+        destruction.add({ kind: 'floor_semi', min: [r.x0, y0, r.z0], max: [r.x1, y1, r.z1], nAx: 1, label: f.label ?? f.id, exterior: f.kind === 'roof' });
+      }
       continue;
     }
     const color = f.kind === 'roof' ? PAL.roof : f.kind === 'wood' || f.kind === 'deck' ? PAL.woodFloor : f.y < -1 ? PAL.concreteDark : PAL.concrete;

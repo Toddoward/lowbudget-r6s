@@ -10,7 +10,7 @@ import { DestructionSystem } from '../../src/world/Destruction.ts';
 import { buildHouse } from '../../src/map/MapBuilder.ts';
 import { buildOutdoor } from '../../src/map/Outdoor.ts';
 import { decodeHouseDatamap512Headless } from '../../src/map/houseDatamap.ts';
-import { FLOOR_Y, MAP_BOUNDS, ROOMS, SPAWN_ZONES, STAIRS } from '../../src/map/houseLayout.ts';
+import { FLOOR_Y, FLOORS, MAP_BOUNDS, ROOMS, SPAWN_ZONES, STAIRS } from '../../src/map/houseLayout.ts';
 import { NavGraph } from '../../src/ai/NavGraph.ts';
 import { BODY_R, buildWalkGrid, clearWidth, gridDistance, lineWalk, MAX_LAYERS, moves, nearestFit, reach, surfaceAt, surfacePos } from '../../src/map/walkGrid.ts';
 import { SITES } from '../../shared/constants.ts';
@@ -231,6 +231,30 @@ test('no bottomless holes: a drone-sized ball dropped next to any reachable floo
     out.push(`x ${box[0].toFixed(2)}..${box[2].toFixed(2)} z ${box[1].toFixed(2)}..${box[3].toFixed(2)} (next to floor at y ${h[1].toFixed(2)})`);
   });
   assert.deepEqual(out, []);
+});
+
+test('floors meet their hatches and stairwells: no crack along the edge of a hole', () => {
+  const cracks: string[] = [];
+  const down = new THREE.Vector3(0, -1, 0);
+  for (const f of FLOORS) {
+    for (const h of f.holes ?? []) {
+      // 3 cm outside each edge of the hole, every 5 cm along it (1 cm in from the ends: a ray exactly on the seam of two pieces grazes both)
+      const e = 0.01;
+      const edges: [number, number, number, number][] = [[h.x0 - 0.03, h.z0 + e, h.x0 - 0.03, h.z1 - e], [h.x1 + 0.03, h.z0 + e, h.x1 + 0.03, h.z1 - e], [h.x0 + e, h.z0 - 0.03, h.x1 - e, h.z0 - 0.03], [h.x0 + e, h.z1 + 0.03, h.x1 - e, h.z1 + 0.03]];
+      for (const [ax, az, bx, bz] of edges) {
+        const n = Math.ceil(Math.hypot(bx - ax, bz - az) / 0.05);
+        for (let i = 0; i <= n; i++) {
+          const x = ax + ((bx - ax) * i) / n;
+          const z = az + ((bz - az) * i) / n;
+          if (x <= f.rect.x0 || x >= f.rect.x1 || z <= f.rect.z0 || z >= f.rect.z1) continue;
+          if (f.holes!.some((o) => x > o.x0 && x < o.x1 && z > o.z0 && z < o.z1)) continue; // in the next hole (two flights side by side)
+          const hit = ph.raycast(new THREE.Vector3(x, f.y + 0.3, z), down, 1, G_WORLD);
+          if (!hit || hit.point.y < f.y - 0.05) cracks.push(`${f.id} (${x.toFixed(2)}, ${z.toFixed(2)})`);
+        }
+      }
+    }
+  }
+  assert.deepEqual(cracks, []);
 });
 
 test('every bot nav node stands on reachable floor and every nav edge is a real walkway', () => {
