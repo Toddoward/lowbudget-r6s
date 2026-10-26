@@ -80,7 +80,7 @@ export class RemoteActor implements Actor {
       this.hp = b.hp;
       const wasAlive = this.alive;
       this.alive = b.alive;
-      if (wasAlive !== this.alive) this.rig.setDead(!this.alive);
+      if (wasAlive !== this.alive) this.rig.setDead(!this.alive, this.stance === Stance.Prone, Math.sin(this.yaw * 7.3));
       this.drone = b.dr ? new THREE.Vector3(...b.dr) : null;
       this.shieldExtended = !!b.sx;
       this.shieldPose = shieldPoseOf(this.shieldExtended, !!b.sb, !!b.ads);

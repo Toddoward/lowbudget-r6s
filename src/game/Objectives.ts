@@ -4,6 +4,7 @@ import { ROOMS, SPAWN_ZONES, FLOOR_Y, type Rect } from '../map/houseLayout.ts';
 import { inRect } from '../map/geometry.ts';
 import { SITES, type SiteId } from '../../shared/constants.ts';
 import { computeHitboxes, type Actor, type Hitboxes } from './Actor.ts';
+import { aimAt } from './Reach.ts';
 import { Stance } from './types.ts';
 import { Rig } from '../render/Rig.ts';
 import { buildAsset } from '../assets/build.ts';
@@ -209,23 +210,32 @@ export class Objectives {
   }
 
   /* -------------------------------------------------------------- interact */
-  candidate(s: Soldier): { key: string; label: string; hold: number; run: () => void } | null {
+  /** the objective interaction on offer (reach rules in Reach.ts); `ang` = how far off the crosshair it is */
+  candidate(s: Soldier): { key: string; label: string; hold: number; run: () => void; ang: number } | null {
     const attack = s.side === 'attack';
     const defend = s.side === 'defend';
-    if (this.hostage && this.hostage.alive && attack) {
-      if (this.hostage.carrier === s.id) return { key: 'drop', label: 'action.putDownHostage', hold: 0, run: () => this.setCarrier(null, true) };
-      if (!this.hostage.carrier && this.hostage.pos.distanceTo(s.pos) < 1.6) return { key: 'pick', label: 'action.secureHostage', hold: 1.2, run: () => this.setCarrier(s.id, true) };
+    const opts: { key: string; label: string; hold: number; run: () => void; ang: number }[] = [];
+    const h = this.hostage;
+    if (h && h.alive && attack) {
+      if (h.carrier === s.id) return { key: 'drop', label: 'action.putDownHostage', hold: 0, run: () => this.setCarrier(null, true), ang: 0 };
+      const up = h.stance === Stance.Crouch ? 0.75 : 1.2;
+      const ang = h.carrier ? null : aimAt(this.world, s, { points: [h.pos.clone().setY(h.pos.y + up), h.pos.clone().setY(h.pos.y + up + 0.35)], radius: 0.4, reach: 2.1 });
+      if (ang !== null) opts.push({ key: 'pick', label: 'action.secureHostage', hold: 1.2, run: () => this.setCarrier(s.id, true), ang });
     }
     if (this.mission === 'bomb') {
-      for (const b of this.bombs) {
-        if (b.state !== 'armed' || b.pos.distanceTo(s.pos) > 1.7) continue;
-        if (attack && !this.defuser) return { key: `plant${b.id}`, label: 'action.plantDefuser', hold: 4, run: () => this.plantDefuser(b.id, s.id, this.mode === 'pvp') };
+      if (attack && !this.defuser) {
+        for (const b of this.bombs) {
+          if (b.state !== 'armed') continue;
+          const ang = aimAt(this.world, s, { points: [b.pos.clone().setY(b.pos.y + 0.2)], radius: 0.45, reach: 2.2 });
+          if (ang !== null) opts.push({ key: `plant${b.id}`, label: 'action.plantDefuser', hold: 4, run: () => this.plantDefuser(b.id, s.id, this.mode === 'pvp'), ang });
+        }
       }
-      if (this.mode === 'pvp' && defend && this.defuser && this.defuser.pos.distanceTo(s.pos) < 1.7) {
-        return { key: 'disable', label: 'action.disableDefuser', hold: 4, run: () => { this.world.emit({ t: 'objective', kind: 'defuser_disabled', actor: s.id }); this.removeDefuser(); } };
+      if (this.mode === 'pvp' && defend && this.defuser) {
+        const ang = aimAt(this.world, s, { points: [this.defuser.pos.clone().setY(this.defuser.pos.y + 0.15)], radius: 0.35, reach: 2.2 });
+        if (ang !== null) opts.push({ key: 'disable', label: 'action.disableDefuser', hold: 4, run: () => { this.world.emit({ t: 'objective', kind: 'defuser_disabled', actor: s.id }); this.removeDefuser(); }, ang });
       }
     }
-    return null;
+    return opts.reduce<(typeof opts)[number] | null>((m, o) => (!m || o.ang < m.ang ? o : m), null);
   }
 
   setCarrier(id: string | null, broadcast: boolean) {

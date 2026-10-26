@@ -1081,7 +1081,11 @@ export class Game {
       if (!s) continue;
       rig.root.position.copy(s.pos);
       rig.root.rotation.y = s.yaw;
-      if (rig.dead !== !s.alive) rig.setDead(!s.alive);
+      if (rig.dead !== !s.alive) {
+        // fall away from the shot: hit from behind (or prone) → face down
+        const fwd = new THREE.Vector3(-Math.sin(s.yaw), 0, -Math.cos(s.yaw));
+        rig.setDead(!s.alive, s.stance === Stance.Prone || s.lastHurtDir.dot(fwd) > 0.2, THREE.MathUtils.clamp(s.lastHurtDir.dot(new THREE.Vector3(fwd.z, 0, -fwd.x)) * 2, -1, 1));
+      }
       rig.setShieldPose(s.shieldPose);
       rig.pose(dt, s.mode === 'rappel' ? Stance.Rappel : s.stance, s.pitch, s.lean, Math.hypot(s.vel.x, s.vel.z), s.mode === 'rappel' && s.inverted);
     }

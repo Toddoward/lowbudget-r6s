@@ -93,10 +93,12 @@ Manual: look along the 2F west wall, soft walls next to hard walls and the hatch
 | 9.4 | First person: no shield | shield in view (front: lower left · ADS: out of view to the left · extended: across the view with an open viewport slit · back: gone), left hand on the handle; the plate is built round a real slit (see-through in 1P and 3P) | manual: screenshots of the four poses | 🟡 |
 | 9.5 | Peers saw the shield only in front | pose synced (`sb` + ADS), rig and collider follow it | code | 🟡 |
 
-## 10. Open items (in progress, in this order)
+## 10. Interactions, first person, corpses
 
-| # | Item | Status |
-|---|---|---|
-| 10.1 | Interaction detection per type (door/window barricade, hatch, hostage, defuser, gadget pickup) | ⏳ |
-| 10.2 | First-person arms per item (hands on the grip/handguard, shoulder out of view), gadget / interaction viewmodels | ⏳ |
-| 10.3 | Corpses: proper death pose, no walking pose, not blocking movement | ⏳ |
+| # | Problem | Fix | Verified by | Status |
+|---|---|---|---|---|
+| 10.1 | [F] found things by distance alone: the hostage, a bomb, an ammo crate through a wall; a doorway in the next room offered for barricading | per kind (`src/game/Reach.ts`): objects need reach + the crosshair on them + a clear line (at your feet counts); doorways need the body at them facing them in sight; surfaces the aim ray; movement the body probes. The thing nearest the crosshair wins | `interact.test.ts` | ✅ |
+| 10.2 | ADS: the right forearm rose toward the camera and covered a third of the screen ("the shoulder") | forearms run back, down and out from the hands | `viewmodel.test.ts` (projected: no forearm in the sight picture, none floating in view) — [before / after](viewmodel_before_after.jpg) | ✅ |
+| 10.3 | One hip pose for everything: the pistol hung below the frame, the sledgehammer and devices half off-screen | a hold per item (rifle, pistol two-handed, launcher, sledgehammer head-up, held devices) with its own left-hand placement | `viewmodel.test.ts` (every item on screen at the hip) | ✅ |
+| 10.4 | Corpses kept the pose they died in (mid-stride legs, crouched knees, upside down from a rope) | the body falls away from the shot (face down if shot from behind or prone), legs straight, arms out, head turned, gun dropped | `corpse.test.ts` (flat below 0.55 m for every pose, back / front) | ✅ |
+| 10.5 | Bodies in the way | no body / shield collider once dead (the shield goes down the same frame) | `corpse.test.ts` | ✅ |

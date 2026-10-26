@@ -804,6 +804,7 @@ export class Soldier implements Actor {
     this.rappel = null;
     this.anim = null;
     this.collider.setTranslation({ x: this.pos.x, y: -500, z: this.pos.z });
+    this.updateShield(); // the shield goes down with the body, not a frame later
     this.onDeath?.(this, killer, head);
   }
 

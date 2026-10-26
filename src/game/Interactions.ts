@@ -7,6 +7,7 @@ import { Stance } from './types.ts';
 import { AMMO_CRATES } from '../map/houseProps.ts';
 import { FLOOR_Y } from '../map/houseLayout.ts';
 import type { Panel } from '../world/Destruction.ts';
+import { aimAt } from './Reach.ts';
 
 interface Candidate {
   key: string;
@@ -48,6 +49,9 @@ export class Interactions {
       if (lat > op.w / 2 + 0.25 || plane > bestD) continue;
       const flat = toC.clone().setY(0);
       if (flat.lengthSq() > 0.01 && flat.normalize().dot(fwd) < 0.35) continue;
+      // in sight: not a doorway in the next room behind this wall (the doorway's own barricade doesn't count)
+      const at = new THREE.Vector3(c.x, Math.min(eye.y, op.floorY + op.h - 0.1), c.z);
+      if (!this.world.physics.clearLine(eye, at.addScaledVector(toC.clone().setY(0).normalize(), -0.1), op.barricadePanel !== null ? new Set([op.barricadePanel]) : undefined)) continue;
       best = op;
       bestD = plane;
     }
@@ -63,58 +67,65 @@ export class Interactions {
 
   private resupplied = new Map<string, number>();
 
+  /** what [F] does right now — the rules per kind of thing are in Reach.ts; aimed-at things first, nearest the crosshair */
   private candidate(s: Soldier): Candidate | null {
     if (s.mode !== 'normal') return null;
+    const opts: (Candidate & { ang: number })[] = [];
     const obj = this.world.objectives.candidate(s);
-    if (obj) return obj;
+    if (obj) opts.push(obj);
     // Tachanka: mount the LMG from behind it
     if (s.op.gadget === 'turret' && !s.mounted) {
       const t = this.world.gadgets.turretNear(s);
       if (t) {
-        return {
-          key: `mount${t.id}`, label: 'action.mount', hold: 0, run: () => {
-            const yaw = t.data.yaw as number;
-            const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
-            t.data.gunner = s.id;
-            s.mountTurret(t.id, t.pos.clone().addScaledVector(fwd, -0.6), yaw);
-          },
-        };
+        const ang = aimAt(this.world, s, { points: [t.pos.clone().setY(t.pos.y + 0.6)], radius: 0.45, reach: 2.0 });
+        if (ang !== null) {
+          opts.push({
+            key: `mount${t.id}`, label: 'action.mount', hold: 0, ang, run: () => {
+              const yaw = t.data.yaw as number;
+              const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+              t.data.gunner = s.id;
+              s.mountTurret(t.id, t.pos.clone().addScaledVector(fwd, -0.6), yaw);
+            },
+          });
+        }
       }
     }
-    // ammo crates (resupply, 30 s cooldown per soldier)
-    const fy = s.pos.y;
+    // ammo crates (resupply, 30 s cooldown per soldier): look at the crate
     for (const p of AMMO_CRATES) {
-      const py = FLOOR_Y[p.floor];
-      if (Math.abs(py - fy) > 0.6) continue;
-      const d = Math.hypot(p.x - s.pos.x, p.z - s.pos.z);
-      if (d > 1.35) continue;
+      const top = new THREE.Vector3(p.x, FLOOR_Y[p.floor] + p.size[1], p.z);
+      const ang = aimAt(this.world, s, { points: [top], radius: Math.max(p.size[0], p.size[2]) / 2 + 0.1, reach: 2.0 });
+      if (ang === null) continue;
       const k = `${s.id}:${p.x},${p.z}`;
       const full = s.weapons.every((w) => w.reserve >= w.def.reserve && w.mag >= w.def.mag);
-      if (full || (this.resupplied.get(k) ?? -99) > this.world.time) return { key: 'ammofull', label: 'action.ammoFull', hold: 0, run: () => {} };
-      return {
-        key: `ammo${k}`, label: 'action.ammo', hold: 0.8, run: () => {
-          for (const w of s.weapons) { w.reserve = w.def.reserve; if (w.mag < w.def.mag) w.mag = w.def.mag; }
-          this.resupplied.set(k, this.world.time + 30);
-          this.world.sound({ type: 'gadget', pos: s.pos.clone(), radius: 6, source: s.id, intensity: 0.3, label: 'resupply' });
-        },
-      };
+      if (full || (this.resupplied.get(k) ?? -99) > this.world.time) opts.push({ key: 'ammofull', label: 'action.ammoFull', hold: 0, run: () => {}, ang });
+      else {
+        opts.push({
+          key: `ammo${k}`, label: 'action.ammo', hold: 0.8, ang, run: () => {
+            for (const w of s.weapons) { w.reserve = w.def.reserve; if (w.mag < w.def.mag) w.mag = w.def.mag; }
+            this.resupplied.set(k, this.world.time + 30);
+            this.world.sound({ type: 'gadget', pos: s.pos.clone(), radius: 6, source: s.id, intensity: 0.3, label: 'resupply' });
+          },
+        });
+      }
     }
     const defender = s.side === 'defend' || s.side === 'terrorist';
-    const op = this.openingInFront(s);
-    if (op) {
-      if (op.barricadePanel === null && op.barricadeable && defender && s.op.universal === 'barricade' && this.world.phase !== 'over') {
+    if (defender && s.op.universal === 'barricade' && this.world.phase !== 'over') {
+      const op = this.openingInFront(s);
+      if (op && op.barricadePanel === null && op.barricadeable) {
         const what = op.kind === 'window' || op.kind === 'french' ? 'action.barricadeWindow' : 'action.barricadeDoor';
-        return { key: `bar${op.id}`, label: what, hold: 1.4, run: () => this.placeBarricade(op, 'wood', true) };
+        const to = op.center.clone().sub(s.eye());
+        opts.push({ key: `bar${op.id}`, label: what, hold: 1.4, ang: to.normalize().angleTo(s.aimDir()), run: () => this.placeBarricade(op, 'wood', true) });
       }
     }
     if (defender && s.reinforcementsLeft > 0) {
       const ph = this.panelInFront(s);
       // spec #15: shot-up / breached soft walls can still be reinforced; a section Thermite burnt through cannot
       if (ph && ph.panel.reinforceable && !ph.panel.reinforced && !ph.panel.thermited) {
-        return { key: `rf${ph.panel.id}`, label: `action.reinforce|${s.reinforcementsLeft}`, hold: 2.5, run: () => this.reinforce(s, ph.panel, true) };
+        opts.push({ key: `rf${ph.panel.id}`, label: `action.reinforce|${s.reinforcementsLeft}`, hold: 2.5, ang: 0.05, run: () => this.reinforce(s, ph.panel, true) });
       }
     }
-    // generic vault / climb (any obstacle under the height limit: sills, breached wall lips, rails, counters)
+    if (opts.length) return opts.reduce((m, o) => (o.ang < m.ang ? o : m));
+    // nothing aimed at: movement — vault / climb (sills, breached wall lips, rails, counters), then the rappel hook
     const v = s.probeVault();
     if (v) return { key: 'vault', label: v.over ? 'action.vault' : 'action.climb', hold: 0, run: () => s.tryVault() };
     if (s.side === 'attack') {

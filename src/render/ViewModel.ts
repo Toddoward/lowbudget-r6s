@@ -13,6 +13,21 @@ interface VmModel { g: THREE.Group; spec: AssetSpec; mag: THREE.Object3D | null;
 
 const FWD = new THREE.Vector3(0, 0, -1);
 
+/** how an item is held: where it sits from the hip, extra tilt, and where the left hand goes */
+type Hold = 'rifle' | 'pistol' | 'launcher' | 'hammer' | 'held';
+interface HoldPose { hip: [number, number, number]; rot: [number, number, number]; left: 'fore' | 'cup' | [number, number, number] | null }
+const HOLDS: Record<Hold, HoldPose> = {
+  rifle: { hip: [0.15, -0.165, -0.35], rot: [0, 0, 0], left: 'fore' },
+  // both hands on the grip, the pistol a little higher and closer than a rifle
+  pistol: { hip: [0.12, -0.125, -0.3], rot: [0, 0, 0], left: 'cup' },
+  launcher: { hip: [0.15, -0.17, -0.36], rot: [0, 0, 0], left: [-0.02, -0.04, -0.3] },
+  // sledgehammer: carried at the right hip, head up and forward, left hand low on the handle
+  hammer: { hip: [0.24, -0.26, -0.32], rot: [0.45, 0.2, 0.3], left: [0, -0.02, 0.12] },
+  // devices, charges, throwables, sensors: in the right hand, steadied by the left
+  held: { hip: [0.12, -0.17, -0.27], rot: [0.1, 0, 0], left: [-0.075, 0.02, -0.12] },
+};
+const holdOf = (key: string): Hold => (WEAPONS[key] ? (WEAPONS[key].cls === 'Pistol' ? 'pistol' : 'rifle') : key === 'hammer' ? 'hammer' : key === 'ash_round' ? 'launcher' : 'held');
+
 /**
  * First-person weapon / gadget + hands, rendered in its own scene & camera on
  * top of the world (no clipping into walls).
@@ -101,7 +116,9 @@ export class ViewModel {
     sleeve.box([-0.03, -0.05, 0.12], [0.03, 0.012, 0.36], new THREE.Color('#ffffff'));
     const hand = new THREE.Mesh(b.build(), vcMaterial());
     const sl = new THREE.Mesh(sleeve.build(), vcMaterial());
-    sl.rotation.x = -0.32;
+    // the forearm runs back, DOWN and out toward the elbow — never up into the view (it used to rise toward the
+    // camera: the "shoulder" filling the screen when aiming)
+    sl.rotation.set(0.6, s * 0.28, 0);
     this.sleeveMeshes.push(sl);
     g.add(hand, sl);
     return g;
@@ -194,16 +211,17 @@ export class ViewModel {
     const meleeK = s.meleeCd > 0.45 ? Math.sin(((0.75 - s.meleeCd) / 0.3) * Math.PI) : 0;
     const placing = s.interactProgress > 0 && s.slot >= 2 ? Math.min(1, s.interactProgress * 1.5) : 0;
     const sw = (1 - ads * 0.85);
-    const rx = this.kick * 0.05 * (1 - ads * 0.6) + this.sway.y * 0.6 * sw - (sprinting ? 0.55 : 0) - dip * 0.35 - equip * 0.9 - meleeK * 0.4 - placing * 0.5;
-    const ry = -this.sway.x * 0.6 * sw + (sprinting ? 0.65 : 0) + meleeK * 0.3;
-    const rz = (sprinting ? 0.25 : 0) + dip * 0.45 + Math.cos(this.bob) * 0.01 * bobAmt;
+    const hold = HOLDS[holdOf(key)];
+    const hr = 1 - ads;
+    const rx = hold.rot[0] * hr + this.kick * 0.05 * (1 - ads * 0.6) + this.sway.y * 0.6 * sw - (sprinting ? 0.55 : 0) - dip * 0.35 - equip * 0.9 - meleeK * 0.4 - placing * 0.5;
+    const ry = hold.rot[1] * hr - this.sway.x * 0.6 * sw + (sprinting ? 0.65 : 0) + meleeK * 0.3;
+    const rz = hold.rot[2] * hr + (sprinting ? 0.25 : 0) + dip * 0.45 + Math.cos(this.bob) * 0.01 * bobAmt;
     this.eTmp.set(rx, ry, rz, 'YXZ');
     this.qTmp.setFromEuler(this.eTmp);
     this.holder.quaternion.slerp(this.qTmp, Math.min(1, dt * 18));
 
     // --- position: hip pose vs ADS pose (pin the sight anchor to the eye axis)
-    const hip = new THREE.Vector3(0.18, -0.19, -0.4);
-    if (!isGun) hip.set(0.16, -0.2, -0.36);
+    const hip = new THREE.Vector3(...hold.hip);
     hip.x += Math.cos(this.bob) * 0.008 * bobAmt;
     hip.y += Math.abs(Math.sin(this.bob)) * 0.01 * bobAmt - equip * 0.35 - dip * 0.06 - placing * 0.08;
     hip.z += this.kick * 0.045 + meleeK * -0.2 + placing * -0.12;
@@ -219,17 +237,21 @@ export class ViewModel {
     // --- reload: mag out and back
     if (m.mag) m.mag.position.y = reloadK >= 0 ? (reloadK < 0.5 ? -reloadK * 0.6 : -(1 - reloadK) * 0.6) : 0;
 
-    // --- hands on the weapon
+    // --- hands: the right on the grip, the left per hold (handguard, cupping the pistol grip, on the item)
     const grip = new THREE.Vector3(...(anchors.grip ?? [0, -0.03, 0]));
-    const fore = new THREE.Vector3(...(anchors.fore ?? (isGun && s.weapon!.def.cls === 'Pistol' ? [0, -0.035, 0.005] : [-0.05, -0.02, -0.12])));
     this.handR.position.copy(grip).add(new THREE.Vector3(0.01, 0.0, 0.0));
     this.handR.rotation.set(-0.25, 0, 0);
-    if (isGun && s.weapon!.def.cls === 'Pistol') {
-      this.handL.position.copy(fore).add(new THREE.Vector3(-0.022, -0.008, 0.01));
-      this.handL.rotation.set(-0.2, 0.25, 0.2);
-    } else {
+    if (hold.left === 'fore') {
+      const fore = new THREE.Vector3(...(anchors.fore ?? [-0.05, -0.02, -0.12]));
       this.handL.position.copy(fore).add(new THREE.Vector3(-0.012, -0.018, 0));
       this.handL.rotation.set(-0.1, 0.1, -0.35);
+    } else if (hold.left === 'cup') {
+      this.handL.position.copy(grip).add(new THREE.Vector3(-0.022, -0.008, 0.01));
+      this.handL.rotation.set(-0.2, 0.25, 0.2);
+    } else if (hold.left) {
+      this.handL.position.set(...hold.left);
+      this.handL.position.z -= placing * 0.05;
+      this.handL.rotation.set(-0.3, 0.3, -0.2);
     }
     if (reloadK >= 0 && m.mag) {
       // left hand dives to the magazine well
@@ -237,7 +259,6 @@ export class ViewModel {
       this.holder.worldToLocal(magPos);
       this.handL.position.lerp(magPos.add(new THREE.Vector3(-0.02, -0.06, 0)), dip);
     }
-    if (!isGun) { this.handL.position.set(-0.08, -0.04, -0.05 - placing * 0.05); this.handL.rotation.set(-0.3, 0.3, -0.2); }
     const pose = s.shieldPose;
     this.handL.visible = !(pose && pose !== 'back' && isGun);
     this.updateShield(dt, s, pose, equip);
@@ -325,6 +346,8 @@ export class ViewModel {
 }
 
 function reticleTexture(kind: 'dot' | 'holo' | 'acog'): THREE.Texture {
+  // headless (node tests): no canvas
+  if (typeof document === 'undefined') return new THREE.Texture();
   const c = document.createElement('canvas');
   c.width = c.height = 128;
   const g = c.getContext('2d')!;

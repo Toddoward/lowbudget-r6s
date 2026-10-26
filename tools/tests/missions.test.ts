@@ -23,7 +23,10 @@ async function setup(mission: 'bomb' | 'protect' | 'hostage' | 'elimination') {
   const step = (secs: number) => { for (let t = 0; t < secs; t += 0.1) { w.time += 0.1; o.update(0.1); } };
   return { w, o, results, calls, step };
 }
-const soldierAt = (id: string, side: 'attack' | 'defend' | 'terrorist', p: THREE.Vector3) => ({ id, side, pos: p.clone(), alive: true, yaw: 0, stance: 0 }) as never;
+const soldierAt = (id: string, side: 'attack' | 'defend' | 'terrorist', p: THREE.Vector3) => {
+  const pos = p.clone();
+  return { id, side, pos, alive: true, yaw: 0, stance: 0, eye: (o = new THREE.Vector3()) => o.copy(pos).setY(pos.y + 1.6), aimDir: (o = new THREE.Vector3()) => o.set(0, 0, -1) } as never;
+};
 
 test('Bomb (TH): plant a defuser, it runs DEFUSE_TIME; White Masks on it cut it; progress is kept; two bombs win', async () => {
   const { w, o, results, calls, step } = await setup('bomb');
@@ -109,53 +112,61 @@ test('Hostage Protection: elimination is the defender\'s win; a dead hostage is 
 });
 
 test('Bomb (TH): White Masks from every floor reach a planted defuser on the real map', async () => {
-  const { Combat } = await import('../../src/game/Combat.ts');
-  const { Interactions } = await import('../../src/game/Interactions.ts');
-  const { Gadgets } = await import('../../src/game/Gadgets.ts');
-  const { Effects } = await import('../../src/render/Effects.ts');
-  const { Soldier } = await import('../../src/game/Soldier.ts');
-  const { Bot, DIFFICULTY } = await import('../../src/ai/Bot.ts');
-  const { NavGraph } = await import('../../src/ai/NavGraph.ts');
-  const { buildHouse } = await import('../../src/map/MapBuilder.ts');
-  const { buildOutdoor } = await import('../../src/map/Outdoor.ts');
-  const { decodeHouseDatamap512Headless } = await import('../../src/map/houseDatamap.ts');
-  const ph = await Physics.create();
-  const d = new DestructionSystem(ph);
-  const scene = new THREE.Scene();
-  const house = buildHouse(ph, d, scene);
-  buildOutdoor(ph, scene, decodeHouseDatamap512Headless());
-  ph.world.step();
-  const nav = new NavGraph(ph, d);
-  nav.build(house.openings, house.wallPanels);
-  const w = new World(ph, d, new Effects(scene), house, scene);
-  w.combat = new Combat(w); w.interactions = new Interactions(w); w.gadgets = new Gadgets(w); w.objectives = new Objectives(w);
-  w.mode = 'th';
-  w.phase = 'action';
-  w.objectives.setup('bomb', 'garage', 'th');
-  // one bot per room, basement to 2F; none starts in the garage
-  const rooms = ['kids', 'master', 'bathroom', 'office', 'living', 'kitchen', 'dining', 'workshop', 'training', 'laundry'];
-  const bots = rooms.map((room, i) => {
-    const s = new Soldier(w, { id: `t${i}`, name: `t${i}`, side: 'terrorist', operator: 'terrorist', kind: 'bot', pos: nav.spawnSpots([room], 1)[0], yaw: 0 });
-    w.soldiers.set(s.id, s);
-    w.actors.set(s.id, s);
-    const b = new Bot(w, nav, s, DIFFICULTY.Normal, [room], false);
-    b.order = () => w.objectives.botGoal(s.id);
-    return b;
-  });
-  w.objectives.plantDefuser(0, 'self', false);
-  const at = w.objectives.defuser!.pos.clone();
-  const arrived = new Map<string, number>();
-  const dt = 1 / 30;
-  for (let k = 0; k < 30 * 60 && arrived.size < bots.length; k++) {
-    w.time += dt;
-    for (const b of bots) b.s.update(dt, b.update(dt));
-    w.objectives.update(dt);
-    d.update();
-    ph.step();
-    // keep it running so every bot keeps converging after the first one cuts it
-    if (!w.objectives.defuser) w.objectives.plantDefuser(0, 'self', false);
-    for (const b of bots) if (!arrived.has(b.s.id) && b.s.pos.distanceTo(at) < 2.5) arrived.set(b.s.id, w.time);
+  // deterministic: bots roll dice (aim error, patrol picks) — a seeded generator makes a failure reproducible
+  const random = Math.random;
+  let seed = 12345;
+  Math.random = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+  try {
+    const { Combat } = await import('../../src/game/Combat.ts');
+    const { Interactions } = await import('../../src/game/Interactions.ts');
+    const { Gadgets } = await import('../../src/game/Gadgets.ts');
+    const { Effects } = await import('../../src/render/Effects.ts');
+    const { Soldier } = await import('../../src/game/Soldier.ts');
+    const { Bot, DIFFICULTY } = await import('../../src/ai/Bot.ts');
+    const { NavGraph } = await import('../../src/ai/NavGraph.ts');
+    const { buildHouse } = await import('../../src/map/MapBuilder.ts');
+    const { buildOutdoor } = await import('../../src/map/Outdoor.ts');
+    const { decodeHouseDatamap512Headless } = await import('../../src/map/houseDatamap.ts');
+    const ph = await Physics.create();
+    const d = new DestructionSystem(ph);
+    const scene = new THREE.Scene();
+    const house = buildHouse(ph, d, scene);
+    buildOutdoor(ph, scene, decodeHouseDatamap512Headless());
+    ph.world.step();
+    const nav = new NavGraph(ph, d);
+    nav.build(house.openings, house.wallPanels);
+    const w = new World(ph, d, new Effects(scene), house, scene);
+    w.combat = new Combat(w); w.interactions = new Interactions(w); w.gadgets = new Gadgets(w); w.objectives = new Objectives(w);
+    w.mode = 'th';
+    w.phase = 'action';
+    w.objectives.setup('bomb', 'garage', 'th');
+    // one bot per room, basement to 2F; none starts in the garage
+    const rooms = ['kids', 'master', 'bathroom', 'office', 'living', 'kitchen', 'dining', 'workshop', 'training', 'laundry'];
+    const bots = rooms.map((room, i) => {
+      const s = new Soldier(w, { id: `t${i}`, name: `t${i}`, side: 'terrorist', operator: 'terrorist', kind: 'bot', pos: nav.spawnSpots([room], 1)[0], yaw: 0 });
+      w.soldiers.set(s.id, s);
+      w.actors.set(s.id, s);
+      const b = new Bot(w, nav, s, DIFFICULTY.Normal, [room], false);
+      b.order = () => w.objectives.botGoal(s.id);
+      return b;
+    });
+    w.objectives.plantDefuser(0, 'self', false);
+    const at = w.objectives.defuser!.pos.clone();
+    const arrived = new Map<string, number>();
+    const dt = 1 / 30;
+    for (let k = 0; k < 30 * 60 && arrived.size < bots.length; k++) {
+      w.time += dt;
+      for (const b of bots) b.s.update(dt, b.update(dt));
+      w.objectives.update(dt);
+      d.update();
+      ph.step();
+      // keep it running so every bot keeps converging after the first one cuts it
+      if (!w.objectives.defuser) w.objectives.plantDefuser(0, 'self', false);
+      for (const b of bots) if (!arrived.has(b.s.id) && b.s.pos.distanceTo(at) < 2.5) arrived.set(b.s.id, w.time);
+    }
+    const late = rooms.filter((_, i) => !arrived.has(`t${i}`));
+    assert.deepEqual(late, [], `never reached the defuser within 60 s: ${late.join(', ')}`);
+  } finally {
+    Math.random = random;
   }
-  const late = rooms.filter((_, i) => !arrived.has(`t${i}`));
-  assert.deepEqual(late, [], `never reached the defuser within 60 s: ${late.join(', ')}`);
 });

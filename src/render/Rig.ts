@@ -30,6 +30,8 @@ export class Rig {
   private stanceBlend = 0;
   dead = false;
   private deathT = 0;
+  private fallFwd = false;
+  private fallSide = 0;
   readonly nameTag: THREE.Sprite | null = null;
 
   constructor(operatorId: string, weaponId: string | null, label?: string, labelColor = '#ffffff') {
@@ -101,11 +103,7 @@ export class Rig {
    */
   pose(dt: number, stance: Stance, pitch: number, lean: number, speed: number, inverted = false) {
     if (this.dead) {
-      this.deathT = Math.min(1, this.deathT + dt * 2.2);
-      const e = 1 - (1 - this.deathT) ** 3;
-      this.hips.position.y = THREE.MathUtils.lerp(0.95, 0.18, e);
-      this.hips.rotation.x = THREE.MathUtils.lerp(0, Math.PI / 2, e);
-      this.armL.rotation.x = this.armR.rotation.x = -e * 1.2;
+      this.deathPose(dt);
       return;
     }
     const prone = stance === Stance.Prone;
@@ -147,13 +145,53 @@ export class Rig {
     if (this.gun) this.gun.rotation.x = aim;
   }
 
-  setDead(dead: boolean) {
+  /**
+   * @param fallForward face down (shot from behind, or already prone) — else onto the back
+   * @param side a small sideways roll (−1..1), so bodies don't all land the same way
+   */
+  setDead(dead: boolean, fallForward = false, side = 0) {
     this.dead = dead;
+    this.fallFwd = fallForward;
+    this.fallSide = side;
     if (!dead) {
       this.deathT = 0;
       this.hips.rotation.set(0, 0, 0);
+      this.head.rotation.set(0, 0, 0);
+      this.legL.rotation.set(0, 0, 0);
+      this.legR.rotation.set(0, 0, 0);
+      if (this.gun) this.gun.visible = true;
     }
     if (this.nameTag) this.nameTag.visible = !dead;
+  }
+
+  /** collapse from whatever pose the body was in (walking, crouched, rappelling) to lying flat, limbs relaxed */
+  private deathPose(dt: number) {
+    const was = this.deathT;
+    this.deathT = Math.min(1, this.deathT + dt * 1.9);
+    if (was >= 1) return;
+    const e = 1 - (1 - this.deathT) ** 3; // the fall
+    const k = Math.min(1, dt * 7); // limbs relax toward the lying pose
+    const f = this.fallFwd ? -1 : 1;
+    const ap = (o: THREE.Object3D, x: number, y: number, z: number) => {
+      o.rotation.x += (x - o.rotation.x) * k;
+      o.rotation.y += (y - o.rotation.y) * k;
+      o.rotation.z += (z - o.rotation.z) * k;
+    };
+    this.root.rotation.z = 0; // a rappeller upside down falls the right way up
+    // lying on the back (+π/2 about X: legs forward, torso back) or face down (−π/2), hips on the floor
+    this.hips.position.y += (0.14 - this.hips.position.y) * e;
+    this.hips.position.z += (0 - this.hips.position.z) * k;
+    this.hips.rotation.x += (f * (Math.PI / 2 - 0.04) - this.hips.rotation.x) * e;
+    this.hips.rotation.y += (0 - this.hips.rotation.y) * k;
+    this.hips.rotation.z += (this.fallSide * 0.25 - this.hips.rotation.z) * e;
+    // legs straight out, a little apart; torso flat; head turned aside; arms flung out
+    ap(this.legL, -0.06, 0, -0.16);
+    ap(this.legR, 0.04, 0, 0.12 + this.fallSide * 0.1);
+    ap(this.torso, 0, 0, this.fallSide * -0.12);
+    ap(this.head, f * 0.15, (this.fallSide >= 0 ? 1 : -1) * 0.9, 0);
+    ap(this.armL, -0.35 * f, 0, -1.25);
+    ap(this.armR, -0.6 * f, 0, 1.05);
+    if (this.gun && this.deathT > 0.25) this.gun.visible = false; // dropped
   }
 
   dispose() {
