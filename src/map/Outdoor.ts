@@ -307,7 +307,9 @@ export function buildOutdoor(physics: Physics, scene: THREE.Scene, map: HouseDat
     const x = VENT_SHAFT.x0 + ((VENT_SHAFT.x1 - VENT_SHAFT.x0) * k) / 5;
     deco([x - 0.012, -0.03, VENT_SHAFT.z0], [x + 0.012, 0.01, VENT_SHAFT.z1], '#2b2e33');
   }
-  clip([VENT_SHAFT.x0, 0, VENT_SHAFT.z0], [VENT_SHAFT.x1, 0.6, VENT_SHAFT.z1]);
+  // a lid flush with the grille: walk across it (a body is wider than the shaft anyway); it used to be a 0.6 m
+  // block right under the living-room window, which stopped vaulting in from the yard
+  clip([VENT_SHAFT.x0, -0.02, VENT_SHAFT.z0], [VENT_SHAFT.x1, 0.02, VENT_SHAFT.z1]);
 
   // garage entrance ramp (datamap zone 9): one slope from the apron up to the road
   {

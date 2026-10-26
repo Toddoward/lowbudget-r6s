@@ -61,7 +61,7 @@ export const PROPS: PropDef[] = [
 
   // ---------------- 1F: Living Room (sofa + side sofa facing the TV, path to the arch and both french windows)
   P('Sofa', 0, -5.4, -1.2, [2.6, 0.85, 0.95], 'fabric', '#5a6a7a', 'sofa'),
-  P('Sofa', 0, -6.15, -3.4, [0.95, 0.85, 1.9], 'fabric', '#5a6a7a', 'sofa'),
+  P('Sofa', 0, -5.2, -3.2, [1.9, 0.85, 0.95], 'fabric', '#5a6a7a', 'sofa'),
   P('Coffee Table', 0, -5.2, -2.0, [1.2, 0.45, 0.65], 'wood', '#5a4330', 'table'),
   P('TV Stand', 0, -5.1, -5.0, [2.0, 0.55, 0.45], 'wood', '#3a2c20', 'counter'),
   P('TV', 0, -5.1, -5.05, [1.4, 0.8, 0.08], 'metal', '#111214', undefined, 0.55),
@@ -73,8 +73,8 @@ export const PROPS: PropDef[] = [
   P('Desk', 0, 6.1, -3.1, [1.7, 0.76, 0.85], 'wood', '#5a4330', 'desk'),
   P('Office Chair', 0, 6.1, -2.25, [0.6, 1.0, 0.6], 'fabric', '#1f2124', 'chair'),
   P('Bookcase', 0, 4.65, -3.6, [0.45, 2.1, 1.6], 'wood', '#4f3a26', 'shelf'),
-  P('Bookcase', 0, 8.05, -2.8, [0.45, 2.1, 1.6], 'wood', '#4f3a26', 'shelf'),
-  P('Filing Cabinet', 0, 7.95, -1.45, [0.5, 1.3, 0.6], 'metal', '#6b6f75', 'appliance'),
+  P('Bookcase', 0, 7.73, -1.7, [0.45, 2.1, 1.4], 'wood', '#4f3a26', 'shelf'),
+  P('Filing Cabinet', 0, 5.6, -4.75, [0.5, 1.3, 0.6], 'metal', '#6b6f75', 'appliance'),
   // Dining Room: four-seat table (clear of the arch and the master-bedroom hatch above) + ammo crate
   P('Dining Table', 0, 6.6, 2.6, [2.0, 0.78, 1.15], 'wood', '#6b4a2b', 'table'),
   ...[6.1, 7.1].flatMap((x) => [
