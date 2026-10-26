@@ -352,7 +352,8 @@ export class Game {
   private doPing() {
     const p = this.player;
     if (!p) return;
-    const [o, d] = this.viewRay();
+    // body: the soldier's own eye/aim (exact even before the next render); drone/CCTV: what the feed camera sees
+    const [o, d] = this.view === 'body' ? [p.eye(), p.aimDir()] : this.viewRay();
     if (this.pingFrom(p, o, d)) this.audio.ui('ping');
   }
 
@@ -408,6 +409,7 @@ export class Game {
   }
 
   private makeSoldier(id: string, name: string, side: Side, operator: string, kind: 'local' | 'bot' | 'agent', pos: THREE.Vector3, yaw: number): Soldier {
+    this.world.gadgets.forgetKeys(id);
     const s = new Soldier(this.world, { id, name, side, operator, kind, pos, yaw });
     this.world.soldiers.set(id, s);
     this.world.actors.set(id, s);
@@ -534,6 +536,21 @@ export class Game {
 
   restartTH() { if (this.thOpts) this.startTH(this.thOpts); }
 
+  /** QA / E2E: swap the local player to any operator (defenders included) in place */
+  qaSwapOperator(operator: string): Soldier | null {
+    const old = this.player;
+    if (!old) return null;
+    const side = (OPERATORS[operator]?.team === 'defend' ? 'defend' : 'attack') as Side;
+    const pos = old.pos.clone();
+    const yaw = old.yaw;
+    this.disposePlayer();
+    this.player = this.makeSoldier('self', old.name, side, operator, 'local', pos, yaw);
+    this.playerCtl = new AgentController(this.world, this.player);
+    this.vm.setCloth(this.player.op.cloth);
+    this.view = 'body';
+    return this.player;
+  }
+
   /* ================================================================ agent slots */
   addLocalAgentSlot(id: string, nickname: string, side: Side, operator: string, sp: { p: THREE.Vector3; yaw: number }): AgentSlot {
     const s = this.makeSoldier(id, nickname, side, operator, 'agent', sp.p, sp.yaw);
@@ -552,7 +569,7 @@ export class Game {
   }
   private agentList() {
     const out: { id: string; nickname: string; kind: 'player' | 'local-slot'; policy: string }[] = [];
-    if (this.player) out.push({ id: 'self', nickname: this.player.name, kind: 'player', policy: this.playerCtl && performance.now() - this.playerCtl.lastActionAt < 2000 ? 'external' : 'human' });
+    if (this.player) out.push({ id: 'self', nickname: this.player.name, kind: 'player', policy: this.playerCtl?.active() ? 'external' : 'human' });
     for (const s of this.slots) out.push({ id: s.id, nickname: s.nickname, kind: 'local-slot', policy: s.policy });
     return out;
   }
@@ -903,9 +920,10 @@ export class Game {
     // --- player input (keyboard/mouse merged with WebMCP 'self' actions)
     const p = this.player;
     const rappelling = p?.mode === 'rappel';
+    const enterPressed = this.input.wasPressed('Enter') || this.input.wasPressed('NumpadEnter'); // read before sample() flushes edges
     const human = this.input.sample(!!rappelling);
     let inp: SoldierInput = human;
-    if (this.playerCtl && performance.now() - this.playerCtl.lastActionAt < 2000) inp = mergeInput(human, this.playerCtl.input(dt));
+    if (this.playerCtl?.active()) inp = mergeInput(human, this.playerCtl.input(dt));
     this.lookDelta = { x: inp.lookDYaw, y: inp.lookDPitch };
     // --- phase timers (TH)
     if (this.mode === 'th' && !this.thResult) {
@@ -916,7 +934,8 @@ export class Game {
       } else if (w.phase === 'action' && w.time >= this.phaseEnds) this.endTH(false, 'Time expired');
     }
     // --- views: drone (attackers; forced during prep) · CCTV (defenders) · body
-    if (this.mode === 'th' && w.phase === 'prep' && this.input.wasPressed('Enter')) this.phaseEnds = w.time;
+    if (this.mode === 'th' && w.phase === 'prep' && enterPressed) this.phaseEnds = w.time;
+    if (p && !p.alive && inp.jump) this.spectateIdx++;
     if (p) {
       if (this.view === 'drone' && (!this.drone || this.drone.data.destroyed || this.drone.state === 'done')) {
         this.view = 'body';
@@ -927,7 +946,7 @@ export class Game {
       if (inp.ping) this.doPing();
       if (this.view === 'drone' && this.drone) {
         const dinp = { ...inp };
-        if (this.playerCtl && performance.now() - this.playerCtl.lastActionAt < 2000) {
+        if (this.playerCtl?.active()) {
           const d = this.playerCtl.droneInput();
           if (d.f || d.r) { dinp.moveF = d.f; dinp.moveR = d.r; }
           if (d.jump) dinp.jump = true;
@@ -1157,7 +1176,6 @@ export class Game {
     this.hud.update(hs, dt);
     if (this.input.down('score')) this.hud.scoreboard(true, this.scoreboardHtml());
     else this.hud.scoreboard(false);
-    if (!p.alive && this.input.hit('vault')) this.spectateIdx++;
   }
 
   /** "gadget.place|G|Exothermic Charge" → "[G] Place Exothermic Charge" with the real key cap & localized name */

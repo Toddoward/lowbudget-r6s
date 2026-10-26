@@ -28,6 +28,8 @@ const GADGET_CLASS: Record<string, GadgetClass> = {
   emp: 'throw', gas: 'throw',
   shield_ext: 'active', flash_shield: 'active',
 };
+/** a press shorter than this is a tap (detonate), longer is a hold (place) */
+const TAP_TIME = 0.25;
 const PLACE_TIME: Record<string, number> = { breach: 0.6, thermite: 1.0, cluster: 0.8, battery: 0.6, castle: 1.5, jammer: 0.4, ads: 0.4, edd: 1.0, turret: 1.2 };
 
 export interface Gadget {
@@ -101,7 +103,10 @@ export class Gadgets {
     const hcd = (this.hammerCd.get(s.id) ?? 0) - dt;
     this.hammerCd.set(s.id, hcd);
     if (inp.alt) this.detonateOwned(s);
-    s.gadgetHint = this.useKey(s, dt, 'op', inp.gadget, inp.gadgetHeld) || this.useKey(s, dt, 'uni', inp.gadget2, inp.gadget2Held) || '';
+    // both keys must be processed every frame (a non-empty [G] hint must not starve [X])
+    const hOp = this.useKey(s, dt, 'op', inp.gadget, inp.gadgetHeld);
+    const hUni = this.useKey(s, dt, 'uni', inp.gadget2, inp.gadget2Held);
+    s.gadgetHint = (inp.gadget2Held && hUni) || hOp || hUni || '';
     if (s.slot < 2) return;
     const isUniversal = s.slot === 3;
     const kind = isUniversal ? s.op.universal : s.op.gadget;
@@ -185,10 +190,15 @@ export class Gadgets {
       if (kind === 'gas' && this.ownsArmed(s, 'gas')) return `gadget.detonate|${keyAction}`;
       return left > 0 ? `gadget.throw|${keyAction}|${name}` : '';
     }
-    // placeables: hold on a valid target, else detonate what you own
+    // placeables: HOLD on a valid target to place · TAP to detonate what you own (even while still looking at the wall)
     const valid = left > 0 && this.validTarget(s, kind);
     const dur = PLACE_TIME[kind] ?? 0.6;
-    if (held && valid) {
+    const detonatable = this.ownsArmed(s, kind);
+    if (pressed) this.pressAt.set(holdKey, this.world.time);
+    const tap = !held && this.pressAt.has(holdKey) && this.world.time - this.pressAt.get(holdKey)! < TAP_TIME;
+    if (!held) { this.pressAt.delete(holdKey); this.holdDone.delete(holdKey); }
+    if (tap && detonatable) { this.placeHold.delete(holdKey); s.interactProgress = 0; this.detonateOwned(s); return ''; }
+    if (held && valid && !this.holdDone.has(holdKey) && (!detonatable || this.world.time - (this.pressAt.get(holdKey) ?? this.world.time) >= TAP_TIME)) {
       const t = (this.placeHold.get(holdKey) ?? 0) + dt;
       this.placeHold.set(holdKey, t);
       s.interactProgress = Math.min(1, t / dur);
@@ -197,14 +207,13 @@ export class Gadgets {
         this.placeHold.delete(holdKey);
         s.interactProgress = 0;
         if (this.useNow(s, kind)) spend();
+        this.holdDone.add(holdKey); // one placement per hold — release to place another
       }
       return '';
     }
-    if (this.placeHold.has(holdKey)) { this.placeHold.delete(holdKey); s.interactProgress = 0; }
-    const detonatable = this.ownsArmed(s, kind);
-    if (pressed && !valid && detonatable) this.detonateOwned(s);
+    if (this.placeHold.has(holdKey) && !held) { this.placeHold.delete(holdKey); s.interactProgress = 0; }
+    if (detonatable) return valid ? `gadget.placeOrDetonate|${keyAction}|${name}` : `gadget.detonate|${keyAction}`;
     if (valid) return `gadget.place|${keyAction}|${name}`;
-    if (detonatable) return `gadget.detonate|${keyAction}`;
     return '';
   }
 
@@ -245,6 +254,13 @@ export class Gadgets {
 
   /** IQ: enemy electronics within 20 m, through walls */
   readonly iqContacts = new Map<string, THREE.Vector3[]>();
+  private pressAt = new Map<string, number>();
+  /** a fresh soldier under a reused id (respawn / new round / operator swap) starts with clean key state */
+  forgetKeys(id: string) {
+    for (const m of [this.pressAt, this.placeHold]) for (const k of [...m.keys()]) if (k.startsWith(`${id}:`)) m.delete(k);
+    for (const k of [...this.holdDone]) if (k.startsWith(`${id}:`)) this.holdDone.delete(k);
+  }
+  private holdDone = new Set<string>();
   private iqScanning = new Set<string>();
   isIqScanning(s: Soldier) { return this.iqScanning.has(s.id); }
   private iqScan(s: Soldier) {

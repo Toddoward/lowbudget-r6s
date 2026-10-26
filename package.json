@@ -17,6 +17,7 @@
     "deploy:pages": "wrangler pages deploy dist --project-name r6s-temu",
     "deploy": "npm run build && npm run deploy:worker && npm run deploy:pages",
     "test:e2e": "node tools/tests/e2e.mjs",
+    "test:scenarios": "node tools/tests/e2e-scenarios.mjs",
     "agent:example": "node tools/agents/webmcp-playwright-agent.mjs"
   },
   "dependencies": {

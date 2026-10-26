@@ -252,6 +252,7 @@ const D: Record<string, Entry> = {
   'gadget.place': { ko: '[{0}] {1} 설치', en: '[{0}] Place {1}' },
   'gadget.throw': { ko: '[{0}] {1} 던지기', en: '[{0}] Throw {1}' },
   'gadget.fire': { ko: '[{0}] {1} 발사', en: '[{0}] Fire {1}' },
+  'gadget.placeOrDetonate': { ko: '[{0}] 탭: 기폭 · 길게: {1} 설치', en: '[{0}] tap: detonate · hold: place {1}' },
   'gadget.detonate': { ko: '[{0}] 기폭', en: '[{0}] Detonate' },
   'gadget.equip': { ko: '[{0}] {1}', en: '[{0}] {1}' },
   'gadget.needTarget': { ko: '{0}: 설치할 곳을 조준하세요', en: '{0}: aim at a valid surface' },
