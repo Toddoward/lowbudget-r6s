@@ -16,7 +16,8 @@ import { Lighting } from '../render/Lighting.ts';
 import { ViewModel } from '../render/ViewModel.ts';
 import { Rig } from '../render/Rig.ts';
 import { buildHouse, locationName, type HouseWorld } from '../map/MapBuilder.ts';
-import { buildSuburb, type SuburbWorld } from '../map/Suburb.ts';
+import { buildOutdoor, type OutdoorWorld } from '../map/Outdoor.ts';
+import { decodeHouseDatamap512 } from '../map/houseDatamap.ts';
 import { ROOMS, SPAWN_ZONES, FLOOR_Y, HATCHES, STAIRS, FLOOR_LABEL, HOUSE_RECT, ROOF_Y } from '../map/houseLayout.ts';
 import { World } from './World.ts';
 import { Combat } from './Combat.ts';
@@ -99,7 +100,7 @@ export class Game {
   destruction!: DestructionSystem;
   effects!: Effects;
   house!: HouseWorld;
-  suburb!: SuburbWorld;
+  outdoor!: OutdoorWorld;
   lighting!: Lighting;
   world!: World;
   nav!: NavGraph;
@@ -167,8 +168,8 @@ export class Game {
     this.effects = new Effects(this.scene);
     progress('Building the original House (2015)…');
     this.house = buildHouse(this.physics, this.destruction, this.scene);
-    progress('Building the suburb: Construction Site, River Docks, APC, Side Street…');
-    this.suburb = buildSuburb(this.physics, this.scene);
+    progress('Decoding the House datamap · building the outdoors: Construction Site, River Docks, APC, Side Street…');
+    this.outdoor = buildOutdoor(this.physics, this.scene, await decodeHouseDatamap512());
     this.world = new World(this.physics, this.destruction, this.effects, this.house, this.scene);
     this.world.combat = new Combat(this.world);
     this.world.interactions = new Interactions(this.world);
@@ -179,7 +180,7 @@ export class Game {
     this.nav = new NavGraph(this.physics, this.destruction);
     this.nav.build(this.house.openings, this.house.wallPanels);
     this.world.objectives.freeSpot = (room, near) => this.nav.nearest(near, (n) => n.room === room && n.kind === 'room' && this.nav.capsuleFree(n.pos))?.pos.clone() ?? null;
-    this.lighting = new Lighting(this.scene, this.renderer, this.suburb, this.house.lamps, this.house.openings);
+    this.lighting = new Lighting(this.scene, this.renderer, this.outdoor, this.house.lamps, this.house.openings);
     this.lighting.apply('day');
     this.setupComposer();
     this.wireWorld();
@@ -364,7 +365,7 @@ export class Game {
   pingFrom(by: Soldier, o: THREE.Vector3, d: THREE.Vector3): boolean {
     let best: { id: string; ang: number } | null = null;
     for (const a of this.world.actors.values()) {
-      if (!a.alive || a.side === by.side || a.side === 'hostage' || a.id === by.id) continue;
+      if (!this.world.targetable(a) || a.side === by.side || a.side === 'hostage' || a.id === by.id) continue;
       const c = a.pos.clone().add(new THREE.Vector3(0, a.stance === Stance.Prone ? 0.3 : a.stance === Stance.Crouch ? 0.8 : 1.1, 0));
       const to = c.clone().sub(o);
       const dist = to.length();
@@ -1053,7 +1054,7 @@ export class Game {
       rig.pose(dt, s.mode === 'rappel' ? Stance.Rappel : s.stance, s.pitch, s.lean, Math.hypot(s.vel.x, s.vel.z), s.mode === 'rappel' && s.inverted);
     }
     // camera
-    for (const r of this.remotes.values()) r.rig.root.visible = true;
+    for (const r of this.remotes.values()) r.rig.root.visible = this.world.deployed(r);
     let camSoldier: Soldier | null = p;
     let spectating = '';
     const inDrone = !!(this.drone && this.view === 'drone' && p);
@@ -1113,7 +1114,7 @@ export class Game {
     this.effects.ambient(this.camera.position, dt);
     this.effects.update(dt);
     // hide own body rig when viewing through someone
-    for (const [id, rig] of this.rigs) rig.root.visible = !(camSoldier && id === camSoldier.id);
+    for (const [id, rig] of this.rigs) { const a = this.world.actors.get(id); rig.root.visible = !(camSoldier && id === camSoldier.id) && (!a || this.world.deployed(a)); }
     this.hurtFx = Math.max(0, this.hurtFx - dt * 1.5);
     this.grade.uniforms.hurt.value = this.hurtFx * 0.6 + (p && p.alive && p.hp < 30 ? 0.25 : 0);
     this.grade.uniforms.time.value = w.time;

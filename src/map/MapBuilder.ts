@@ -5,7 +5,7 @@ import { BoxBatch } from '../world/BoxBatch.ts';
 import { DestructionSystem, type Panel, type PanelKind } from '../world/Destruction.ts';
 import { PAL, vcMaterial } from '../render/palette.ts';
 import {
-  CCTVS, DIAG_WALLS, FLOORS, FLOOR_LABEL, FLOOR_Y, GROUND_Y, HATCHES, LANDINGS, OPENING_DIMS, PANEL_MAX_W, ROOF_Y, ROOMS, SLAB_T, STAIRS, WALLS, WALL_H,
+  CCTVS, DIAG_WALLS, FLOORS, HOUSE_RECT, NW_STAIRWELL_PIT, FLOOR_LABEL, FLOOR_Y, GROUND_Y, HATCHES, LANDINGS, OPENING_DIMS, PANEL_MAX_W, ROOF_Y, ROOMS, SLAB_T, STAIRS, WALLS, WALL_H,
   exteriorZoneName, type FloorId, type OpeningKind, type RoomDef, type StairDef, type SurfaceTier, type WallDef,
 } from './houseLayout.ts';
 import { PROPS, type PropDef } from './houseProps.ts';
@@ -322,15 +322,25 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
     trim.box([x0, 0.85, -6.92], [x1, 0.95, -6.78], PAL.solidExt);
     clip([x0, 0, -6.92], [x1, 0.95, -6.78]);
   }
-  addStatic([-1.0, GROUND_Y, -7.35], [1.2, -0.12, -7.0], PAL.concrete, 'concrete', true);
   addStatic([-1.6, -0.3, -7.0], [4.3, 0.0, -6.75], PAL.woodFloor, 'wood', true);
   // back porch posts under the kids' room overhang
   for (const x of [-7.1, -4.3, -1.95]) addStatic([x - 0.1, 0, 6.35], [x + 0.1, 3.2, 6.55], PAL.solidExt, 'wood', true);
-  addStatic([-5.0, GROUND_Y, 6.6], [-3.6, -0.12, 6.95], PAL.concrete, 'concrete', true);
-  // storage stairwell: retaining walls + guard rails at street level
-  for (const [z0, z1] of [[-7.6, -7.3], [-5.7, -5.4]]) addStatic([-13.6, -3.6, z0], [-7.25, GROUND_Y + 0.05, z1], PAL.concrete, 'concrete', true);
-  addStatic([-14.0, -3.6, -7.6], [-13.6, GROUND_Y + 0.05, -5.4], PAL.concrete, 'concrete', true);
-  for (const z of [-7.45, -5.55]) { trim.box([-13.6, GROUND_Y + 0.85, z - 0.04], [-7.3, GROUND_Y + 0.92, z + 0.04], PAL.darkMetal); clip([-13.6, GROUND_Y, z - 0.05], [-7.3, GROUND_Y + 1.0, z + 0.05]); }
+  // NW basement stairs: guard rails around the stairwell at yard level (its walls are the cut in the terrain);
+  // open at the top of the flight (north) and against the House (storage W wall)
+  {
+    const f = STAIRS.find((s) => s.id === 'stairs_storage_ext')!.rect;
+    const p = NW_STAIRWELL_PIT;
+    const guard = (x0: number, z0: number, x1: number, z1: number) => {
+      trim.box([x0 - 0.03, GROUND_Y + 0.88, z0 - 0.03], [x1 + 0.03, GROUND_Y + 0.95, z1 + 0.03], PAL.darkMetal);
+      for (const t of [0, 0.5, 1]) trim.box([x0 + (x1 - x0) * t - 0.025, GROUND_Y, z0 + (z1 - z0) * t - 0.025], [x0 + (x1 - x0) * t + 0.025, GROUND_Y + 0.9, z0 + (z1 - z0) * t + 0.025], PAL.darkMetal);
+      clip([x0 - 0.05, GROUND_Y, z0 - 0.05], [x1 + 0.05, GROUND_Y + 1.0, z1 + 0.05]);
+    };
+    guard(f.x0, f.z0, f.x0, p.z1); // west, flight + landing
+    guard(f.x1, f.z0, f.x1, p.z0); // east of the flight
+    guard(f.x1, p.z0, p.x1, p.z0); // north edge of the landing
+    guard(p.x1, p.z0, p.x1, HOUSE_RECT.z0); // east edge up to the House front
+    guard(p.x0, p.z1, p.x1, p.z1); // south
+  }
 
   /* ------------------------------------------------------------- stairs */
   for (const s of STAIRS) buildStair(s);
@@ -405,9 +415,14 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
     const dark = c.clone().multiplyScalar(0.6);
     const light = c.clone().lerp(new THREE.Color('#ffffff'), 0.25);
     // rot90: the model is authored with its long axis along local Z; lay it along world X
-    const B = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, col = c) => (p.rot90
-      ? propBatch.box([p.x + Math.min(z0, z1), fy + y0, p.z + Math.min(-x0, -x1)], [p.x + Math.max(z0, z1), fy + y1, p.z + Math.max(-x0, -x1)], col)
-      : propBatch.box([p.x + x0, fy + y0, p.z + z0], [p.x + x1, fy + y1, p.z + z1], col));
+    // every visible box is also its collider: bullets, sight and bodies stop exactly where the model is
+    const parts: [number[], number[]][] = [];
+    const B = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, col = c) => {
+      const mn = p.rot90 ? [p.x + Math.min(z0, z1), fy + y0, p.z + Math.min(-x0, -x1)] : [p.x + x0, fy + y0, p.z + z0];
+      const mx = p.rot90 ? [p.x + Math.max(z0, z1), fy + y1, p.z + Math.max(-x0, -x1)] : [p.x + x1, fy + y1, p.z + z1];
+      propBatch.box(mn, mx, col);
+      parts.push([mn, mx]);
+    };
     const hx = (p.rot90 ? sz : sx) / 2, hz = (p.rot90 ? sx : sz) / 2;
     switch (p.style) {
       case 'sofa': {
@@ -484,7 +499,8 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
         break;
       case 'cylinder':
         propBatch.geom(new THREE.CylinderGeometry(hx, hx, sy, 10), new THREE.Matrix4().makeTranslation(p.x, fy + sy / 2, p.z), c);
-        break;
+        physics.addCylinder(p.x, fy + sy / 2, p.z, sy / 2, hx, { kind: 'static', mat: p.mat });
+        return;
       case 'chair':
         B(-hx, 0, -hz, hx, sy * 0.48, hz, c); B(-hx, sy * 0.48, hz - 0.08, hx, sy, hz, dark);
         break;
@@ -503,7 +519,12 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
         if (p.style === 'appliance') B(-hx + 0.05, sy * 0.55, -hz - 0.005, hx - 0.05, sy * 0.58, -hz, dark);
         if (p.style === 'box') B(-hx - 0.005, sy * 0.45, -hz - 0.005, hx + 0.005, sy * 0.55, hz + 0.005, new THREE.Color('#c8b28a'));
     }
-    if (sy > 0.08) physics.addBox(p.x, fy + sy / 2, p.z, sx / 2, sy / 2, sz / 2, { kind: 'static', mat: p.mat });
+    if (sy <= 0.08) return; // rugs and mats: walked over, shot through
+    for (const [mn, mx] of parts) {
+      // decals (head lights, stencil bands, handles) are part of the box they sit on
+      if (Math.min(mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]) < 0.025) continue;
+      physics.addBox((mn[0] + mx[0]) / 2, (mn[1] + mx[1]) / 2, (mn[2] + mx[2]) / 2, (mx[0] - mn[0]) / 2, (mx[1] - mn[1]) / 2, (mx[2] - mn[2]) / 2, { kind: 'static', mat: p.mat });
+    }
   }
 
   /* ------------------------------------------------------------- CCTV cameras */
@@ -525,7 +546,7 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
     mesh.add(led);
     if (cdef.exterior) {
       // pole
-      addStatic([pos.x - 0.07, GROUND_Y, pos.z - 0.07], [pos.x + 0.07, pos.y + 0.2, pos.z + 0.07], PAL.darkMetal, 'metal', true);
+      addStatic([pos.x - 0.07, cdef.ground ?? GROUND_Y, pos.z - 0.07], [pos.x + 0.07, pos.y + 0.2, pos.z + 0.07], PAL.darkMetal, 'metal', true);
     }
     const collider = physics.addBox(pos.x, pos.y, pos.z, 0.09, 0.09, 0.16, { kind: 'gadget', gadgetId: `cctv:${cdef.id}` });
     cameras.push({ id: cdef.id, label: cdef.label, pos, yaw: cdef.yaw, exterior: cdef.exterior, mesh, alive: true, collider });

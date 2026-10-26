@@ -270,7 +270,7 @@ export class Objectives {
       let atk = 0;
       let def = 0;
       for (const a of w.actors.values()) {
-        if (!a.alive || !this.inRoom(a.pos, this.container.room)) continue;
+        if (!w.targetable(a) || !this.inRoom(a.pos, this.container.room)) continue;
         if (a.side === 'attack') atk++;
         else if (a.side === 'defend' || a.side === 'terrorist') def++;
       }

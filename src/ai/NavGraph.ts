@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { G_CLIP, G_WORLD, type Physics } from '../core/Physics.ts';
-import { FLOOR_Y, HOUSE_RECT, LANDINGS, ROOMS, SPAWN_ZONES, STAIRS } from '../map/houseLayout.ts';
+import { FLOOR_Y, HOUSE_RECT, LANDINGS, MAP_BOUNDS, ROOMS, SPAWN_ZONES, STAIRS } from '../map/houseLayout.ts';
 import { bodyFree, buildWalkGrid, lineWalk, MAX_LAYERS, nearestFit, reachedUpright, surfaceAt, surfacePos, type WalkGrid } from '../map/walkGrid.ts';
 import type { Opening } from '../map/MapBuilder.ts';
 import type { DestructionSystem, Panel } from '../world/Destruction.ts';
@@ -17,8 +17,8 @@ export interface NavEdge { to: number; cost: number; opening?: number; panel?: n
 
 /** where the fine (0.1 m) clearance grid is built: the House and its yard */
 export const NAV_FINE_AREA = { x0: HOUSE_RECT.x0 - 3, z0: HOUSE_RECT.z0 - 3, x1: HOUSE_RECT.x1 + 3, z1: HOUSE_RECT.z1 + 3 };
-/** the coarse (0.3 m) grid covers the whole playable outdoors */
-export const NAV_COARSE_AREA = { x0: -50, z0: -50, x1: 50, z1: 50 };
+/** the coarse (0.4 m) grid covers the whole playable outdoors */
+export const NAV_COARSE_AREA = { x0: MAP_BOUNDS.x0, z0: MAP_BOUNDS.z0, x1: MAP_BOUNDS.x1, z1: MAP_BOUNDS.z1 };
 const PASS_KINDS = new Set(['door', 'exterior_door', 'arch', 'french']);
 
 /**

@@ -287,7 +287,7 @@ export class Gadgets {
   /** blind everyone in the cone that has line of sight (local sim + local player) */
   applyFlash(origin: THREE.Vector3, dir: THREE.Vector3, team: string) {
     for (const a of this.world.soldiers.values()) {
-      if (!a.alive || a.side === team) continue;
+      if (!this.world.targetable(a) || a.side === team) continue;
       const head = a.eye();
       const to = head.clone().sub(origin);
       const d = to.length();
@@ -465,7 +465,7 @@ export class Gadgets {
     const hit = this.world.physics.raycast(o, d, 2.1, G_WORLD | G_GADGET);
     this.world.sound({ type: 'breach', pos: o.clone(), radius: 28, source: s.id, intensity: 0.8, label: 'hammer' });
     for (const a of this.world.actors.values()) {
-      if (a.id === s.id || !a.alive) continue;
+      if (a.id === s.id || !this.world.targetable(a)) continue;
       const head = a.pos.clone().add(new THREE.Vector3(0, 1.0, 0));
       if (head.distanceTo(o) < 1.8 && head.clone().sub(o).normalize().dot(d) > 0.8) this.world.damageActor(a, 100, s.id, false, d);
     }
@@ -547,7 +547,7 @@ export class Gadgets {
     const out: { dir: THREE.Vector3; dist: number; dy: number }[] = [];
     const eye = s.eye();
     for (const a of this.world.actors.values()) {
-      if (!a.alive || a.id === s.id || a.side === s.side) continue;
+      if (!this.world.targetable(a) || a.id === s.id || a.side === s.side) continue;
       const d = a.pos.distanceTo(s.pos);
       if (d > 9) continue;
       const dir = a.pos.clone().add(new THREE.Vector3(0, 1.2, 0)).sub(eye);
@@ -694,7 +694,7 @@ export class Gadgets {
     const L = ab.length();
     ab.normalize();
     for (const actor of this.world.actors.values()) {
-      if (!actor.alive || actor.side === g.team || actor.side === 'hostage') continue;
+      if (!this.world.targetable(actor) || actor.side === g.team || actor.side === 'hostage') continue;
       const feet = actor.pos.clone().setY(a.y);
       const t = THREE.MathUtils.clamp(feet.clone().sub(a).dot(ab), 0, L);
       const closest = a.clone().addScaledVector(ab, t);

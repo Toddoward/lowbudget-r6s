@@ -30,7 +30,6 @@ export const PROPS: PropDef[] = [
   // ---------------- Basement: Storage (shelving along the walls, aisle to both doors)
   P('Metal Shelves', -1, -4.9, -7.15, [1.6, 2.0, 0.5], 'metal', '#7d8186', 'rack'),
   P('Metal Shelves', -1, -2.5, -7.1, [1.4, 2.0, 0.5], 'metal', '#7d8186', 'rack'),
-  P('Metal Shelves', -1, -5.0, -5.9, [0.5, 2.0, 1.5], 'metal', '#7d8186', 'rack'),
   P('Metal Shelves', -1, -2.0, -5.6, [0.5, 2.0, 1.4], 'metal', '#7d8186', 'rack'),
   P('Boxes', -1, -3.65, -6.95, [0.8, 0.8, 0.8], 'wood', '#9b7f57', 'box'),
   P('Boxes', -1, -6.6, -5.15, [0.9, 0.6, 0.6], 'wood', '#9b7f57', 'box'),

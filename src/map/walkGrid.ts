@@ -65,6 +65,7 @@ export function buildWalkGrid(ph: Physics, area: Rect, cell = 0.1, opts: GridOpt
   const bodies = (opts.standOnly ? STANCES.slice(0, 1) : STANCES).map((s) => ({ bit: BIT[s.id], half: (s.h - STEP) / 2, shape: new RAPIER.Cylinder((s.h - STEP) / 2, BODY_R) }));
   const rot = { x: 0, y: 0, z: 0, w: 1 };
   const ys: number[] = [];
+  const ns: number[] = [];
   for (let iz = 0; iz < nz; iz++) {
     for (let ix = 0; ix < nx; ix++) {
       const x = area.x0 + ix * cell;
@@ -72,13 +73,19 @@ export function buildWalkGrid(ph: Physics, area: Rect, cell = 0.1, opts: GridOpt
       if (opts.skip && x > opts.skip.x0 && x < opts.skip.x1 && z > opts.skip.z0 && z < opts.skip.z1) continue;
       ray.origin = { x, y: top, z };
       ys.length = 0;
+      ns.length = 0;
       w.intersectionsWithRay(ray, top + 30, false, (h) => {
-        if (h.normal.y >= MIN_NORMAL_Y) ys.push(top - h.timeOfImpact);
+        if (h.normal.y >= MIN_NORMAL_Y) { ys.push(top - h.timeOfImpact); ns.push(h.normal.y); }
         return true;
       }, undefined, mask);
-      ys.sort((a, b) => b - a);
+      const order = ys.map((_, i) => i).sort((a, b) => ys[b] - ys[a]);
+      const sorted = order.map((i) => ys[i]);
+      const normals = order.map((i) => ns[i]);
       // stacked boxes count once; past MAX_LAYERS drop the highest (roof / wall tops), never a floor below
-      const uniq = ys.filter((v, i) => i === 0 || ys[i - 1] - v >= 0.05);
+      const keep = sorted.map((v, i) => i === 0 || sorted[i - 1] - v >= 0.05);
+      const uniq = sorted.filter((_, i) => keep[i]);
+      const uniqN = normals.filter((_, i) => keep[i]);
+      if (uniq.length > MAX_LAYERS) uniqN.splice(0, uniq.length - MAX_LAYERS);
       if (uniq.length > MAX_LAYERS) uniq.splice(0, uniq.length - MAX_LAYERS);
       const c = iz * nx + ix;
       let k = 0;
@@ -86,9 +93,12 @@ export function buildWalkGrid(ph: Physics, area: Rect, cell = 0.1, opts: GridOpt
         let fit = 0;
         // buried: something else's top is within a step above (a deck over the ground, a rug on the floor)
         const buried = i > 0 && uniq[i - 1] - sy <= STEP;
+        // on a slope the body's uphill edge sits higher than a step: lift the test by the slope under its radius
+        const ny = uniqN[i];
+        const lift = Math.max(STEP, BODY_R * (Math.sqrt(1 - ny * ny) / ny) + 0.02);
         // stand ⊃ crouch ⊃ prone: test the tallest first, stop at the first that fits
         for (const b of sy <= yMax && !buried ? bodies : []) {
-          if (!w.intersectionWithShape({ x, y: sy + STEP + b.half, z }, rot, b.shape, undefined, mask)) {
+          if (!w.intersectionWithShape({ x, y: sy + lift + b.half - (lift - STEP) / 2, z }, rot, b.shape, undefined, mask)) {
             fit = b.bit === 1 ? 7 : b.bit === 2 ? 6 : 4;
             break;
           }

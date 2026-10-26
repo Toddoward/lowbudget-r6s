@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { INTERIOR } from './palette.ts';
 import type { Opening } from '../map/MapBuilder.ts';
 import type { LampDef } from '../map/MapBuilder.ts';
-import type { StreetLight, SuburbWorld } from '../map/Suburb.ts';
+import type { StreetLight, OutdoorWorld } from '../map/Outdoor.ts';
 import type { TimeOfDay } from '../../shared/constants.ts';
 
 /**
@@ -28,7 +28,7 @@ export class Lighting {
   flashlightShadows = true;
   private shaftOpenings: { mesh: THREE.Mesh; opening: Opening }[] = [];
 
-  constructor(private scene: THREE.Scene, private renderer: THREE.WebGLRenderer, private suburb: SuburbWorld, private lamps: LampDef[], private openings: Opening[]) {
+  constructor(private scene: THREE.Scene, private renderer: THREE.WebGLRenderer, private suburb: OutdoorWorld, private lamps: LampDef[], private openings: Opening[]) {
     this.key.castShadow = true;
     const sc = this.key.shadow.camera as THREE.OrthographicCamera;
     sc.left = -26; sc.right = 26; sc.top = 26; sc.bottom = -26; sc.near = 1; sc.far = 140;

@@ -71,7 +71,7 @@ export class Combat {
       // actors between here and the surface
       let best: { a: Actor; t: number; zone: 'head' | 'torso' | 'legs' } | null = null;
       for (const a of w.actors.values()) {
-        if (a.id === shooterId || !a.alive || a.ghost) continue;
+        if (a.id === shooterId || !w.targetable(a)) continue;
         if (a.pos.distanceToSquared(o) > (surfDist + 3) * (surfDist + 3)) continue;
         if (!visualOnly && shooter && shooter.kind === 'bot' && a.kind === 'bot') continue; // bots don't team-kill
         const r = rayActor(o, dir, a.hitboxes(), surfDist);
@@ -171,7 +171,7 @@ export class Combat {
     const hit = w.physics.raycast(o, d, 1.6, G_WORLD | G_GADGET);
     const maxT = hit ? hit.dist : 1.6;
     for (const a of w.actors.values()) {
-      if (a.id === s.id || !a.alive) continue;
+      if (a.id === s.id || !w.targetable(a)) continue;
       const r = rayActor(o, d, a.hitboxes(), maxT + 0.2);
       if (r) {
         w.damageActor(a, 60, s.id, false, d);
@@ -222,7 +222,7 @@ export class Combat {
   areaDamage(center: THREE.Vector3, radius: number, maxDmg: number, attacker: string, falloff = 1.3) {
     const w = this.world;
     for (const a of w.actors.values()) {
-      if (!a.alive) continue;
+      if (!w.targetable(a)) continue;
       const chest = a.pos.clone().add(new THREE.Vector3(0, 0.9, 0));
       const d = chest.distanceTo(center);
       if (d > radius) continue;

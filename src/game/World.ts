@@ -78,6 +78,11 @@ export class World {
     if (broadcast) this.emit({ t: 'spot', target: '', by, team, p: [pos.x, pos.y, pos.z] });
   }
 
+  /** attackers are not in the map yet while they drone (prep): nobody sees, hits, counts or draws them */
+  deployed(a: Actor) { return !(this.phase === 'prep' && a.side === 'attack'); }
+  /** can be seen / shot / marked right now */
+  targetable(a: Actor) { return a.alive && !a.ghost && this.deployed(a); }
+
   isLocal(id: string) { return this.soldiers.has(id) || (this.objectives?.hostage?.id === id && this.objectives.hostageLocal); }
 
   /**
@@ -85,7 +90,7 @@ export class World {
    * Local targets take damage immediately; remote targets get a `hit` event.
    */
   damageActor(target: Actor, amount: number, attackerId: string, head: boolean, dir?: THREE.Vector3) {
-    if (!target.alive) return;
+    if (!this.targetable(target)) return;
     const attacker = this.actors.get(attackerId);
     if (attacker && attacker !== target && attacker.side === target.side && !this.friendlyFire) return;
     if (this.isLocal(target.id) && target.damage) {

@@ -284,6 +284,10 @@ export class Soldier implements Actor {
 
   /* ================================================================ update */
   update(dt: number, inp: SoldierInput) {
+    // not deployed yet (attackers while droning): no body in the world
+    const deployed = this.world.deployed(this);
+    if (this.collider.isEnabled() !== deployed) this.collider.setEnabled(deployed);
+    if (this.shieldCollider && this.shieldCollider.isEnabled() !== deployed) this.shieldCollider.setEnabled(deployed);
     this.fireCd = Math.max(0, this.fireCd - dt);
     this.flashCd = Math.max(0, this.flashCd - dt);
     this.meleeCd = Math.max(0, this.meleeCd - dt);

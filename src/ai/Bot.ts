@@ -149,7 +149,7 @@ export class Bot {
     let bestScore = -1;
     this.visibleNow = false;
     for (const a of this.world.actors.values()) {
-      if (!a.alive || a.side === this.s.side || a.side === 'hostage' || a.ghost) continue;
+      if (!this.world.targetable(a) || a.side === this.s.side || a.side === 'hostage') continue;
       const to = a.eye().sub(eye);
       const d = to.length();
       if (d > 48) continue;
