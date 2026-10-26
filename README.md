@@ -275,8 +275,6 @@ tools/          CLI-Anything asset pipeline, tests, agent example
 - The screenshots come from a software renderer with no GPU, so treat them as a preview.
   Weaker GPUs automatically drop quality (High → Medium → Low).
 - Mouse and keyboard only. Pointer lock is required, so there's no mobile support.
-- Durable Objects on Cloudflare's **free** plan need a SQLite-backed migration. The current
-  migration in `worker/wrangler.toml` expects the Workers Paid plan.
 
 ---
 

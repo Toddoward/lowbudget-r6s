@@ -272,8 +272,6 @@ tools/          CLI-Anything 에셋 파이프라인, 테스트, 에이전트 예
 - 스크린샷은 GPU 없이 소프트웨어 렌더러로 찍은 것이니 미리보기 정도로 봐 주세요.
   성능이 낮은 GPU에서는 화질이 자동으로 낮아집니다 (High → Medium → Low).
 - 마우스와 키보드 전용입니다. 포인터 잠금이 필요해서 모바일은 지원하지 않습니다.
-- Cloudflare **무료** 플랜에서 Durable Objects를 쓰려면 SQLite 기반 마이그레이션이 필요합니다.
-  현재 `worker/wrangler.toml`의 마이그레이션은 Workers 유료 플랜을 기준으로 되어 있습니다.
 
 ---
 
