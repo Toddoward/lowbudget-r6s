@@ -403,11 +403,19 @@ await step('two tabs join one room; lobby screen lists both', async () => {
   assert.ok(await visible(A, '#lobby'));
 });
 await step('host starts: attackers get the drone view in prep, defenders their body; lobby hides', async () => {
+  // each tab notes its view the moment it enters prep (prep is 45 s; two slow tabs polled one after the other
+  // could otherwise read the views after it ended)
+  const watch = () => {
+    window.__prep = null;
+    const t = setInterval(() => {
+      const g = window.r6game;
+      if (g.player && g.world.phase === 'prep') { window.__prep = [g.player.side, g.view]; clearInterval(t); }
+    }, 20);
+  };
+  await Promise.all([A, B].map((p) => p.evaluate(watch)));
   await A.evaluate(() => window.r6game.room.send({ type: 'start_match' }));
-  await until(A, () => window.r6game.player && window.r6game.world.phase === 'prep', null, 60000);
-  await until(B, () => window.r6game.player && window.r6game.world.phase === 'prep', null, 60000);
-  const views = await Promise.all([A, B].map((p) => p.evaluate(() => [window.r6game.player.side, window.r6game.view])));
-  for (const [side, view] of views) assert.equal(view, side === 'attack' ? 'drone' : 'body');
+  const seen = await Promise.all([A, B].map(async (p) => { await until(p, () => window.__prep !== null, null, 60000); return p.evaluate(() => window.__prep); }));
+  for (const [side, view] of seen) assert.equal(view, side === 'attack' ? 'drone' : 'body');
   assert.ok(!(await visible(A, '#lobby')));
 });
 
@@ -429,8 +437,16 @@ if (process.env.E2E_ONLINE === '1') {
   });
   await step('socket drops → reconnecting → resumed with the same id; destruction done meanwhile is replayed', async () => {
     const before = await C.evaluate(() => window.r6game.room.selfId);
+    // C reconnects 0.5 s after the drop, so "away" is brief: D records every state it receives instead of
+    // hoping a (SwiftShader-slow) poll lands inside that window
+    await D.evaluate((id) => {
+      const room = window.r6game.room;
+      const prev = room.onState;
+      window.__sawAway = false;
+      room.onState = (st) => { if (st.members.find((m) => m.id === id)?.away) window.__sawAway = true; prev.call(room, st); };
+    }, before);
     await C.evaluate(() => { window.r6game.room.t.ws.close(4000, 'test drop'); });
-    await until(D, (id) => window.r6game.room.state.members.find((m) => m.id === id)?.away === true, before, 15000);
+    await until(D, () => window.__sawAway === true, null, 15000);
     const pid = await D.evaluate(() => { const g = window.r6game; const p = [...g.destruction.panels.values()].find((x) => x.kind === 'wall_soft' && !x.reinforced); const res = g.destruction.impactAndApply('sledge', p.center, p); g.world.combat.emitCells(res.events); return p.id; });
     await until(C, () => window.r6game.room.reconnects > 0, null, 45000);
     assert.equal(await C.evaluate(() => window.r6game.room.selfId), before);
