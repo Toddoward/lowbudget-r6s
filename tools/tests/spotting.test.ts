@@ -55,12 +55,16 @@ test('a wall blocks the spot; a head over cover is still seen', async () => {
   assert.ok(hit!.point.y > 1.4, 'seen by the head');
 });
 
-test('the cone follows the target size: off the body by a metre at 10 m is a miss; the closer of two to the crosshair wins', async () => {
+test('the cone follows the target size (+ a little slack): 1.6 m off the body at 10 m is a miss; the closer of two to the crosshair wins', async () => {
   const { w } = await setup();
   add(w, actor('a', 'terrorist', 0.3, -10), actor('b', 'terrorist', -0.2, -10));
   assert.equal(lookTarget(w, 'attack', 'me', eye, toward(-0.05, 1.2, -10))?.id, 'b');
   assert.equal(lookTarget(w, 'attack', 'me', eye, toward(0.15, 1.2, -10))?.id, 'a');
-  assert.equal(lookTarget(w, 'attack', 'me', eye, toward(-1.2, 1.2, -10)), null);
+  assert.equal(lookTarget(w, 'attack', 'me', eye, toward(-1.8, 1.2, -10)), null);
+  // the slack: a target that stepped half a metre aside at 5 m is still pinged
+  const w2 = (await setup()).w;
+  add(w2, actor('m', 'terrorist', 0.55, -5));
+  assert.equal(lookTarget(w2, 'attack', 'me', eye, toward(0, 1.6, -5))?.id, 'm');
   // a prone enemy is found at prone height
   const p = actor('p', 'terrorist', 0, -6, Stance.Prone);
   add(w, p);

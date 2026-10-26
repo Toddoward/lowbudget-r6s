@@ -10,6 +10,8 @@ export const SPOT_SECS = 5;
 /** drone / camera: seconds the reticle stays on an enemy until they are identified */
 export const SCAN_TIME = 0.5;
 export const PING_RANGE = 70;
+/** extra cone for the ping key (deg) */
+export const PING_SLACK_DEG = 4;
 
 /** head, chest, hips, knees: any of them in sight counts (someone peeking over cover is still seen) */
 export function bodyPoints(a: Actor): THREE.Vector3[] {
@@ -23,11 +25,13 @@ export interface LookHit { id: string; ang: number; dist: number; point: THREE.V
 
 /**
  * The enemy closest to the line of sight o + t·d whose body subtends the ray (`pad` m around each
- * visible body point, never less than `minDeg`), with a clear line to that point.
+ * visible body point, never less than `minDeg`, plus `slackDeg` of forgiveness), with a clear line to that point.
+ * The ping key is forgiving (a moving target, a quick flick); the drone scan is not.
  */
-export function lookTarget(w: World, team: string, selfId: string, o: THREE.Vector3, d: THREE.Vector3, pad = 0.35, minDeg = 1.5, range = PING_RANGE): LookHit | null {
+export function lookTarget(w: World, team: string, selfId: string, o: THREE.Vector3, d: THREE.Vector3, pad = 0.35, minDeg = 1.5, range = PING_RANGE, slackDeg = PING_SLACK_DEG): LookHit | null {
   let best: LookHit | null = null;
   const minAng = THREE.MathUtils.degToRad(minDeg);
+  const slack = THREE.MathUtils.degToRad(slackDeg);
   const to = new THREE.Vector3();
   for (const a of w.actors.values()) {
     if (a.id === selfId || a.side === team || a.side === 'hostage' || !w.targetable(a)) continue;
@@ -37,7 +41,7 @@ export function lookTarget(w: World, team: string, selfId: string, o: THREE.Vect
       const dist = to.length();
       if (dist < 0.05 || dist > range) continue;
       const ang = to.multiplyScalar(1 / dist).angleTo(d);
-      if (ang > Math.max(minAng, Math.atan(pad / dist))) continue;
+      if (ang > Math.max(minAng, Math.atan(pad / dist)) + slack) continue;
       if (best && ang >= best.ang) continue;
       if (!w.physics.clearLine(o, p)) continue;
       best = { id: a.id, ang, dist, point: p.clone() };
@@ -55,7 +59,7 @@ export class Scanner {
   /** returns the id identified on this frame (once per lock), else null */
   update(w: World, team: string, selfId: string, o: THREE.Vector3, d: THREE.Vector3, dt: number): string | null {
     // a tighter cone than the ping: the reticle has to be on the body
-    const hit = lookTarget(w, team, selfId, o, d, 0.3, 1.0);
+    const hit = lookTarget(w, team, selfId, o, d, 0.3, 1.0, PING_RANGE, 0);
     const id = hit?.id ?? null;
     if (id !== this.target) {
       this.target = id;
