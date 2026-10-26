@@ -21,7 +21,7 @@ QA builds (`develop` branch, `VITE_QA=1`) also offer *local agent slots* (built-
 ## 2. Game rules (2015 launch rules, condensed)
 
 - **Attackers**: Sledge, Ash (breachers), Thermite (hard breacher), Thatcher, Fuze (support), Montagne, Blitz (shields), IQ (intel). **Defenders**: Smoke, Mute, Castle, Pulse, Jäger, Bandit, Kapkan (trapper), Tachanka (anchor). Terrorist Hunt: you attack AI "White Masks".
-- **Round**: random **mission** (Hostage / Secure Area / Bomb; TH also Classic elimination), random **site** and random **time of day** every round.
+- **Round**: random **mission** every round — PvP: Hostage / Secure Area / Bomb; Terrorist Hunt: attack = Classic (eliminate) / Bomb (plant the defuser, hold it while White Masks converge, or eliminate all) / Hostage Rescue, defense = Hostage Protection (`mission: 'protect'`, you play a defender) — plus a random **site** and **time of day**.
 - **Phases**: Preparation 45 s (PvP; TH 20 s) — attackers drive a **drone**, defenders reinforce & barricade → Action 3:00 (TH 6:00). PvP: first squad to 3 wins, sides swap every round.
 - **Win**: eliminate the other team, or the objective. Hostage: escort to any spawn zone; killing the hostage loses the round for the shooter's team. Secure Area: attackers in the room with no defenders for 10 s. Bomb (PvP): plant the defuser (hold interact 4 s), protect it 30 s; defenders disable it (4 s). Bomb (TH): disarm both bombs (6 s each).
 - **Damage**: headshot = kill. Torso ×1, legs ×0.75, armour 1/2/3 → ×1.0/0.9/0.8. Rounds lose 35 % per soft surface and 40 % through soft walls. Ballistic shields (Montagne, Blitz) stop rounds.

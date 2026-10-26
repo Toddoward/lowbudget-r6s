@@ -5,7 +5,7 @@ import { BoxBatch } from '../world/BoxBatch.ts';
 import { DestructionSystem, type Panel, type PanelKind } from '../world/Destruction.ts';
 import { PAL, vcMaterial } from '../render/palette.ts';
 import {
-  CCTVS, DIAG_WALLS, FLOORS, FLOOR_LABEL, FLOOR_Y, GROUND_Y, HATCHES, LANDINGS, OPENING_DIMS, PANEL_MAX_W, ROOF_Y, ROOMS, SLAB_T, STAIRS, WALLS, WALL_H,
+  CCTVS, DIAG_WALLS, FLOORS, HOUSE_RECT, NW_STAIRWELL_PIT, FLOOR_LABEL, FLOOR_Y, GROUND_Y, HATCHES, LANDINGS, OPENING_DIMS, PANEL_MAX_W, ROOF_Y, ROOMS, SLAB_T, STAIRS, WALLS, WALL_H,
   exteriorZoneName, type FloorId, type OpeningKind, type RoomDef, type StairDef, type SurfaceTier, type WallDef,
 } from './houseLayout.ts';
 import { PROPS, type PropDef } from './houseProps.ts';
@@ -116,6 +116,7 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
   function sliceWall(wall: WallDef) {
     const fy = FLOOR_Y[wall.floor];
     const t = thicknessOf(wall);
+    const wh = wall.h ?? WALL_H;
     const e = wall.ext ? t / 2 : 0;
     const a = wall.from - e;
     const b = wall.to + e;
@@ -128,9 +129,9 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
       const d = OPENING_DIMS[o.kind];
       const u0 = o.at - o.w / 2;
       const u1 = o.at + o.w / 2;
-      if (u0 > cur + 1e-3) rects.push({ u0: cur, u1: u0, v0: fy, v1: fy + WALL_H, full: true });
+      if (u0 > cur + 1e-3) rects.push({ u0: cur, u1: u0, v0: fy, v1: fy + wh, full: true });
       if (d.y0 > 0.001) rects.push({ u0, u1, v0: fy, v1: fy + d.y0, full: false });
-      if (d.y0 + d.h < WALL_H - 1e-3) rects.push({ u0, u1, v0: fy + d.y0 + d.h, v1: fy + WALL_H, full: false });
+      if (d.y0 + d.h < wh - 1e-3) rects.push({ u0, u1, v0: fy + d.y0 + d.h, v1: fy + wh, full: false });
       cur = u1;
       const center = wall.run === 'x' ? new THREE.Vector3(o.at, fy + d.y0 + d.h / 2, wall.c) : new THREE.Vector3(wall.c, fy + d.y0 + d.h / 2, o.at);
       const sideA = roomAt(TMP.copy(center).addScaledVector(nrm, -0.6).setY(fy + 0.2));
@@ -142,6 +143,13 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
         rooms: [sideA?.id ?? null, sideB?.id ?? null], barricadePanel: null, barricadeKind: 'none', barricadeGen: 0,
       });
       frameOpening(wall.run, wall.c, t, o.kind, u0, u1, fy + d.y0, fy + d.y0 + d.h);
+      // floor-level openings in an outer wall: the slab ends at the wall's centre line and the wall below stops a slab lower —
+      // fill the threshold so nothing (a drone, a grenade) drops into the pocket under the opening
+      if (wall.ext && d.y0 < 0.05 && wall.floor >= 0) {
+        const [mn, mx] = box(wall.run, wall.c, t, u0, u1, fy - SLAB_T, fy);
+        physics.addBox((mn[0] + mx[0]) / 2, (mn[1] + mx[1]) / 2, (mn[2] + mx[2]) / 2, (mx[0] - mn[0]) / 2, (mx[1] - mn[1]) / 2, (mx[2] - mn[2]) / 2, { kind: 'static', mat: 'concrete' });
+        stat.box(mn as [number, number, number], mx as [number, number, number], PAL.concrete, PAL.concrete, 1);
+      }
       if (o.kind === 'shutter') {
         // shutter = three reinforceable metal sections
         const n = 3;
@@ -154,7 +162,7 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
         }
       }
     }
-    if (b > cur + 1e-3) rects.push({ u0: cur, u1: b, v0: fy, v1: fy + WALL_H, full: true });
+    if (b > cur + 1e-3) rects.push({ u0: cur, u1: b, v0: fy, v1: fy + wh, full: true });
 
     const extColor = wall.floor === -1 ? PAL.concrete : PAL.solidExt;
     for (const r0 of rects) {
@@ -273,11 +281,11 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
     const y1 = f.y;
     const y0 = f.y - (f.t ?? SLAB_T);
     if (f.tier === 'semi') {
-      destruction.add({
-        kind: 'floor_semi', min: [f.rect.x0, y0, f.rect.z0], max: [f.rect.x1, y1, f.rect.z1], nAx: 1,
-        label: f.label ?? f.id, exterior: f.kind === 'roof',
-        voids: (f.holes ?? []).map((h) => ({ u0: h.x0, v0: h.z0, u1: h.x1, v1: h.z1 })),
-      });
+      // one panel per piece around the holes: the pieces end exactly at a hatch / stairwell edge
+      // (void cells of a single grid stop up to half a cell short and leave a crack to the floor below)
+      for (const r of subtractRects(f.rect, f.holes ?? [])) {
+        destruction.add({ kind: 'floor_semi', min: [r.x0, y0, r.z0], max: [r.x1, y1, r.z1], nAx: 1, label: f.label ?? f.id, exterior: f.kind === 'roof' });
+      }
       continue;
     }
     const color = f.kind === 'roof' ? PAL.roof : f.kind === 'wood' || f.kind === 'deck' ? PAL.woodFloor : f.y < -1 ? PAL.concreteDark : PAL.concrete;
@@ -322,15 +330,25 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
     trim.box([x0, 0.85, -6.92], [x1, 0.95, -6.78], PAL.solidExt);
     clip([x0, 0, -6.92], [x1, 0.95, -6.78]);
   }
-  addStatic([-1.0, GROUND_Y, -7.35], [1.2, -0.12, -7.0], PAL.concrete, 'concrete', true);
   addStatic([-1.6, -0.3, -7.0], [4.3, 0.0, -6.75], PAL.woodFloor, 'wood', true);
   // back porch posts under the kids' room overhang
   for (const x of [-7.1, -4.3, -1.95]) addStatic([x - 0.1, 0, 6.35], [x + 0.1, 3.2, 6.55], PAL.solidExt, 'wood', true);
-  addStatic([-5.0, GROUND_Y, 6.6], [-3.6, -0.12, 6.95], PAL.concrete, 'concrete', true);
-  // storage stairwell: retaining walls + guard rails at street level
-  for (const [z0, z1] of [[-7.6, -7.3], [-5.7, -5.4]]) addStatic([-13.6, -3.6, z0], [-7.25, GROUND_Y + 0.05, z1], PAL.concrete, 'concrete', true);
-  addStatic([-14.0, -3.6, -7.6], [-13.6, GROUND_Y + 0.05, -5.4], PAL.concrete, 'concrete', true);
-  for (const z of [-7.45, -5.55]) { trim.box([-13.6, GROUND_Y + 0.85, z - 0.04], [-7.3, GROUND_Y + 0.92, z + 0.04], PAL.darkMetal); clip([-13.6, GROUND_Y, z - 0.05], [-7.3, GROUND_Y + 1.0, z + 0.05]); }
+  // NW basement stairs: guard rails around the stairwell at yard level (its walls are the cut in the terrain);
+  // open at the top of the flight (north) and against the House (storage W wall)
+  {
+    const f = STAIRS.find((s) => s.id === 'stairs_storage_ext')!.rect;
+    const p = NW_STAIRWELL_PIT;
+    const guard = (x0: number, z0: number, x1: number, z1: number) => {
+      trim.box([x0 - 0.03, GROUND_Y + 0.88, z0 - 0.03], [x1 + 0.03, GROUND_Y + 0.95, z1 + 0.03], PAL.darkMetal);
+      for (const t of [0, 0.5, 1]) trim.box([x0 + (x1 - x0) * t - 0.025, GROUND_Y, z0 + (z1 - z0) * t - 0.025], [x0 + (x1 - x0) * t + 0.025, GROUND_Y + 0.9, z0 + (z1 - z0) * t + 0.025], PAL.darkMetal);
+      clip([x0 - 0.05, GROUND_Y, z0 - 0.05], [x1 + 0.05, GROUND_Y + 1.0, z1 + 0.05]);
+    };
+    guard(f.x0, f.z0, f.x0, p.z1); // west, flight + landing
+    guard(f.x1, f.z0, f.x1, p.z0); // east of the flight
+    guard(f.x1, p.z0, p.x1, p.z0); // north edge of the landing
+    guard(p.x1, p.z0, p.x1, HOUSE_RECT.z0); // east edge up to the House front
+    guard(p.x0, p.z1, p.x1, p.z1); // south
+  }
 
   /* ------------------------------------------------------------- stairs */
   for (const s of STAIRS) buildStair(s);
@@ -386,7 +404,8 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
   // main stairs (2F gallery around the well)
   rail(1.4, -4.9, 4.2, -4.88, 3.5);
   rail(1.4, -4.9, 1.42, -1.2, 3.5);
-  rail(2.8, -1.22, 4.2, -1.2, 3.5);
+  rail(2.8, -3.02, 4.2, -3.0, 3.5); // edge of flight a's headroom cut-out
+  rail(2.79, -3.0, 2.81, -1.2, 3.5); // flight b's east side
   rail(2.79, -3.95, 2.81, -1.2, 0); // between the two flights (1F)
   clip([1.42, 0, -3.95], [2.78, 1.6, -1.2]); // nobody walks under the upper flight
   rail(1.4, -4.85, 1.42, -1.2, 0, 1.0); // lobby side
@@ -403,8 +422,16 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
     const c = new THREE.Color(p.color);
     const dark = c.clone().multiplyScalar(0.6);
     const light = c.clone().lerp(new THREE.Color('#ffffff'), 0.25);
-    const B = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, col = c) => propBatch.box([p.x + x0, fy + y0, p.z + z0], [p.x + x1, fy + y1, p.z + z1], col);
-    const hx = sx / 2, hz = sz / 2;
+    // rot90: the model is authored with its long axis along local Z; lay it along world X
+    // every visible box is also its collider: bullets, sight and bodies stop exactly where the model is
+    const parts: [number[], number[]][] = [];
+    const B = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, col = c) => {
+      const mn = p.rot90 ? [p.x + Math.min(z0, z1), fy + y0, p.z + Math.min(-x0, -x1)] : [p.x + x0, fy + y0, p.z + z0];
+      const mx = p.rot90 ? [p.x + Math.max(z0, z1), fy + y1, p.z + Math.max(-x0, -x1)] : [p.x + x1, fy + y1, p.z + z1];
+      propBatch.box(mn, mx, col);
+      parts.push([mn, mx]);
+    };
+    const hx = (p.rot90 ? sz : sx) / 2, hz = (p.rot90 ? sx : sz) / 2;
     switch (p.style) {
       case 'sofa': {
         const backZ = sz > sx; // long axis along z → back on the x side
@@ -480,7 +507,8 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
         break;
       case 'cylinder':
         propBatch.geom(new THREE.CylinderGeometry(hx, hx, sy, 10), new THREE.Matrix4().makeTranslation(p.x, fy + sy / 2, p.z), c);
-        break;
+        physics.addCylinder(p.x, fy + sy / 2, p.z, sy / 2, hx, { kind: 'static', mat: p.mat });
+        return;
       case 'chair':
         B(-hx, 0, -hz, hx, sy * 0.48, hz, c); B(-hx, sy * 0.48, hz - 0.08, hx, sy, hz, dark);
         break;
@@ -499,7 +527,12 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
         if (p.style === 'appliance') B(-hx + 0.05, sy * 0.55, -hz - 0.005, hx - 0.05, sy * 0.58, -hz, dark);
         if (p.style === 'box') B(-hx - 0.005, sy * 0.45, -hz - 0.005, hx + 0.005, sy * 0.55, hz + 0.005, new THREE.Color('#c8b28a'));
     }
-    if (sy > 0.08) physics.addBox(p.x, fy + sy / 2, p.z, hx, sy / 2, hz, { kind: 'static', mat: p.mat });
+    if (sy <= 0.08) return; // rugs and mats: walked over, shot through
+    for (const [mn, mx] of parts) {
+      // decals (head lights, stencil bands, handles) are part of the box they sit on
+      if (Math.min(mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]) < 0.025) continue;
+      physics.addBox((mn[0] + mx[0]) / 2, (mn[1] + mx[1]) / 2, (mn[2] + mx[2]) / 2, (mx[0] - mn[0]) / 2, (mx[1] - mn[1]) / 2, (mx[2] - mn[2]) / 2, { kind: 'static', mat: p.mat });
+    }
   }
 
   /* ------------------------------------------------------------- CCTV cameras */
@@ -521,7 +554,7 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
     mesh.add(led);
     if (cdef.exterior) {
       // pole
-      addStatic([pos.x - 0.07, GROUND_Y, pos.z - 0.07], [pos.x + 0.07, pos.y + 0.2, pos.z + 0.07], PAL.darkMetal, 'metal', true);
+      addStatic([pos.x - 0.07, cdef.ground ?? GROUND_Y, pos.z - 0.07], [pos.x + 0.07, pos.y + 0.2, pos.z + 0.07], PAL.darkMetal, 'metal', true);
     }
     const collider = physics.addBox(pos.x, pos.y, pos.z, 0.09, 0.09, 0.16, { kind: 'gadget', gadgetId: `cctv:${cdef.id}` });
     cameras.push({ id: cdef.id, label: cdef.label, pos, yaw: cdef.yaw, exterior: cdef.exterior, mesh, alive: true, collider });

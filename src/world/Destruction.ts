@@ -1,7 +1,14 @@
 import * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import { BoxBatch } from './BoxBatch.ts';
-import { PAL, TIER_XRAY, vcMaterial } from '../render/palette.ts';
+import { PAL, TIER_XRAY, patchInterior, vcMaterial } from '../render/palette.ts';
+
+/** soft walls: drawn just in front of coplanar hard walls (rule 2: polygonOffset −1 / −2) */
+let softMat: THREE.MeshStandardMaterial | null = null;
+const SOFT_WALL_MAT = () => (softMat ??= patchInterior(Object.assign(vcMaterial().clone(), { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 })));
+/** hatches: in front of the slab around them (rule 3: polygonOffsetFactor −3) */
+let hatchMat: THREE.MeshStandardMaterial | null = null;
+const HATCH_MAT = () => (hatchMat ??= patchInterior(Object.assign(vcMaterial().clone(), { polygonOffset: true, polygonOffsetFactor: -3 })));
 import type { Physics, SurfaceMaterial } from '../core/Physics.ts';
 import { CELL } from '../map/houseLayout.ts';
 
@@ -28,6 +35,9 @@ import { CELL } from '../map/houseLayout.ts';
 export type PanelKind = 'wall_soft' | 'wall_semi' | 'floor_semi' | 'hatch' | 'barricade' | 'castle' | 'shutter';
 export type ImpactKind = 'bullet' | 'melee' | 'sledge' | 'breach' | 'ash' | 'thermite' | 'frag' | 'swing' | 'cluster';
 
+/** impacts that take soft-wall studs and hatch joists down with the skin */
+const HEAVY = new Set<ImpactKind>(['breach', 'thermite', 'sledge', 'ash', 'cluster', 'frag']);
+
 const F_BROKEN = 1;
 const F_BEAM = 2;
 const F_VOID = 4;
@@ -44,11 +54,14 @@ interface KindProps {
   penetrable: boolean;
 }
 const PROPS: Record<PanelKind, KindProps> = {
-  wall_soft: { hp: 3, beamEvery: 0, mat: 'plaster', face: PAL.softWall, core: PAL.softCore, xray: TIER_XRAY.soft, collapse: 2, penetrable: true },
+  // soft: plaster on a wooden stud frame (stud every 50 cm + top / bottom plates) — punches and bullets open the
+  // plaster, the frame stops bodies (not bullets); only heavy hits (explosives, sledge, shotgun, breach) take it down
+  wall_soft: { hp: 3, beamEvery: 2, mat: 'plaster', face: PAL.softWall, core: PAL.softCore, xray: TIER_XRAY.soft, collapse: 2, penetrable: true },
   // semi: a thin stud / joist in every 25 cm column — eyes, bullets and grenades pass, bodies never do
   wall_semi: { hp: 3, beamEvery: 1, mat: 'wood', face: PAL.semiWall, core: PAL.semiCore, xray: TIER_XRAY.semi, collapse: 2, penetrable: true },
   floor_semi: { hp: 3, beamEvery: 1, mat: 'wood', face: PAL.woodFloor, core: PAL.semiCore, xray: TIER_XRAY.semi, collapse: 2, penetrable: true },
-  hatch: { hp: 6, beamEvery: 0, mat: 'wood', face: PAL.hatch, core: PAL.woodDark, xray: TIER_XRAY.soft, collapse: 0.6, penetrable: true },
+  // hatch: boards on joists — same rule as soft walls
+  hatch: { hp: 6, beamEvery: 2, mat: 'wood', face: PAL.hatch, core: PAL.woodDark, xray: TIER_XRAY.soft, collapse: 0.6, penetrable: true },
   barricade: { hp: 1, beamEvery: 0, mat: 'wood', face: PAL.barricade, core: PAL.woodDark, xray: TIER_XRAY.soft, collapse: 0.45, penetrable: true },
   castle: { hp: 8, beamEvery: 0, mat: 'metal', face: PAL.castle, core: PAL.darkMetal, xray: TIER_XRAY.solid, collapse: 2, penetrable: false },
   shutter: { hp: 4, beamEvery: 0, mat: 'metal', face: PAL.shutter, core: PAL.darkMetal, xray: TIER_XRAY.soft, collapse: 0.7, penetrable: true },
@@ -103,6 +116,10 @@ export class Panel {
   dirty = true;
   mesh: THREE.Mesh;
   colliders: RAPIER.Collider[] = [];
+  /** the panel's frame as built (restored with the skin) */
+  private frameMask: Uint8Array;
+  /** soft walls and hatches lose their frame to heavy hits; semi walls / floors keep theirs */
+  get frameBreakable() { return this.kind === 'wall_soft' || this.kind === 'hatch'; }
   private totalSkin = 0;
 
   constructor(id: number, spec: PanelSpec) {
@@ -143,7 +160,14 @@ export class Panel {
       }
     }
     for (let i = 0; i < this.state.length; i++) if (!(this.state[i] & F_VOID)) this.totalSkin++;
-    this.mesh = new THREE.Mesh(new THREE.BufferGeometry(), vcMaterial());
+    this.frameMask = this.state.map((s) => s & F_BEAM);
+    this.mesh = new THREE.Mesh(new THREE.BufferGeometry(), spec.kind === 'wall_soft' ? SOFT_WALL_MAT() : spec.kind === 'hatch' ? HATCH_MAT() : vcMaterial());
+    // Z-fighting rules 2 / 3 (visual only; colliders keep the true size):
+    // soft walls are 0.995 of their height around their middle (their top / bottom no longer coincide with the hard walls' and slabs')
+    // hatches stick out 0.015 m above and below the slab they sit in
+    const midY = (this.min.y + this.max.y) / 2;
+    const sy = spec.kind === 'wall_soft' ? 0.995 : spec.kind === 'hatch' ? (this.size(1) + 0.03) / this.size(1) : 1;
+    if (sy !== 1) { this.mesh.scale.y = sy; this.mesh.position.y = midY * (1 - sy); }
     this.mesh.castShadow = true;
     this.mesh.receiveShadow = true;
     this.mesh.userData.panelId = id;
@@ -184,7 +208,8 @@ export class Panel {
     return out;
   }
 
-  cellsInSphere(c: THREE.Vector3, r: number): number[] {
+  /** cells in a sphere with skin left (or, with `frames`, also bare frame) */
+  cellsInSphere(c: THREE.Vector3, r: number, frames = false): number[] {
     const dn = c.getComponent(this.nAx) - THREE.MathUtils.clamp(c.getComponent(this.nAx), this.min.getComponent(this.nAx), this.max.getComponent(this.nAx));
     if (Math.abs(dn) > r) return [];
     const rr = Math.sqrt(r * r - dn * dn);
@@ -201,7 +226,7 @@ export class Panel {
         const dv = (v + 0.5) * this.cv - cv;
         if (du * du + dv * dv <= rr * rr) {
           const i = v * this.nu + u;
-          if (!(this.state[i] & F_BROKEN)) out.push(i);
+          if (!(this.state[i] & F_BROKEN) || (frames && this.state[i] & F_BEAM)) out.push(i);
         }
       }
     }
@@ -209,7 +234,7 @@ export class Panel {
   }
 
   /** cells whose centre lies in a (u,v) world-space rectangle */
-  cellsInRect(u0w: number, v0w: number, u1w: number, v1w: number): number[] {
+  cellsInRect(u0w: number, v0w: number, u1w: number, v1w: number, frames = false): number[] {
     const out: number[] = [];
     const bu = this.min.getComponent(this.uAx);
     const bv = this.min.getComponent(this.vAx);
@@ -220,9 +245,29 @@ export class Panel {
         const cu = bu + (u + 0.5) * this.cu;
         if (cu < u0w || cu > u1w) continue;
         const i = v * this.nu + u;
-        if (!(this.state[i] & F_BROKEN)) out.push(i);
+        if (!(this.state[i] & F_BROKEN) || (frames && this.state[i] & F_BEAM)) out.push(i);
       }
     }
+    return out;
+  }
+
+  /** every cell with skin or frame left */
+  standingCells(): number[] {
+    const out: number[] = [];
+    for (let i = 0; i < this.state.length; i++) if (!(this.state[i] & F_BROKEN) || this.state[i] & F_BEAM) out.push(i);
+    return out;
+  }
+
+  /** heavy hit: the frame goes where the skin is gone (soft walls, hatches) */
+  breakFrame(cells: number[]): number[] {
+    if (!this.frameBreakable) return [];
+    const out: number[] = [];
+    for (const i of cells) {
+      if (i < 0 || i >= this.state.length || !(this.state[i] & F_BROKEN) || !(this.state[i] & F_BEAM)) continue;
+      this.state[i] &= ~F_BEAM;
+      out.push(i);
+    }
+    if (out.length) this.dirty = true;
     return out;
   }
 
@@ -354,7 +399,7 @@ export class Panel {
     this.thermited = false;
     for (let i = 0; i < this.state.length; i++) {
       if (this.state[i] & F_VOID) continue;
-      this.state[i] &= ~F_BROKEN;
+      this.state[i] = (this.state[i] & ~F_BROKEN & ~F_BEAM) | this.frameMask[i];
       this.hp[i] = this.props.hp;
     }
     this.brokenCount = 0;
@@ -388,7 +433,8 @@ export function greedy(grid: Uint8Array, nu: number, nv: number): number[][] {
   return out;
 }
 
-export interface CellDamage { panel: number; cells: number[]; dmg: number }
+/** `frame`: a heavy hit (explosive, sledge, shotgun, breach) that also takes out the studs / joists of soft walls and hatches */
+export interface CellDamage { panel: number; cells: number[]; dmg: number; frame?: boolean }
 export interface ImpactResult { events: CellDamage[]; broke: { panel: Panel; cells: number[] }[]; blocked: boolean }
 
 /**
@@ -434,8 +480,9 @@ export class DestructionSystem {
     const p = this.panels.get(ev.panel);
     if (!p) return [];
     const broke = p.applyDamage(ev.cells, ev.dmg);
-    if (broke.length) this.onBroke?.(p, broke);
-    return broke;
+    const frame = ev.frame ? p.breakFrame(ev.cells) : [];
+    if (broke.length || frame.length) this.onBroke?.(p, [...broke, ...frame]);
+    return broke.length || frame.length ? [...broke, ...frame] : broke;
   }
 
   setXray(on: boolean) {
@@ -461,7 +508,9 @@ export class DestructionSystem {
    * Compute (but do not apply) the cell damage an impact produces.
    * `target` is the panel directly hit / the gadget is stuck on.
    */
-  impact(kind: ImpactKind, point: THREE.Vector3, target: Panel | null, power = 1): ImpactResult {
+  /** `heavy`: a bullet with frame-breaking punch (shotgun pellets) */
+  impact(kind: ImpactKind, point: THREE.Vector3, target: Panel | null, power = 1, heavy = false): ImpactResult {
+    const frames = heavy || HEAVY.has(kind);
     const events: CellDamage[] = [];
     const push = (p: Panel, cells: number[], dmg: number) => { if (cells.length && dmg > 0) events.push({ panel: p.id, cells, dmg }); };
     let blocked = false;
@@ -475,7 +524,7 @@ export class DestructionSystem {
         if (k === 'hatch' || k === 'castle') blocked = true;
         else {
           const cell = target.cellAt(point);
-          const mul = k === 'shutter' ? 0.25 : k === 'barricade' ? 1 : 1;
+          const mul = k === 'shutter' ? 0.25 : 1;
           push(target, [cell], power * mul);
           // splinter neighbours a little so sustained fire opens ragged holes
           const nb = target.cellsInSphere(point, target.cu * 1.1).filter((i) => i !== cell);
@@ -503,15 +552,15 @@ export class DestructionSystem {
           const baseV = target.min.getComponent(target.vAx);
           let v0 = point.getComponent(target.vAx) - h / 2;
           if (v0 - baseV < 0.6) v0 = baseV - 0.01;
-          push(target, target.cellsInRect(pu - w / 2, v0, pu + w / 2, v0 + h), 999);
+          push(target, target.cellsInRect(pu - w / 2, v0, pu + w / 2, v0 + h, true), 999);
         } else {
-          push(target, target.cellsInSphere(point, kind === 'thermite' ? 0.9 : 0.65), 999);
+          push(target, target.cellsInSphere(point, kind === 'thermite' ? 0.9 : 0.65, true), 999);
         }
       } else blocked = true;
       if (kind === 'thermite' && target?.reinforced && !blocked) target.thermited = true;
       if (kind === 'breach') for (const p of this.panelsNear(point, 1.2)) {
         if (p === target || immune(p)) continue;
-        push(p, p.cellsInSphere(point, 0.9), 4);
+        push(p, p.cellsInSphere(point, 0.9, true), 4);
       }
     } else if ((kind === 'sledge' || kind === 'ash') && target && target.isWall && !immune(target) && (target.kind === 'wall_soft' || target.kind === 'wall_semi')) {
       // spec: hammer / Ash round open a 1.8 × 2.2 m body-sized passage in soft walls (semi keeps its studs)
@@ -519,27 +568,28 @@ export class DestructionSystem {
       const baseV = target.min.getComponent(target.vAx);
       let v0 = point.getComponent(target.vAx) - 1.1;
       if (v0 - baseV < 0.7) v0 = baseV - 0.01;
-      push(target, target.cellsInRect(pu - 0.9, v0, pu + 0.9, v0 + 2.2), 999);
-      for (const p of this.panelsNear(point, 1.0)) if (p !== target && !immune(p) && p.isWall) push(p, p.cellsInSphere(point, 0.9), 60);
+      push(target, target.cellsInRect(pu - 0.9, v0, pu + 0.9, v0 + 2.2, true), 999);
+      for (const p of this.panelsNear(point, 1.0)) if (p !== target && !immune(p) && p.isWall) push(p, p.cellsInSphere(point, 0.9, true), 60);
     } else {
       const r = kind === 'sledge' ? 0.8 : kind === 'ash' ? 1.05 : kind === 'cluster' ? 0.5 : 0.65;
       const dmg = kind === 'sledge' || kind === 'ash' ? 60 : 4;
       for (const p of this.panelsNear(point, r)) {
         if (immune(p)) { if (p === target) blocked = true; continue; }
         if (p.kind === 'hatch' || p.kind === 'castle' || p.kind === 'barricade') {
-          if ((kind === 'sledge' || kind === 'ash') && (p === target || p.cellsInSphere(point, r).length)) push(p, p.liveCells(), 999);
+          if ((kind === 'sledge' || kind === 'ash') && (p === target || p.cellsInSphere(point, r, true).length)) push(p, p.standingCells(), 999);
           else if (p.kind === 'barricade') push(p, p.cellsInSphere(point, r), dmg);
           continue;
         }
-        push(p, p.cellsInSphere(point, r), dmg * power);
+        push(p, p.cellsInSphere(point, r, frames), dmg * power);
       }
     }
+    if (frames) for (const e of events) e.frame = true;
     return { events, broke: [], blocked };
   }
 
   /** impact() + apply() locally. Returns events to broadcast. */
-  impactAndApply(kind: ImpactKind, point: THREE.Vector3, target: Panel | null, power = 1): ImpactResult {
-    const res = this.impact(kind, point, target, power);
+  impactAndApply(kind: ImpactKind, point: THREE.Vector3, target: Panel | null, power = 1, heavy = false): ImpactResult {
+    const res = this.impact(kind, point, target, power, heavy);
     for (const ev of res.events) {
       const p = this.panels.get(ev.panel)!;
       const broke = this.apply(ev);

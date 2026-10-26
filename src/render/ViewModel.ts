@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { buildAsset } from '../assets/build.ts';
 import { chargeSpec, deviceSpec, hammerSpec, launcherSpec, pulseSensorSpec, throwableSpec } from '../assets/weaponModels.ts';
 import { weaponSpec, WEAPONS } from '../game/weapons.ts';
-import type { Soldier } from '../game/Soldier.ts';
+import type { ShieldPose, Soldier } from '../game/Soldier.ts';
 import type { AssetSpec } from '../assets/spec.ts';
 import { vcMaterial } from './palette.ts';
 import { BoxBatch } from '../world/BoxBatch.ts';
@@ -12,6 +12,21 @@ type Reticle = 'dot' | 'holo' | 'acog' | 'none';
 interface VmModel { g: THREE.Group; spec: AssetSpec; mag: THREE.Object3D | null; reticle: Reticle; lens: THREE.Mesh | null; tint: THREE.Mesh | null; eyeRelief: number }
 
 const FWD = new THREE.Vector3(0, 0, -1);
+
+/** how an item is held: where it sits from the hip, extra tilt, and where the left hand goes */
+type Hold = 'rifle' | 'pistol' | 'launcher' | 'hammer' | 'held';
+interface HoldPose { hip: [number, number, number]; rot: [number, number, number]; left: 'fore' | 'cup' | [number, number, number] | null }
+const HOLDS: Record<Hold, HoldPose> = {
+  rifle: { hip: [0.15, -0.165, -0.35], rot: [0, 0, 0], left: 'fore' },
+  // both hands on the grip, the pistol a little higher and closer than a rifle
+  pistol: { hip: [0.12, -0.125, -0.3], rot: [0, 0, 0], left: 'cup' },
+  launcher: { hip: [0.15, -0.17, -0.36], rot: [0, 0, 0], left: [-0.02, -0.04, -0.3] },
+  // sledgehammer: carried at the right hip, head up and forward, left hand low on the handle
+  hammer: { hip: [0.24, -0.26, -0.32], rot: [0.45, 0.2, 0.3], left: [0, -0.02, 0.12] },
+  // devices, charges, throwables, sensors: in the right hand, steadied by the left
+  held: { hip: [0.12, -0.17, -0.27], rot: [0.1, 0, 0], left: [-0.075, 0.02, -0.12] },
+};
+const holdOf = (key: string): Hold => (WEAPONS[key] ? (WEAPONS[key].cls === 'Pistol' ? 'pistol' : 'rifle') : key === 'hammer' ? 'hammer' : key === 'ash_round' ? 'launcher' : 'held');
 
 /**
  * First-person weapon / gadget + hands, rendered in its own scene & camera on
@@ -53,6 +68,10 @@ export class ViewModel {
   borePitch = 0;
   private qTmp = new THREE.Quaternion();
   private eTmp = new THREE.Euler(0, 0, 0, 'YXZ');
+  /** shield operators: the shield (left hand on its handle), posed per ShieldPose */
+  private shield: THREE.Group | null = null;
+  private shieldKey = '';
+  private shieldHand: THREE.Group;
 
   constructor() {
     this.scene.add(this.camera, this.sun, this.fill);
@@ -61,6 +80,7 @@ export class ViewModel {
     this.handR = this.buildHand(true);
     this.handL = this.buildHand(false);
     this.holder.add(this.handR, this.handL);
+    this.shieldHand = this.buildHand(false);
     this.flash = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.16), new THREE.MeshBasicMaterial({ color: '#ffd28a', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
     this.holder.add(this.flash);
     this.reticleTex = { dot: reticleTexture('dot'), holo: reticleTexture('holo'), acog: reticleTexture('acog') };
@@ -96,7 +116,9 @@ export class ViewModel {
     sleeve.box([-0.03, -0.05, 0.12], [0.03, 0.012, 0.36], new THREE.Color('#ffffff'));
     const hand = new THREE.Mesh(b.build(), vcMaterial());
     const sl = new THREE.Mesh(sleeve.build(), vcMaterial());
-    sl.rotation.x = -0.32;
+    // the forearm runs back, DOWN and out toward the elbow — never up into the view (it used to rise toward the
+    // camera: the "shoulder" filling the screen when aiming)
+    sl.rotation.set(0.6, s * 0.28, 0);
     this.sleeveMeshes.push(sl);
     g.add(hand, sl);
     return g;
@@ -189,19 +211,23 @@ export class ViewModel {
     const meleeK = s.meleeCd > 0.45 ? Math.sin(((0.75 - s.meleeCd) / 0.3) * Math.PI) : 0;
     const placing = s.interactProgress > 0 && s.slot >= 2 ? Math.min(1, s.interactProgress * 1.5) : 0;
     const sw = (1 - ads * 0.85);
-    const rx = this.kick * 0.05 * (1 - ads * 0.6) + this.sway.y * 0.6 * sw - (sprinting ? 0.55 : 0) - dip * 0.35 - equip * 0.9 - meleeK * 0.4 - placing * 0.5;
-    const ry = -this.sway.x * 0.6 * sw + (sprinting ? 0.65 : 0) + meleeK * 0.3;
-    const rz = (sprinting ? 0.25 : 0) + dip * 0.45 + Math.cos(this.bob) * 0.01 * bobAmt;
+    const hold = HOLDS[holdOf(key)];
+    const hr = 1 - ads;
+    const rx = hold.rot[0] * hr + this.kick * 0.05 * (1 - ads * 0.6) + this.sway.y * 0.6 * sw - (sprinting ? 0.55 : 0) - dip * 0.35 - equip * 0.9 - meleeK * 0.4 - placing * 0.5;
+    const ry = hold.rot[1] * hr - this.sway.x * 0.6 * sw + (sprinting ? 0.65 : 0) + meleeK * 0.3;
+    const rz = hold.rot[2] * hr + (sprinting ? 0.25 : 0) + dip * 0.45 + Math.cos(this.bob) * 0.01 * bobAmt;
     this.eTmp.set(rx, ry, rz, 'YXZ');
     this.qTmp.setFromEuler(this.eTmp);
     this.holder.quaternion.slerp(this.qTmp, Math.min(1, dt * 18));
 
     // --- position: hip pose vs ADS pose (pin the sight anchor to the eye axis)
-    const hip = new THREE.Vector3(0.18, -0.19, -0.4);
-    if (!isGun) hip.set(0.16, -0.2, -0.36);
+    const hip = new THREE.Vector3(...hold.hip);
     hip.x += Math.cos(this.bob) * 0.008 * bobAmt;
     hip.y += Math.abs(Math.sin(this.bob)) * 0.01 * bobAmt - equip * 0.35 - dip * 0.06 - placing * 0.08;
     hip.z += this.kick * 0.045 + meleeK * -0.2 + placing * -0.12;
+    // shield up: the pistol is held one-handed off to the right; extended: lowered behind the shield
+    const sp = s.shieldPose;
+    if (sp && sp !== 'back' && isGun) { hip.x += 0.04; hip.y -= sp === 'ext' ? 0.3 : 0.02; }
     const sightNow = sight.clone().applyQuaternion(this.holder.quaternion);
     const adsPos = new THREE.Vector3(0, 0, -m.eyeRelief).sub(sightNow);
     adsPos.z += this.kick * 0.03;
@@ -211,17 +237,21 @@ export class ViewModel {
     // --- reload: mag out and back
     if (m.mag) m.mag.position.y = reloadK >= 0 ? (reloadK < 0.5 ? -reloadK * 0.6 : -(1 - reloadK) * 0.6) : 0;
 
-    // --- hands on the weapon
+    // --- hands: the right on the grip, the left per hold (handguard, cupping the pistol grip, on the item)
     const grip = new THREE.Vector3(...(anchors.grip ?? [0, -0.03, 0]));
-    const fore = new THREE.Vector3(...(anchors.fore ?? (isGun && s.weapon!.def.cls === 'Pistol' ? [0, -0.035, 0.005] : [-0.05, -0.02, -0.12])));
     this.handR.position.copy(grip).add(new THREE.Vector3(0.01, 0.0, 0.0));
     this.handR.rotation.set(-0.25, 0, 0);
-    if (isGun && s.weapon!.def.cls === 'Pistol') {
-      this.handL.position.copy(fore).add(new THREE.Vector3(-0.022, -0.008, 0.01));
-      this.handL.rotation.set(-0.2, 0.25, 0.2);
-    } else {
+    if (hold.left === 'fore') {
+      const fore = new THREE.Vector3(...(anchors.fore ?? [-0.05, -0.02, -0.12]));
       this.handL.position.copy(fore).add(new THREE.Vector3(-0.012, -0.018, 0));
       this.handL.rotation.set(-0.1, 0.1, -0.35);
+    } else if (hold.left === 'cup') {
+      this.handL.position.copy(grip).add(new THREE.Vector3(-0.022, -0.008, 0.01));
+      this.handL.rotation.set(-0.2, 0.25, 0.2);
+    } else if (hold.left) {
+      this.handL.position.set(...hold.left);
+      this.handL.position.z -= placing * 0.05;
+      this.handL.rotation.set(-0.3, 0.3, -0.2);
     }
     if (reloadK >= 0 && m.mag) {
       // left hand dives to the magazine well
@@ -229,7 +259,9 @@ export class ViewModel {
       this.holder.worldToLocal(magPos);
       this.handL.position.lerp(magPos.add(new THREE.Vector3(-0.02, -0.06, 0)), dip);
     }
-    if (!isGun) { this.handL.position.set(-0.08, -0.04, -0.05 - placing * 0.05); this.handL.rotation.set(-0.3, 0.3, -0.2); }
+    const pose = s.shieldPose;
+    this.handL.visible = !(pose && pose !== 'back' && isGun);
+    this.updateShield(dt, s, pose, equip);
 
     // --- muzzle flash
     const mz = anchors.muzzle;
@@ -265,6 +297,46 @@ export class ViewModel {
     this.camera.updateProjectionMatrix();
   }
 
+  /**
+   * front: lower-left of the view, viewport low · ads: swung out to the left edge, edge-on (the pistol aims past it)
+   * · ext: Montagne's extension across the view · back: not in view
+   */
+  private updateShield(dt: number, s: Soldier, pose: ShieldPose | null, equip: number) {
+    const key = pose ? (s.op.gadget === 'flash_shield' ? 'flash_shield' : 'shield') : '';
+    if (key !== this.shieldKey) {
+      if (this.shield) this.camera.remove(this.shield);
+      this.shield = null;
+      this.shieldKey = key;
+      if (key) {
+        const sh = buildAsset({ ...extraGadgetSpec(key)!, id: `vm_${key}` });
+        sh.traverse((o) => { o.castShadow = false; o.receiveShadow = false; });
+        this.shield = sh;
+        this.camera.add(sh, this.shieldHand);
+      } else this.camera.remove(this.shieldHand);
+    }
+    const sh = this.shield;
+    if (!sh || !pose) return;
+    // shield-local plate centre is (-0.12, 0, -0.42): place the group so the plate lands where it should
+    const T = {
+      front: { p: [-0.32, -0.36, -0.12], ry: 0.12, sc: [1, 1, 1] },
+      ads: { p: [-0.3, -0.24, -0.28], ry: 1.15, sc: [1, 1, 1] },
+      // the viewport slit (plate y +0.2 × 1.85) at eye level
+      ext: { p: [0.16, -0.31, -0.04], ry: 0, sc: [1.35, 1.85, 1] },
+      back: { p: [-0.3, -0.9, 0.1], ry: 0.4, sc: [1, 1, 1] },
+    }[pose];
+    const k = Math.min(1, dt * 12);
+    sh.position.lerp(new THREE.Vector3(T.p[0], T.p[1] - equip * 0.25, T.p[2]), k);
+    sh.rotation.y += (T.ry - sh.rotation.y) * k;
+    sh.scale.lerp(new THREE.Vector3(...T.sc), k);
+    sh.visible = !(pose === 'back' && sh.position.y < -0.8);
+    // the left hand on the handle (shield-local (-0.12, -0.02, -0.39)) in camera space, forearm back and down out of
+    // the view whichever way the shield is turned (parented to the shield, the forearm swept across the screen in ADS)
+    sh.updateMatrix();
+    this.shieldHand.position.set(-0.12, -0.03, -0.37).applyMatrix4(sh.matrix);
+    this.shieldHand.rotation.set(-0.35, 0.45, -0.25);
+    this.shieldHand.visible = sh.visible;
+  }
+
   get lastMagCount() { return this.lastMag; }
 
   setTimeOfDay(day: boolean) {
@@ -274,6 +346,8 @@ export class ViewModel {
 }
 
 function reticleTexture(kind: 'dot' | 'holo' | 'acog'): THREE.Texture {
+  // headless (node tests): no canvas
+  if (typeof document === 'undefined') return new THREE.Texture();
   const c = document.createElement('canvas');
   c.width = c.height = 128;
   const g = c.getContext('2d')!;

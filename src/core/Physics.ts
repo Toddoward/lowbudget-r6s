@@ -50,6 +50,21 @@ export class Physics {
     return c;
   }
 
+  addCylinder(cx: number, cy: number, cz: number, halfHeight: number, r: number, tag: ColliderTag, group = G_WORLD, rot?: THREE.Quaternion): RAPIER.Collider {
+    const desc = RAPIER.ColliderDesc.cylinder(halfHeight, r).setTranslation(cx, cy, cz).setCollisionGroups(groups(group, 0xffff));
+    if (rot) desc.setRotation({ x: rot.x, y: rot.y, z: rot.z, w: rot.w });
+    const c = this.world.createCollider(desc);
+    this.tags.set(c.handle, tag);
+    return c;
+  }
+
+  /** static triangle mesh (smooth ramps under stepped visuals) */
+  addTrimesh(vertices: Float32Array, indices: Uint32Array, tag: ColliderTag, group = G_WORLD): RAPIER.Collider {
+    const c = this.world.createCollider(RAPIER.ColliderDesc.trimesh(vertices, indices).setCollisionGroups(groups(group, 0xffff)));
+    this.tags.set(c.handle, tag);
+    return c;
+  }
+
   addCapsule(cx: number, cy: number, cz: number, halfHeight: number, radius: number, tag: ColliderTag, group = G_CHAR, filter = G_WORLD | G_CHAR | G_CLIP): RAPIER.Collider {
     const desc = RAPIER.ColliderDesc.capsule(halfHeight, radius).setTranslation(cx, cy, cz).setCollisionGroups(groups(group, filter));
     const c = this.world.createCollider(desc);
@@ -101,8 +116,8 @@ export class Physics {
   }
 
   /** Is a ball of radius r at p overlapping world geometry? */
-  overlapsWorld(p: THREE.Vector3, r: number): boolean {
-    return !!this.world.intersectionWithShape({ x: p.x, y: p.y, z: p.z }, { x: 0, y: 0, z: 0, w: 1 }, new RAPIER.Ball(r), undefined, groups(0xffff, G_WORLD));
+  overlapsWorld(p: THREE.Vector3, r: number, mask = G_WORLD): boolean {
+    return !!this.world.intersectionWithShape({ x: p.x, y: p.y, z: p.z }, { x: 0, y: 0, z: 0, w: 1 }, new RAPIER.Ball(r), undefined, groups(0xffff, mask));
   }
 
   step() {

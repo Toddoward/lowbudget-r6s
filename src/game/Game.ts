@@ -16,7 +16,8 @@ import { Lighting } from '../render/Lighting.ts';
 import { ViewModel } from '../render/ViewModel.ts';
 import { Rig } from '../render/Rig.ts';
 import { buildHouse, locationName, type HouseWorld } from '../map/MapBuilder.ts';
-import { buildSuburb, type SuburbWorld } from '../map/Suburb.ts';
+import { buildOutdoor, type OutdoorWorld } from '../map/Outdoor.ts';
+import { decodeHouseDatamap512 } from '../map/houseDatamap.ts';
 import { ROOMS, SPAWN_ZONES, FLOOR_Y, HATCHES, STAIRS, FLOOR_LABEL, HOUSE_RECT, ROOF_Y } from '../map/houseLayout.ts';
 import { World } from './World.ts';
 import { Combat } from './Combat.ts';
@@ -25,6 +26,7 @@ import { Gadgets, type Gadget } from './Gadgets.ts';
 import { Objectives, type Mission } from './Objectives.ts';
 import { Soldier, emptyInput, type SoldierInput } from './Soldier.ts';
 import { OPERATORS } from './operators.ts';
+import { lookTarget, PING_RANGE, Scanner, SPOT_SECS } from './Spotting.ts';
 import { WEAPONS } from './weapons.ts';
 import { Stance, type Side } from './types.ts';
 import { NavGraph } from '../ai/NavGraph.ts';
@@ -91,7 +93,8 @@ const GRADE = {
 export class Game {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
-  readonly camera = new THREE.PerspectiveCamera(75, 1, 0.04, 700);
+  // Z-fighting rule 4: near 0.15 / far 250 with a logarithmic depth buffer (the camera never gets closer than 0.16 m to a wall)
+  readonly camera = new THREE.PerspectiveCamera(75, 1, 0.15, 250);
   private composer!: EffectComposer;
   private bloom!: UnrealBloomPass;
   private grade!: ShaderPass;
@@ -99,7 +102,7 @@ export class Game {
   destruction!: DestructionSystem;
   effects!: Effects;
   house!: HouseWorld;
-  suburb!: SuburbWorld;
+  outdoor!: OutdoorWorld;
   lighting!: Lighting;
   world!: World;
   nav!: NavGraph;
@@ -146,7 +149,7 @@ export class Game {
   ready = false;
 
   constructor(canvas: HTMLCanvasElement) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', stencil: true });
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, logarithmicDepthBuffer: true, powerPreference: 'high-performance', stencil: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -167,8 +170,8 @@ export class Game {
     this.effects = new Effects(this.scene);
     progress('Building the original House (2015)…');
     this.house = buildHouse(this.physics, this.destruction, this.scene);
-    progress('Building the suburb: Construction Site, River Docks, APC, Side Street…');
-    this.suburb = buildSuburb(this.physics, this.scene);
+    progress('Decoding the House datamap · building the outdoors: Construction Site, River Docks, APC, Side Street…');
+    this.outdoor = buildOutdoor(this.physics, this.scene, await decodeHouseDatamap512());
     this.world = new World(this.physics, this.destruction, this.effects, this.house, this.scene);
     this.world.combat = new Combat(this.world);
     this.world.interactions = new Interactions(this.world);
@@ -178,7 +181,8 @@ export class Game {
     progress('Baking navigation graph…');
     this.nav = new NavGraph(this.physics, this.destruction);
     this.nav.build(this.house.openings, this.house.wallPanels);
-    this.lighting = new Lighting(this.scene, this.renderer, this.suburb, this.house.lamps, this.house.openings);
+    this.world.objectives.freeSpot = (room, near) => this.nav.nearest(near, (n) => n.room === room && n.kind === 'room' && this.nav.capsuleFree(n.pos))?.pos.clone() ?? null;
+    this.lighting = new Lighting(this.scene, this.renderer, this.outdoor, this.house.lamps, this.house.openings);
     this.lighting.apply('day');
     this.setupComposer();
     this.wireWorld();
@@ -188,7 +192,7 @@ export class Game {
       agents: () => this.agentList(),
       match: (id) => this.matchState(id),
       join: (n, c, m) => this.joinRoom(n, c, m, true),
-      startTH: (o) => this.startTH({ ...this.defaultTH(), difficulty: (o.difficulty as BotDifficulty['name']) ?? 'Normal', mission: (o.mission as Mission) ?? 'random' }),
+      startTH: (o) => this.startTH({ ...this.defaultTH(), difficulty: (o.difficulty as BotDifficulty['name']) ?? 'Normal', mission: (o.mission as Mission) ?? 'random', operator: o.mission === 'protect' ? 'smoke' : 'ash' }),
       loadout: (o) => this.setLoadout(this.room?.selfId ?? '', o),
       mapKnowledge: () => this.mapKnowledge(),
       aspect: () => this.camera.aspect,
@@ -216,7 +220,6 @@ export class Game {
   setQuality(q: Quality) {
     this.quality = q;
     this.bloom.enabled = q === 'high';
-    this.lighting.flashlightShadows = q === 'high';
     this.renderer.shadowMap.enabled = q !== 'low';
     this.lighting.key.shadow.mapSize.set(q === 'high' ? 2048 : 1024, q === 'high' ? 2048 : 1024);
     this.lighting.key.shadow.map?.dispose();
@@ -266,8 +269,10 @@ export class Game {
     });
     this.destruction.onBroke = (panel, cells) => this.onCellsBroke(panel, cells);
     w.objectives.onResult = (attackWin, reason) => {
-      if (this.mode === 'th') this.endTH(attackWin, reason);
+      // the player attacks in every TH mission but Hostage Protection
+      if (this.mode === 'th') this.endTH(w.objectives.mission === 'protect' ? !attackWin : attackWin, reason);
     };
+    w.objectives.onAnnounce = (key, tone, args) => this.announce(key, tone, args);
   }
 
   private onCellsBroke(panel: Panel, cells: number[]) {
@@ -288,11 +293,6 @@ export class Game {
     if (this.mode === 'menu' || this.paused) return;
     if (a === 'xray' && QA) { this.destruction.setXray(!this.destruction.xray); this.onToast(this.destruction.xray ? 'X-ray ON (red soft · yellow semi · white solid)' : 'X-ray off'); }
     if (a === 'overlay' && QA) { const on = this.bridge.toggleOverlay(); this.onToast(on ? 'WebMCP bridge debug overlay ON' : 'WebMCP overlay off'); }
-    if (a === 'flashlight') {
-      this.lighting.flashlightOn = !this.lighting.flashlightOn;
-      if (this.player) this.player.flashlight = this.lighting.flashlightOn;
-      this.onToast(t(this.lighting.flashlightOn ? 'toast.flashOn' : 'toast.flashOff'));
-    }
     if (a === 'help') this.onHelp();
     if (a === 'ping') this.pingReq = true;
     if (a === 'observe') this.toggleObserve();
@@ -311,6 +311,7 @@ export class Game {
   view: 'body' | 'drone' | 'cam' = 'body';
   private camIdx = 0;
   private pingReq = false;
+  private scanner = new Scanner();
   onHelp: () => void = () => {};
 
   private toggleObserve() {
@@ -361,26 +362,33 @@ export class Game {
 
   /** shared by the player (camera ray) and agents (their own eyes); returns true when something was marked */
   pingFrom(by: Soldier, o: THREE.Vector3, d: THREE.Vector3): boolean {
-    let best: { id: string; ang: number } | null = null;
-    for (const a of this.world.actors.values()) {
-      if (!a.alive || a.side === by.side || a.side === 'hostage' || a.id === by.id) continue;
-      const c = a.pos.clone().add(new THREE.Vector3(0, a.stance === Stance.Prone ? 0.3 : a.stance === Stance.Crouch ? 0.8 : 1.1, 0));
-      const to = c.clone().sub(o);
-      const dist = to.length();
-      if (dist > 70) continue;
-      const ang = to.normalize().angleTo(d);
-      if (ang > THREE.MathUtils.degToRad(4) + 0.6 / dist) continue;
-      if (!this.physics.clearLine(o, c)) continue;
-      if (!best || ang < best.ang) best = { id: a.id, ang };
-    }
-    if (best) {
-      this.world.spot(best.id, by.side, 5, true, by.id);
-      if (by === this.player) this.onToast(t('hud.spotted'));
+    const hit = lookTarget(this.world, by.side, by.id, o, d);
+    if (hit) {
+      this.world.spot(hit.id, by.side, SPOT_SECS, true, by.id);
+      if (by === this.player) this.onToast(t('hud.spottedOp', this.opName(hit.id)));
       return true;
     }
-    const hit = this.physics.raycast(o, d, 80, G_WORLD);
-    if (hit) { this.world.ping(hit.point, by.side, by.id); return true; }
+    const surf = this.physics.raycast(o, d, PING_RANGE + 10, G_WORLD);
+    if (surf) { this.world.ping(surf.point, by.side, by.id); return true; }
     return false;
+  }
+
+  private opName(id: string) {
+    const a = this.world.actors.get(id);
+    return a?.side === 'terrorist' ? t('hud.whiteMask') : OPERATORS[a?.operator ?? '']?.name ?? a?.name ?? '';
+  }
+
+  /** drone / CCTV feed: holding the reticle on an enemy identifies and spots them */
+  private updateScan(dt: number) {
+    const p = this.player;
+    const live = p?.alive && ((this.view === 'drone' && this.drone && !this.drone.data.jammed) || this.view === 'cam');
+    if (!live) { this.scanner.reset(); return; }
+    const [o, d] = this.viewRay();
+    const id = this.scanner.update(this.world, p!.side, p!.id, o, d, dt);
+    if (id) {
+      this.audio.ui('ping');
+      this.onToast(t('hud.spottedOp', this.opName(id)));
+    }
   }
 
   /* ================================================================ common setup */
@@ -435,9 +443,24 @@ export class Game {
     return { p, yaw };
   }
 
+  /** a free standing spot (capsule-checked) that nobody else is already standing on */
   private spawnInRoom(roomId: string, rand: () => number): { p: THREE.Vector3; yaw: number } {
-    const n = this.nav.randomNodeIn([roomId], rand) ?? this.nav.randomNodeIn(ROOMS.map((r) => r.id), rand)!;
-    return { p: n.pos.clone(), yaw: rand() * Math.PI * 2 };
+    const avoid = this.occupied();
+    const p = this.nav.spawnSpots([roomId], 1, rand, avoid)[0]
+      ?? this.nav.spawnSpots(ROOMS.filter((r) => r.floor === ROOMS.find((x) => x.id === roomId)?.floor).map((r) => r.id), 1, rand, avoid)[0]
+      ?? this.nav.spawnSpots(ROOMS.map((r) => r.id), 1, rand, avoid, 0.8)[0];
+    return { p: p.clone(), yaw: rand() * Math.PI * 2 };
+  }
+
+  private spawnOutside(rand: () => number): { p: THREE.Vector3; yaw: number } {
+    const p = this.nav.spawnSpots(['__ext'], 1, rand, this.occupied())[0];
+    return { p: p.clone(), yaw: rand() * Math.PI * 2 };
+  }
+
+  /** feet positions already taken by actors and objective props */
+  private occupied(): THREE.Vector3[] {
+    const o = this.world.objectives;
+    return [...[...this.world.actors.values()].filter((a) => a.alive).map((a) => a.pos), ...o.bombs.map((b) => b.pos), ...(o.container ? [o.container.pos] : [])];
   }
 
   private dronePoint(zoneId: SpawnId): THREE.Vector3 {
@@ -461,7 +484,11 @@ export class Game {
     this.thKills = 0;
     const seed = Math.floor(Math.random() * 2 ** 31);
     const rand = mulberry32(seed);
-    const mission: Mission = opts.mission === 'random' ? pick<Mission>(['elimination', 'bomb', 'hostage', 'secure'], rand) : opts.mission;
+    // the operator decides the side: defenders play Hostage Protection, attackers the three attack missions
+    const defending = (DEFENDERS as readonly string[]).includes(opts.operator);
+    const mission: Mission = opts.mission === 'random' ? (defending ? 'protect' : pick<Mission>(['elimination', 'bomb', 'hostage'], rand)) : opts.mission === 'secure' ? 'elimination' : opts.mission;
+    const side = mission === 'protect' ? 'defend' : 'attack';
+    const operator = side === 'defend' ? (defending ? opts.operator : 'smoke') : defending ? 'ash' : opts.operator;
     const site = pick(SITES, rand).id;
     const tod: TimeOfDay = opts.tod === 'random' ? (rand() < 0.5 ? 'day' : 'night') : opts.tod;
     this.applyTod(tod, seed);
@@ -472,49 +499,53 @@ export class Game {
     w.objectives.authority = true;
     // player
     const zone: SpawnId = opts.spawn === 'random' ? pick(SPAWN_ZONES.map((z) => z.id), rand) : opts.spawn;
-    const sp = this.spawnPoint(zone, rand);
+    // defenders start in the objective room
+    const sp = side === 'defend' ? this.spawnInRoom(site, rand) : this.spawnPoint(zone, rand);
     const nick = (localStorage.getItem('r6.nick') ?? 'Recruit');
-    this.player = this.makeSoldier('self', nick, 'attack', opts.operator, 'local', sp.p, sp.yaw);
-    this.player.flashlight = this.lighting.flashlightOn;
+    this.player = this.makeSoldier('self', nick, side, operator, 'local', sp.p, sp.yaw);
     w.localId = 'self';
     this.playerCtl = new AgentController(w, this.player);
     this.vm.setCloth(this.player.op.cloth);
     // WebMCP agent teammates
-    for (let i = 0; i < opts.agents; i++) this.addLocalAgentSlot(`agent${i + 1}`, `WebMCP-Agent-${i + 1}`, 'attack', ATTACKERS[(ATTACKERS.indexOf(opts.operator as never) + i + 1) % ATTACKERS.length], this.spawnPoint(zone, rand));
+    if (side === 'attack') for (let i = 0; i < opts.agents; i++) this.addLocalAgentSlot(`agent${i + 1}`, `WebMCP-Agent-${i + 1}`, 'attack', ATTACKERS[(ATTACKERS.indexOf(opts.operator as never) + i + 1) % ATTACKERS.length], this.spawnPoint(zone, rand));
     // terrorists
     const diff = DIFFICULTY[opts.difficulty];
     const siteRooms = w.objectives.roomOfSite();
-    const allRooms = ROOMS.filter((r) => r.id !== 'closet').map((r) => r.id);
+    const allRooms = ROOMS.filter((r) => r.id !== 'closet' && !r.transit).map((r) => r.id);
     for (let i = 0; i < diff.count; i++) {
-      const guard = i < 3;
-      const exterior = i === diff.count - 1 || i === diff.count - 2;
+      // Hostage Protection: the White Masks are the attackers — everyone starts outside on the spawn pads
+      const guard = i < 3 && side === 'attack';
+      const exterior = side === 'defend' || i === diff.count - 1 || i === diff.count - 2;
       const home = guard ? siteRooms[i % siteRooms.length] : pick(allRooms, rand);
       const homeFloor = ROOMS.find((r) => r.id === home)!.floor;
-      const near = ROOMS.filter((r) => r.floor === homeFloor && r.id !== home).map((r) => r.id);
+      const near = ROOMS.filter((r) => r.floor === homeFloor && r.id !== home && !r.transit).map((r) => r.id);
       const patrol = exterior ? ['__ext'] : [home, pick(near, rand), pick(near, rand)];
-      const spn = exterior ? { p: this.nav.randomNodeIn(['__ext'], rand)!.pos.clone(), yaw: rand() * 6 } : this.spawnInRoom(home, rand);
+      const spn = side === 'defend' ? this.spawnPoint(SPAWN_ZONES[i % SPAWN_ZONES.length].id, rand) : exterior ? this.spawnOutside(rand) : this.spawnInRoom(home, rand);
       const s = this.makeSoldier(`tango${i}`, `White Mask ${i + 1}`, 'terrorist', 'terrorist', 'bot', spn.p, spn.yaw);
       if (rand() < 0.2) { s.weapons[0] = { def: WEAPONS.spas12t, mag: 7, reserve: 600 }; this.rigs.get(s.id)?.setWeapon('spas12t'); }
       const bot = new Bot(w, this.nav, s, diff, patrol, guard && !exterior);
       bot.isNight = tod === 'night';
+      // standing order: whatever the mission needs of them right now (defuser, hostage) once the action phase is on
+      bot.order = () => (w.phase === 'action' ? w.objectives.botGoal(s.id) : null);
       this.bots.push(bot);
     }
-    // White Masks fortify: barricades + a few reinforced walls around the site
-    for (const op of this.house.openings) if (op.barricadeable && rand() < 0.5) w.interactions.placeBarricade(op, 'wood', false);
+    // White Masks fortify: barricades + a few reinforced walls around the site (not when they are the ones attacking)
+    if (side === 'attack') for (const op of this.house.openings) if (op.barricadeable && rand() < 0.5) w.interactions.placeBarricade(op, 'wood', false);
     const siteSoft = this.house.wallPanels.filter((p) => p.reinforceable && p.rooms.some((r) => r && siteRooms.includes(r)));
-    for (let i = 0; i < Math.min(4, siteSoft.length); i++) w.interactions.reinforce(null, siteSoft[Math.floor(rand() * siteSoft.length)], false);
-    for (const h of HATCHES) if (rand() < 0.35) { const p = [...this.destruction.panels.values()].find((x) => x.label === h.label); if (p) w.interactions.reinforce(null, p, false); }
-    // drone prep phase
+    if (side === 'attack') for (let i = 0; i < Math.min(4, siteSoft.length); i++) w.interactions.reinforce(null, siteSoft[Math.floor(rand() * siteSoft.length)], false);
+    if (side === 'attack') for (const h of HATCHES) if (rand() < 0.35) { const p = [...this.destruction.panels.values()].find((x) => x.label === h.label); if (p) w.interactions.reinforce(null, p, false); }
+    // prep: attackers drone (20 s); defenders fortify the hostage room (45 s)
     w.phase = 'prep';
-    this.phaseEnds = w.time + 20;
-    this.drone = w.gadgets.spawnDrone(this.player, this.dronePoint(zone));
+    this.phaseEnds = w.time + (side === 'attack' ? 20 : 45);
+    this.drone = side === 'attack' ? w.gadgets.spawnDrone(this.player, this.dronePoint(zone)) : null;
     this.mode = 'th';
     this.input.resetStance();
     this.hud.show(true);
     this.onMatchStart();
-    this.view = 'drone';
+    this.view = side === 'attack' ? 'drone' : 'body';
     this.thStats = { shots: 0, hits: 0, heads: 0, start: w.time };
-    this.hud.showBanner(t('banner.th', missionName(mission)), t('banner.thSub', t(tod === 'day' ? 'hud.day' : 'hud.night'), localizePlace(w.objectives.siteLabel()), t(`diff.${diff.name}`)), 5);
+    this.thLeft = diff.count;
+    this.hud.showBanner(t('banner.th', missionName(mission)), t(side === 'attack' ? 'banner.thSub' : 'banner.thSubDef', t(tod === 'day' ? 'hud.day' : 'hud.night'), localizePlace(w.objectives.siteLabel()), t(`diff.${diff.name}`)), 5);
     this.audio.ensure();
     this.input.lock();
   }
@@ -787,7 +818,7 @@ export class Game {
   private applyEvent(from: string, ev: GameEvent) {
     const w = this.world;
     switch (ev.t) {
-      case 'cells': this.destruction.apply({ panel: ev.panel, cells: ev.cells, dmg: ev.dmg }); break;
+      case 'cells': this.destruction.apply({ panel: ev.panel, cells: ev.cells, dmg: ev.dmg, frame: ev.fr === 1 }); break;
       case 'fire': { const a = w.actors.get(ev.actor); if (a) w.combat.remoteFire(a, ev.o, ev.d, ev.w); break; }
       case 'hit': w.applyRemoteHit(ev.target, ev.attacker, ev.dmg, ev.head); break;
       case 'death': {
@@ -832,7 +863,7 @@ export class Game {
       id: s.id, t: performance.now(), p: [r2(s.pos.x), r2(s.pos.y), r2(s.pos.z)], v: [r2(s.vel.x), r2(s.vel.y), r2(s.vel.z)],
       yaw: r3(s.yaw), pitch: r3(s.pitch), st: s.mode === 'rappel' ? (s.inverted ? 4 : 3) : s.stance, lean: r2(s.lean), w: s.slot, hp: Math.round(s.hp), alive: s.alive, ads: s.ads > 0.5,
       dr: this.drone && s === this.player && this.view === 'drone' ? [r2(this.drone.pos.x), r2(this.drone.pos.y), r2(this.drone.pos.z)] : undefined,
-      sx: s.shieldExtended || undefined, mt: s.mounted ? true : undefined,
+      sx: s.shieldExtended || undefined, sb: s.shieldBack || undefined, mt: s.mounted ? true : undefined,
     });
     if (this.player) snaps.push(mk(this.player));
     for (const s of this.slots) snaps.push(mk(s.soldier));
@@ -847,6 +878,15 @@ export class Game {
     this.bloom.strength = tod === 'day' ? 0.3 : 0.32;
     this.bloom.radius = tod === 'day' ? 0.5 : 0.25;
     this.bloom.threshold = tod === 'day' ? 0.88 : 0.95;
+  }
+
+  /** White Masks left (TH callouts) */
+  private thLeft = 0;
+
+  /** round-state callout: a short banner + its sound */
+  announce(key: string, tone: 'plant' | 'alarm' | 'success' | 'info', args: string[] = []) {
+    this.hud.showBanner(t(`ann.${key}`, ...args.map((a) => localizePlace(a))), has(`ann.${key}.sub`) ? t(`ann.${key}.sub`, ...args.map((a) => localizePlace(a))) : '', 2.6);
+    this.audio.ui(tone);
   }
 
   private endDronePhase() {
@@ -946,7 +986,11 @@ export class Game {
         w.phase = 'action';
         this.phaseEnds = w.time + 360;
         this.endDronePhase();
-      } else if (w.phase === 'action' && w.time >= this.phaseEnds) this.endTH(false, 'Time expired');
+      } else if (w.phase === 'action' && w.time >= this.phaseEnds) {
+        // Hostage Protection: holding out is the job
+        if (w.objectives.mission === 'protect') this.endTH(true, 'Hostage protected');
+        else this.endTH(false, 'Time expired');
+      }
     }
     // --- views: drone (attackers; forced during prep) · CCTV (defenders) · body
     if (this.mode === 'th' && w.phase === 'prep' && enterPressed) this.phaseEnds = w.time;
@@ -957,8 +1001,9 @@ export class Game {
         this.hud.showBanner(t('hud.droneDestroyed'), '', 2);
       }
       if (this.view !== 'body' && !p.alive) this.view = 'body';
-      if (this.pingReq) { this.pingReq = false; if (p.alive) this.doPing(); }
-      if (inp.ping) this.doPing();
+      // a key press arrives both as a UI action and in the input sample (agents only use the latter): one ping per frame
+      if (this.pingReq || inp.ping) { this.pingReq = false; if (p.alive) this.doPing(); }
+      this.updateScan(dt);
       if (this.view === 'drone' && this.drone) {
         const dinp = { ...inp };
         if (this.playerCtl?.active()) {
@@ -1012,9 +1057,14 @@ export class Game {
     // --- win/lose (TH)
     if (this.mode === 'th' && !this.thResult && w.phase === 'action') {
       const alive = this.bots.filter((b) => b.s.alive).length;
+      // callouts as the White Masks thin out
+      if (alive < this.thLeft) {
+        this.thLeft = alive;
+        if (alive === 3 || alive === 1) this.announce(alive === 1 ? 'lastEnemy' : 'enemiesLeft', 'info', [String(alive)]);
+      }
       w.objectives.checkElimination(alive);
-      const attackersAlive = (p?.alive ? 1 : 0) + this.slots.filter((s) => s.soldier.alive).length;
-      if (attackersAlive === 0) this.endTH(false, 'All operators down');
+      const operatorsAlive = (p?.alive ? 1 : 0) + this.slots.filter((s) => s.soldier.alive).length;
+      if (operatorsAlive === 0) this.endTH(false, 'All operators down');
     }
     // --- net
     this.snapT -= dt;
@@ -1032,12 +1082,16 @@ export class Game {
       if (!s) continue;
       rig.root.position.copy(s.pos);
       rig.root.rotation.y = s.yaw;
-      if (rig.dead !== !s.alive) rig.setDead(!s.alive);
-      rig.setShieldExtended(s.shieldExtended);
+      if (rig.dead !== !s.alive) {
+        // fall away from the shot: hit from behind (or prone) → face down
+        const fwd = new THREE.Vector3(-Math.sin(s.yaw), 0, -Math.cos(s.yaw));
+        rig.setDead(!s.alive, s.stance === Stance.Prone || s.lastHurtDir.dot(fwd) > 0.2, THREE.MathUtils.clamp(s.lastHurtDir.dot(new THREE.Vector3(fwd.z, 0, -fwd.x)) * 2, -1, 1));
+      }
+      rig.setShieldPose(s.shieldPose);
       rig.pose(dt, s.mode === 'rappel' ? Stance.Rappel : s.stance, s.pitch, s.lean, Math.hypot(s.vel.x, s.vel.z), s.mode === 'rappel' && s.inverted);
     }
     // camera
-    for (const r of this.remotes.values()) r.rig.root.visible = true;
+    for (const r of this.remotes.values()) r.rig.root.visible = this.world.deployed(r);
     let camSoldier: Soldier | null = p;
     let spectating = '';
     const inDrone = !!(this.drone && this.view === 'drone' && p);
@@ -1089,15 +1143,12 @@ export class Game {
     this.audio.setListener(this.camera);
     // FX & lighting
     this.lighting.update(dt, this.camera, this.camera.position);
-    // body flashlight, or the drone's own headlight at night so the feed is never black (spec #9/#22)
-    const droneLamp = inDrone && this.lighting.tod === 'night';
-    if ((this.lighting.flashlightOn && camSoldier) || droneLamp) this.lighting.aimFlashlight(this.camera);
-    this.lighting.flashlight.visible = (!!camSoldier && this.lighting.flashlightOn) || droneLamp;
-    if (droneLamp) this.lighting.flashlight.intensity = 6; // a small LED, not the weapon light (and on even if the weapon light is off)
+    // the drone's own headlight at night so the feed is never black (spec #9/#22)
+    this.lighting.setDroneLamp(inDrone && this.lighting.tod === 'night', this.camera);
     this.effects.ambient(this.camera.position, dt);
     this.effects.update(dt);
     // hide own body rig when viewing through someone
-    for (const [id, rig] of this.rigs) rig.root.visible = !(camSoldier && id === camSoldier.id);
+    for (const [id, rig] of this.rigs) { const a = this.world.actors.get(id); rig.root.visible = !(camSoldier && id === camSoldier.id) && (!a || this.world.deployed(a)); }
     this.hurtFx = Math.max(0, this.hurtFx - dt * 1.5);
     this.grade.uniforms.hurt.value = this.hurtFx * 0.6 + (p && p.alive && p.hp < 30 ? 0.25 : 0);
     this.grade.uniforms.time.value = w.time;
@@ -1151,6 +1202,7 @@ export class Game {
     const gname = (g: string, fallback: string) => (has(`gname.${g}`) ? t(`gname.${g}`) : fallback);
     // gadget slots: [G] operator gadget · [X] universal (breach charge / barricades) · reinforcements
     const gadgets: HudGadget[] = [];
+    if (s.op.shield) gadgets.push({ cap: cap('primary'), name: t(s.shieldBack ? 'hud.shieldBack' : 'hud.shieldFront'), left: '', active: !s.shieldBack });
     if (s.op.gadget !== 'none') gadgets.push({ cap: cap('gadget'), name: gname(s.op.gadget, s.op.gadgetName), left: s.op.gadget === 'heartbeat' || s.op.gadget === 'scanner' || s.op.gadget === 'shield_ext' ? '∞' : `×${s.gadgetLeft}`, active: s.slot === 2 });
     if (s.op.universal === 'breach') gadgets.push({ cap: cap('gadget2'), name: t('gname.breach'), left: `×${s.universalLeft}`, active: s.slot === 3 });
     if (s.op.universal === 'barricade') gadgets.push({ cap: cap('interact'), name: t('gname.barricade'), left: '∞', active: false });
@@ -1186,7 +1238,8 @@ export class Game {
       spread: (wpn ? THREE.MathUtils.lerp(wpn.def.hipSpread, wpn.def.adsSpread, s.ads) : 1) + Math.hypot(s.vel.x, s.vel.z) * 0.3,
       ads: s.ads, stance: stance + lean, flags, score,
       view: inDrone ? 'drone' : inCam ? 'cam' : 'body', viewTitle, viewHelp,
-      droneJammed: inDrone && !!(this.drone?.data.jammed), scanning, dead: !p.alive && !this.thResult, spectating,
+      droneJammed: inDrone && !!(this.drone?.data.jammed), scanning,
+      scan: this.scanner.target ? this.scanner.progress : 0, scanLabel: this.scanner.target ? (this.scanner.progress >= 1 ? this.opName(this.scanner.target) : t('hud.scanning')) : '', dead: !p.alive && !this.thResult, spectating,
       markers: this.hudMarkers(p), team: this.hudTeam(p), hints: this.hudHints(p, inDrone, inCam),
     };
     this.hud.update(hs, dt);
@@ -1251,7 +1304,7 @@ export class Game {
       if (sp.until < w.time || sp.team !== p.side) continue;
       const a = w.actors.get(id);
       if (!a || !a.alive) continue;
-      push(this.project(a.pos.clone().add(new THREE.Vector3(0, 2.05, 0)), 'spot', t('hud.spotted')));
+      push(this.project(a.hitboxes().head.c.clone().add(new THREE.Vector3(0, 0.4, 0)), 'spot', this.opName(id) || t('hud.spotted')));
     }
     for (const pg of w.pings) if (pg.until > w.time && pg.team === p.side) push(this.project(pg.pos, 'ping', w.actors.get(pg.by)?.name ?? ''));
     // IQ: enemy electronics through walls
@@ -1260,7 +1313,7 @@ export class Game {
     const o = w.objectives;
     let obj: THREE.Vector3 | null = null;
     if (o.mission === 'bomb') obj = o.defuser?.pos ?? o.bombs.find((b) => b.state === 'armed')?.pos ?? null;
-    else if (o.mission === 'hostage' && o.hostage?.alive) obj = o.hostage.carrier === p.id ? null : o.hostage.pos.clone().add(new THREE.Vector3(0, 1.2, 0));
+    else if ((o.mission === 'hostage' || o.mission === 'protect') && o.hostage?.alive) obj = o.hostage.carrier === p.id ? null : o.hostage.pos.clone().add(new THREE.Vector3(0, 1.2, 0));
     else if (o.mission === 'secure') obj = o.spotOf(o.site);
     if (obj && p.alive && this.view === 'body' && obj.distanceTo(p.pos) > 3) push(this.project(obj, 'obj', t(`missionShort.${o.mission}`)));
     // teammates out of sight: small name tags
@@ -1281,7 +1334,6 @@ export class Game {
     if (p.side === 'attack' && this.drone && !this.drone.data.destroyed && this.drone.state !== 'done') h.push({ cap: cap('observe'), label: t('hint.drone') });
     if (p.side === 'defend' && this.house.cameras.some((c) => c.alive)) h.push({ cap: cap('observe'), label: t('hint.cams') });
     h.push({ cap: cap('ping'), label: t('hint.ping') });
-    if (this.lighting.tod === 'night') h.push({ cap: cap('flashlight'), label: t('key.flashlight') });
     h.push({ cap: cap('help'), label: t('hint.allKeys') });
     return h;
   }
@@ -1321,6 +1373,7 @@ export function missionName(m: string) {
 const REASON_KEYS: Record<string, string> = {
   'Time expired': 'reason.timeout', 'All operators down': 'reason.allDown', 'All hostiles eliminated': 'reason.eliminated', 'Bombs disarmed': 'reason.bombs',
   'Hostage extracted': 'reason.extracted', 'Area secured': 'reason.secured', 'Hostage killed by attackers': 'reason.hostageKilledAtk', 'Hostage killed by defenders': 'reason.hostageKilledDef',
+  'Hostage protected': 'reason.protected', 'Hostage taken': 'reason.hostageTaken', 'Hostage killed': 'reason.hostageKilled',
   'Defuser disabled': 'reason.defuserDisabled', 'Bomb defused': 'reason.bombDefused', 'Defuser completed': 'reason.defuserDone', 'Attackers eliminated': 'reason.atkDead', 'Defenders eliminated': 'reason.defDead',
 };
 /** objective / server reasons are English (agents read them); show them localized */

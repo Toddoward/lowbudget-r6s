@@ -138,7 +138,7 @@ The keymap is compact, everything sits around <kbd>WASD</kbd>, and none of it us
 | <kbd>1</kbd> / <kbd>2</kbd> | Primary / secondary | <kbd>F</kbd> | **Context:** barricade, reinforce, rappel, ammo crate, hostage, bomb, mount LMG |
 | <kbd>G</kbd> | **Operator gadget:** tap = equip / throw / toggle / detonate, hold = place | <kbd>X</kbd> | **Breach charge:** hold = place, tap = detonate |
 | <kbd>3</kbd> | Drone (attackers) / CCTV (defenders) | <kbd>B</kbd> / <kbd>MMB</kbd> | Ping / spot |
-| <kbd>T</kbd> | Flashlight | <kbd>Tab</kbd> · <kbd>F1</kbd> | Scoreboard · all controls |
+| | | <kbd>Tab</kbd> · <kbd>F1</kbd> | Scoreboard · all controls |
 
 **On the rope:** <kbd>W</kbd>/<kbd>S</kbd> climb · <kbd>A</kbd>/<kbd>D</kbd> traverse · <kbd>C</kbd> invert · <kbd>F</kbd> Breach &amp; Swing · <kbd>Space</kbd> let go.
 
