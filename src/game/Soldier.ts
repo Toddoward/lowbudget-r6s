@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
-import { G_CHAR, G_CLIP, G_WORLD, groups } from '../core/Physics.ts';
+import { G_CHAR, G_CLIP, G_GADGET, G_WORLD, groups } from '../core/Physics.ts';
 import { computeHitboxes, type Actor, type Hitboxes } from './Actor.ts';
 import { OPERATORS, ARMOR_MUL, SPEED_MUL, MAX_HP, REINFORCEMENTS_PER_ROUND, type OperatorDef } from './operators.ts';
 import { WEAPONS, type WeaponDef } from './weapons.ts';
@@ -31,12 +31,21 @@ export interface SoldierInput {
   invert: boolean;
   /** rappel: push off / vault [Space] */
   jump: boolean;
+  /** operator gadget key [G]: press edge / held */
+  gadget: boolean;
+  gadgetHeld: boolean;
+  /** secondary gadget key [X] */
+  gadget2: boolean;
+  gadget2Held: boolean;
+  /** ping / spot [B] */
+  ping: boolean;
   lookDYaw: number;
   lookDPitch: number;
 }
 export const emptyInput = (): SoldierInput => ({
   moveF: 0, moveR: 0, sprint: false, fire: false, firePressed: false, ads: false, reload: false, melee: false,
   stance: null, lean: 0, interact: false, interactPressed: false, slot: null, alt: false, invert: false, jump: false, lookDYaw: 0, lookDPitch: 0,
+  gadget: false, gadgetHeld: false, gadget2: false, gadget2Held: false, ping: false,
 });
 
 export interface WeaponState { def: WeaponDef; mag: number; reserve: number }
@@ -115,6 +124,22 @@ export class Soldier implements Actor {
   private headBob = 0;
   private wasFire = false;
   private camLean = 0;
+  /** HUD hint for the gadget keys in the current context (i18n key) */
+  gadgetHint = '';
+  /** Montagne: shield extended (full cover, no shooting) */
+  shieldExtended = false;
+  /** Blitz flash cooldown */
+  flashCd = 0;
+  /** blinded by a flash until world time */
+  blindUntil = -1;
+  /** Tachanka: mounted turret gadget id */
+  mounted: string | null = null;
+  private mountSave: WeaponState[] | null = null;
+  /** ballistic shield collider (Montagne / Blitz) */
+  shieldCollider: RAPIER.Collider | null = null;
+  /** angular offset of the weapon bore from the camera axis (local player, from the view model) — the shot follows the collimated reticle */
+  boreYaw = 0;
+  borePitch = 0;
   /** set by World.damage to let HUD flash */
   hitMarker = 0;
   onDeath?: (s: Soldier, killer: string, head: boolean) => void;
@@ -137,6 +162,58 @@ export class Soldier implements Actor {
     this.controller.setMinSlopeSlideAngle((60 * Math.PI) / 180);
     this.controller.setApplyImpulsesToDynamicBodies(false);
     this.resetLoadout();
+    this.syncShield();
+  }
+
+  /** (re)create / remove the ballistic shield collider to match the operator */
+  private syncShield() {
+    const want = !!this.op.shield;
+    if (want && !this.shieldCollider) {
+      this.shieldCollider = this.world.physics.addBox(this.pos.x, this.pos.y + 1, this.pos.z, 0.3, 0.55, 0.03, { kind: 'gadget', gadgetId: `shield:${this.id}` }, undefined, G_GADGET);
+    } else if (!want && this.shieldCollider) {
+      this.world.physics.remove(this.shieldCollider);
+      this.shieldCollider = null;
+    }
+  }
+
+  /** shield follows the body: left-of-centre at the hip, or the whole body when extended */
+  private updateShield() {
+    const c = this.shieldCollider;
+    if (!c) return;
+    if (!this.alive) { c.setTranslation({ x: this.pos.x, y: -600, z: this.pos.z }); return; }
+    const fwd = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
+    const right = new THREE.Vector3().crossVectors(fwd, UP);
+    const ext = this.shieldExtended;
+    const crouch = this.stance === Stance.Crouch;
+    const h = ext ? (crouch ? 0.62 : 0.9) : crouch ? 0.42 : 0.5;
+    const cy = ext ? h + 0.02 : (crouch ? 0.62 : 1.0);
+    const p = this.pos.clone().addScaledVector(fwd, 0.5).addScaledVector(right, ext ? 0 : -0.1).add(new THREE.Vector3(0, cy, 0));
+    c.setTranslation({ x: p.x, y: p.y, z: p.z });
+    const q = new THREE.Quaternion().setFromAxisAngle(UP, this.yaw);
+    c.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w });
+    (c as unknown as { setHalfExtents?: (v: { x: number; y: number; z: number }) => void }).setHalfExtents?.({ x: ext ? 0.38 : 0.28, y: h, z: 0.03 });
+  }
+
+  mountTurret(turretId: string, at: THREE.Vector3, yaw: number) {
+    if (this.mounted) return;
+    this.mounted = turretId;
+    this.mountSave = this.weapons;
+    this.weapons = [{ def: WEAPONS.rp46, mag: WEAPONS.rp46.mag, reserve: 0 }, this.weapons[1]];
+    this.slot = 0;
+    this.equipT = 0.5;
+    this.trySetStance(Stance.Crouch);
+    this.teleport(at, yaw);
+    this.mounted = turretId;
+    this.mode = 'normal';
+  }
+
+  dismount() {
+    if (!this.mounted) return;
+    this.mounted = null;
+    if (this.mountSave) this.weapons = this.mountSave;
+    this.mountSave = null;
+    this.slot = 0;
+    this.equipT = 0.4;
   }
 
   resetLoadout() {
@@ -149,6 +226,10 @@ export class Soldier implements Actor {
     this.gadgetLeft = op.gadgetCount;
     this.universalLeft = op.universalCount;
     this.reinforcementsLeft = this.side === 'defend' ? REINFORCEMENTS_PER_ROUND : 0;
+    this.shieldExtended = false;
+    this.blindUntil = -1;
+    this.mounted = null;
+    this.mountSave = null;
     this.hp = MAX_HP;
     this.alive = true;
     this.mode = 'normal';
@@ -163,6 +244,7 @@ export class Soldier implements Actor {
     this.operator = id;
     this.op = OPERATORS[id] ?? OPERATORS.recruit;
     this.resetLoadout();
+    this.syncShield();
   }
 
   get weapon(): WeaponState | null { return this.slot < 2 ? this.weapons[this.slot] : null; }
@@ -216,7 +298,9 @@ export class Soldier implements Actor {
   /* ================================================================ update */
   update(dt: number, inp: SoldierInput) {
     this.fireCd = Math.max(0, this.fireCd - dt);
+    this.flashCd = Math.max(0, this.flashCd - dt);
     this.meleeCd = Math.max(0, this.meleeCd - dt);
+    this.updateShield();
     this.equipT = Math.max(0, this.equipT - dt);
     this.hitMarker = Math.max(0, this.hitMarker - dt);
     if (!this.alive) { this.mode = 'dead'; return; }
@@ -241,6 +325,22 @@ export class Soldier implements Actor {
     }
 
     if (this.anim) { this.updateAnim(dt); return; }
+    if (this.mounted) {
+      // turret gunner: body locked, limited traverse, [F]/[Space]/weapon key to leave
+      const g = this.world.gadgets.list.get(this.mounted);
+      if (!g || (inp.interactPressed || inp.jump || inp.slot === 1)) { this.dismount(); if (g) g.data.gunner = null; }
+      else {
+        const base = g.data.yaw as number;
+        let d = THREE.MathUtils.euclideanModulo(this.yaw - base + Math.PI, Math.PI * 2) - Math.PI;
+        d = THREE.MathUtils.clamp(d, -1.05, 1.05);
+        this.yaw = base + d;
+        this.pitch = THREE.MathUtils.clamp(this.pitch, -0.35, 0.35);
+        g.mesh.rotation.y = this.yaw;
+        this.vel.set(0, 0, 0);
+        this.updateWeapon(dt, { ...inp, slot: null });
+        return;
+      }
+    }
     if (this.mode === 'rappel') this.updateRappel(dt, inp);
     else this.updateMove(dt, inp);
     this.updateWeapon(dt, inp);
@@ -271,6 +371,7 @@ export class Soldier implements Actor {
     speed *= 1 - this.ads * 0.4;
     if (Math.abs(this.lean) > 0.3) speed *= 0.75;
     if (this.world.gadgets.isScanning(this)) speed *= 0.6;
+    if (this.op.shield) speed *= this.shieldExtended ? 0.6 : 0.9;
     if (this.world.gadgets.inToxicGas(this.pos)) speed *= 0.85;
     const target = wish.multiplyScalar(speed);
     const k = Math.min(1, dt * (this.grounded ? 14 : 2));
@@ -574,7 +675,7 @@ export class Soldier implements Actor {
   private updateWeapon(dt: number, inp: SoldierInput) {
     if (inp.slot !== null && inp.slot !== this.slot) this.switchSlot(inp.slot);
     const w = this.weapon;
-    const canAds = !!w && !this.reloading && this.equipT <= 0 && !(this.mode === 'rappel' && this.inverted);
+    const canAds = !!w && !this.reloading && this.equipT <= 0 && !(this.mode === 'rappel' && this.inverted) && !this.shieldExtended;
     this.ads += ((inp.ads && canAds ? 1 : 0) - this.ads) * Math.min(1, dt * 11);
     if (inp.melee && this.meleeCd <= 0) { this.meleeCd = 0.75; this.world.combat.melee(this); }
     if (!w) { this.wasFire = inp.fire; return; }
@@ -592,7 +693,7 @@ export class Soldier implements Actor {
       this.reloadT = this.reloadDur;
       this.ads = Math.min(this.ads, 0.2);
     }
-    const trigger = w.def.mode === 'auto' ? inp.fire : inp.fire && !this.wasFire;
+    const trigger = (w.def.mode === 'auto' ? inp.fire : inp.fire && !this.wasFire) && !this.shieldExtended;
     this.wasFire = inp.fire;
     if (trigger && this.fireCd <= 0 && this.reloadT <= 0 && this.equipT <= 0) {
       if (w.mag <= 0) {
@@ -620,6 +721,12 @@ export class Soldier implements Actor {
   private shoot(def: WeaponDef) {
     const origin = this.eye();
     const base = this.aimDir();
+    if (this.kind === 'local' && this.ads > 0.05) {
+      // optical collimation: the round leaves along the bore the reticle is drawn on
+      const p = this.pitch + this.recoilP + this.borePitch * this.ads;
+      const y = this.yaw + this.recoilY + this.boreYaw * this.ads;
+      base.set(-Math.sin(y) * Math.cos(p), Math.sin(p), -Math.cos(y) * Math.cos(p));
+    }
     // spread: hip vs ADS, movement, stance; bots add their own gaussian/linear aim error
     const moving = Math.hypot(this.vel.x, this.vel.z) > 0.6 ? 1 : 0;
     const stanceMul = this.stance === Stance.Crouch ? 0.85 : this.stance === Stance.Prone ? 0.7 : 1;
@@ -662,6 +769,8 @@ export class Soldier implements Actor {
   }
 
   die(killer: string, head: boolean) {
+    if (this.mounted) { const g = this.world.gadgets.list.get(this.mounted); if (g) g.data.gunner = null; this.dismount(); }
+    this.shieldExtended = false;
     this.alive = false;
     this.mode = 'dead';
     this.killer = killer;
@@ -677,6 +786,7 @@ export class Soldier implements Actor {
   }
 
   dispose() {
+    if (this.shieldCollider) { this.world.physics.remove(this.shieldCollider); this.shieldCollider = null; }
     this.world.physics.remove(this.collider);
     this.world.physics.world.removeCharacterController(this.controller);
   }

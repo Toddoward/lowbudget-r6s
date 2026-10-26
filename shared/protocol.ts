@@ -62,7 +62,8 @@ export type GameEvent =
   | { t: 'explosion'; p: number[]; r: number; kind: string; by: string }
   | { t: 'emp'; p: number[]; r: number; by: string }
   | { t: 'objective'; kind: ObjectiveEventKind; actor: string; data?: Record<string, unknown> }
-  | { t: 'spot'; target: string; by: string };
+  | { t: 'spot'; target: string; by: string; team?: string; p?: number[] }
+  | { t: 'flash'; p: number[]; d: number[]; by: string };
 
 export type ObjectiveEventKind =
   | 'defuser_planted'

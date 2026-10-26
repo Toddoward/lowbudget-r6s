@@ -4,6 +4,8 @@ import type { Opening } from '../map/MapBuilder.ts';
 import type { Soldier, SoldierInput } from './Soldier.ts';
 import type { World } from './World.ts';
 import { Stance } from './types.ts';
+import { AMMO_CRATES } from '../map/houseProps.ts';
+import { FLOOR_Y } from '../map/houseLayout.ts';
 import type { Panel } from '../world/Destruction.ts';
 
 interface Candidate {
@@ -59,10 +61,44 @@ export class Interactions {
     return panel ? { panel, point: hit.point, normal: hit.normal } : null;
   }
 
+  private resupplied = new Map<string, number>();
+
   private candidate(s: Soldier): Candidate | null {
     if (s.mode !== 'normal') return null;
     const obj = this.world.objectives.candidate(s);
     if (obj) return obj;
+    // Tachanka: mount the LMG from behind it
+    if (s.op.gadget === 'turret' && !s.mounted) {
+      const t = this.world.gadgets.turretNear(s);
+      if (t) {
+        return {
+          key: `mount${t.id}`, label: 'action.mount', hold: 0, run: () => {
+            const yaw = t.data.yaw as number;
+            const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+            t.data.gunner = s.id;
+            s.mountTurret(t.id, t.pos.clone().addScaledVector(fwd, -0.6), yaw);
+          },
+        };
+      }
+    }
+    // ammo crates (resupply, 30 s cooldown per soldier)
+    const fy = s.pos.y;
+    for (const p of AMMO_CRATES) {
+      const py = FLOOR_Y[p.floor];
+      if (Math.abs(py - fy) > 0.6) continue;
+      const d = Math.hypot(p.x - s.pos.x, p.z - s.pos.z);
+      if (d > 1.35) continue;
+      const k = `${s.id}:${p.x},${p.z}`;
+      const full = s.weapons.every((w) => w.reserve >= w.def.reserve && w.mag >= w.def.mag);
+      if (full || (this.resupplied.get(k) ?? -99) > this.world.time) return { key: 'ammofull', label: 'action.ammoFull', hold: 0, run: () => {} };
+      return {
+        key: `ammo${k}`, label: 'action.ammo', hold: 0.8, run: () => {
+          for (const w of s.weapons) { w.reserve = w.def.reserve; if (w.mag < w.def.mag) w.mag = w.def.mag; }
+          this.resupplied.set(k, this.world.time + 30);
+          this.world.sound({ type: 'gadget', pos: s.pos.clone(), radius: 6, source: s.id, intensity: 0.3, label: 'resupply' });
+        },
+      };
+    }
     const defender = s.side === 'defend' || s.side === 'terrorist';
     const op = this.openingInFront(s);
     if (op) {

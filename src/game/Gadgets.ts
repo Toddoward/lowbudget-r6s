@@ -3,6 +3,7 @@ import type RAPIER from '@dimforge/rapier3d-compat';
 import { G_GADGET, G_WORLD } from '../core/Physics.ts';
 import { buildAsset } from '../assets/build.ts';
 import { chargeSpec, deviceSpec, droneSpec, throwableSpec } from '../assets/weaponModels.ts';
+import { extraGadgetSpec } from '../assets/gadgetModels.ts';
 import type { NetGadget } from '../../shared/protocol.ts';
 import type { Soldier, SoldierInput } from './Soldier.ts';
 import type { World } from './World.ts';
@@ -18,7 +19,16 @@ import { Stance } from './types.ts';
  */
 export type GadgetType =
   | 'breach' | 'thermite' | 'cluster' | 'ash_round' | 'emp' | 'gas' | 'bomblet'
-  | 'jammer' | 'ads' | 'battery' | 'drone' | 'defuser';
+  | 'jammer' | 'ads' | 'battery' | 'drone' | 'defuser' | 'edd' | 'turret';
+
+type GadgetClass = 'tool' | 'place' | 'throw' | 'active';
+const GADGET_CLASS: Record<string, GadgetClass> = {
+  hammer: 'tool', heartbeat: 'tool', ash_round: 'tool', scanner: 'tool',
+  breach: 'place', thermite: 'place', cluster: 'place', battery: 'place', castle: 'place', jammer: 'place', ads: 'place', edd: 'place', turret: 'place',
+  emp: 'throw', gas: 'throw',
+  shield_ext: 'active', flash_shield: 'active',
+};
+const PLACE_TIME: Record<string, number> = { breach: 0.6, thermite: 1.0, cluster: 0.8, battery: 0.6, castle: 1.5, jammer: 0.4, ads: 0.4, edd: 1.0, turret: 1.2 };
 
 export interface Gadget {
   id: string;
@@ -41,6 +51,7 @@ export interface Gadget {
 }
 
 const THROW_SPEED = 13;
+export const DRONE_R = 0.085;
 let seq = 0;
 
 export class Gadgets {
@@ -73,53 +84,264 @@ export class Gadgets {
   smokeAt(p: THREE.Vector3) { return this.inToxicGas(p); }
 
   /* ---------------------------------------------------------------- input */
+  /**
+   * One key per gadget, context-sensitive (spec #23):
+   *  [G] operator gadget · [X] secondary gadget
+   *   - tools (hammer, Pulse sensor, Ash launcher, IQ scanner): toggle equip, LMB uses
+   *   - placeables (charges, batteries, jammers, ADS, EDD, turret, Castle panel):
+   *     hold on a valid aim target to place (progress bar); with no valid
+   *     target the same key detonates what you already placed
+   *   - throwables (EMP, gas): press throws; Smoke's key detonates thrown canisters
+   *   - actives: Montagne extends the shield, Blitz fires the flash
+   * Slot 2/3 + LMB still works for WebMCP agents (instant use).
+   */
   handleInput(s: Soldier, dt: number, inp: SoldierInput) {
     this.scanning.delete(s.id);
+    this.iqScanning.delete(s.id);
     const hcd = (this.hammerCd.get(s.id) ?? 0) - dt;
     this.hammerCd.set(s.id, hcd);
-    // remote detonation [G] (breach charges, thermite, smoke canisters, cluster)
     if (inp.alt) this.detonateOwned(s);
-    if (s.slot < 2) { this.placeHold.delete(s.id); return; }
+    s.gadgetHint = this.useKey(s, dt, 'op', inp.gadget, inp.gadgetHeld) || this.useKey(s, dt, 'uni', inp.gadget2, inp.gadget2Held) || '';
+    if (s.slot < 2) return;
     const isUniversal = s.slot === 3;
     const kind = isUniversal ? s.op.universal : s.op.gadget;
     if (kind === 'heartbeat') {
       if (inp.fire || inp.ads) { this.scanning.add(s.id); this.scan(s); }
       return;
     }
+    if (kind === 'scanner') {
+      if (inp.fire || inp.ads) { this.iqScanning.add(s.id); this.iqScan(s); }
+      return;
+    }
     if (kind === 'hammer') {
       if (inp.fire && hcd <= 0 && s.gadgetLeft > 0) { this.hammerCd.set(s.id, 1.05); this.hammer(s); }
       return;
     }
-    if (kind === 'castle') {
-      const op = this.world.interactions.openingInFront(s, 1.8);
-      if (inp.fire && op && op.barricadeable && s.gadgetLeft > 0 && op.barricadeKind !== 'castle') {
-        const t = (this.placeHold.get(s.id) ?? 0) + dt;
-        this.placeHold.set(s.id, t);
-        s.interactProgress = Math.min(1, t / 1.5);
-        s.interactLabel = 'Deploying Armor Panel…';
-        if (t >= 1.5) { this.placeHold.delete(s.id); s.gadgetLeft--; this.world.interactions.placeBarricade(op, 'castle', true); }
-      } else this.placeHold.delete(s.id);
+    if (kind === 'ash_round') {
+      if (inp.firePressed && s.gadgetLeft > 0 && this.launch(s, 'ash_round', 38, 0.15)) { s.gadgetLeft--; if (s.gadgetLeft <= 0) s.switchSlot(0); }
       return;
     }
+    // agents: slot + LMB = instant use
     if (!inp.firePressed) return;
     const left = isUniversal ? s.universalLeft : s.gadgetLeft;
     if (left <= 0) return;
-    let used = false;
-    switch (kind) {
-      case 'breach': used = this.plant(s, 'breach'); break;
-      case 'thermite': used = this.plant(s, 'thermite'); break;
-      case 'cluster': used = this.plant(s, 'cluster'); break;
-      case 'ash_round': used = this.launch(s, 'ash_round', 38, 0.15); break;
-      case 'emp': used = this.launch(s, 'emp', THROW_SPEED, 1); break;
-      case 'gas': used = this.launch(s, 'gas', THROW_SPEED * 0.85, 1); break;
-      case 'jammer': used = this.deploy(s, 'jammer'); break;
-      case 'ads': used = this.deploy(s, 'ads'); break;
-      case 'battery': used = this.plant(s, 'battery'); break;
-    }
+    const used = this.useNow(s, kind);
     if (used) {
       if (isUniversal) s.universalLeft--; else s.gadgetLeft--;
       if ((isUniversal ? s.universalLeft : s.gadgetLeft) <= 0) s.switchSlot(0);
     }
+  }
+
+  private useNow(s: Soldier, kind: string): boolean {
+    switch (kind) {
+      case 'breach': case 'thermite': case 'cluster': case 'battery': return this.plant(s, kind);
+      case 'emp': return this.launch(s, 'emp', THROW_SPEED, 1);
+      case 'gas': return this.launch(s, 'gas', THROW_SPEED * 0.85, 1);
+      case 'jammer': case 'ads': return this.deploy(s, kind);
+      case 'edd': return this.placeEdd(s);
+      case 'turret': return this.placeTurret(s);
+      case 'castle': {
+        const op = this.world.interactions.openingInFront(s, 1.8);
+        if (!op || !op.barricadeable || op.barricadeKind === 'castle') return false;
+        this.world.interactions.placeBarricade(op, 'castle', true);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** returns a HUD hint (i18n key) for this key in the current context */
+  private useKey(s: Soldier, dt: number, which: 'op' | 'uni', pressed: boolean, held: boolean): string {
+    const kind = which === 'op' ? s.op.gadget : s.op.universal;
+    if (kind === 'none' || kind === 'barricade') return '';
+    const keyAction = which === 'op' ? 'G' : 'X';
+    const name = which === 'op' ? s.op.gadgetName : kind === 'breach' ? 'gadgetName.breach' : kind;
+    const left = which === 'op' ? s.gadgetLeft : s.universalLeft;
+    const holdKey = `${s.id}:${which}`;
+    const spend = () => {
+      if (which === 'op') s.gadgetLeft--; else s.universalLeft--;
+    };
+    const cls = GADGET_CLASS[kind] ?? 'place';
+    if (cls === 'tool') {
+      if (pressed) s.switchSlot(s.slot === 2 && which === 'op' ? 0 : 2);
+      return held ? '' : `gadget.equip|${keyAction}|${name}`;
+    }
+    if (cls === 'active') {
+      if (kind === 'shield_ext') {
+        if (pressed) s.shieldExtended = !s.shieldExtended;
+        return '';
+      }
+      if (kind === 'flash_shield') {
+        if (pressed && left > 0 && s.flashCd <= 0) { spend(); s.flashCd = 1.2; this.blitzFlash(s); }
+        return left > 0 ? `gadget.fire|${keyAction}|${name}` : 'gadget.none';
+      }
+      return '';
+    }
+    if (cls === 'throw') {
+      if (pressed) {
+        if (kind === 'gas' && this.ownsArmed(s, 'gas')) { this.detonateOwned(s); return ''; }
+        if (left > 0 && this.useNow(s, kind)) spend();
+      }
+      if (kind === 'gas' && this.ownsArmed(s, 'gas')) return `gadget.detonate|${keyAction}`;
+      return left > 0 ? `gadget.throw|${keyAction}|${name}` : '';
+    }
+    // placeables: hold on a valid target, else detonate what you own
+    const valid = left > 0 && this.validTarget(s, kind);
+    const dur = PLACE_TIME[kind] ?? 0.6;
+    if (held && valid) {
+      const t = (this.placeHold.get(holdKey) ?? 0) + dt;
+      this.placeHold.set(holdKey, t);
+      s.interactProgress = Math.min(1, t / dur);
+      s.interactLabel = kind === 'castle' ? 'action.deployCastle' : 'action.placing';
+      if (t >= dur) {
+        this.placeHold.delete(holdKey);
+        s.interactProgress = 0;
+        if (this.useNow(s, kind)) spend();
+      }
+      return '';
+    }
+    if (this.placeHold.has(holdKey)) { this.placeHold.delete(holdKey); s.interactProgress = 0; }
+    const detonatable = this.ownsArmed(s, kind);
+    if (pressed && !valid && detonatable) this.detonateOwned(s);
+    if (valid) return `gadget.place|${keyAction}|${name}`;
+    if (detonatable) return `gadget.detonate|${keyAction}`;
+    return '';
+  }
+
+  private ownsArmed(s: Soldier, kind: string): boolean {
+    for (const g of this.list.values()) {
+      if (g.owner !== s.id || !g.local) continue;
+      if ((kind === 'breach' || kind === 'thermite') && g.type === kind && g.state === 'armed') return true;
+      if (kind === 'gas' && g.type === 'gas' && g.state === 'stuck') return true;
+    }
+    return false;
+  }
+
+  /** is the soldier aiming at somewhere this gadget can go right now? */
+  validTarget(s: Soldier, kind: string): boolean {
+    if (kind === 'jammer' || kind === 'ads' || kind === 'turret') return !!this.floorInFront(s, kind === 'turret' ? 0.9 : 0.7);
+    if (kind === 'castle' || kind === 'edd') {
+      const op = this.world.interactions.openingInFront(s, 1.8);
+      if (!op) return false;
+      if (kind === 'castle') return op.barricadeable && op.barricadeKind !== 'castle';
+      return op.kind !== 'vent' && op.kind !== 'shutter' && op.run !== 'd' && ![...this.list.values()].some((g) => g.type === 'edd' && g.data.opening === op.id);
+    }
+    const hit = this.world.physics.raycast(s.eye(), s.aimDir(), 1.9, G_WORLD);
+    if (!hit || hit.tag?.kind !== 'panel') return kind === 'thermite' ? false : false;
+    const panel = this.world.destruction.get(hit.tag.panelId);
+    if (!panel || panel.kind === 'castle') return kind === 'battery' && !!panel;
+    if (kind === 'battery') return panel.reinforced;
+    if (kind === 'thermite') return true;
+    return !panel.reinforced; // breach / cluster
+  }
+
+  private floorInFront(s: Soldier, dist: number): THREE.Vector3 | null {
+    const fwd = new THREE.Vector3(-Math.sin(s.yaw), 0, -Math.cos(s.yaw));
+    const start = s.pos.clone().addScaledVector(fwd, dist).add(new THREE.Vector3(0, 0.5, 0));
+    const down = this.world.physics.raycast(start, new THREE.Vector3(0, -1, 0), 2, G_WORLD);
+    if (!down || down.normal.y < 0.7) return null;
+    return down.point;
+  }
+
+  /** IQ: enemy electronics within 20 m, through walls */
+  readonly iqContacts = new Map<string, THREE.Vector3[]>();
+  private iqScanning = new Set<string>();
+  isIqScanning(s: Soldier) { return this.iqScanning.has(s.id); }
+  private iqScan(s: Soldier) {
+    const out: THREE.Vector3[] = [];
+    for (const g of this.list.values()) {
+      if (g.team === s.side || g.state === 'done' || g.type === 'bomblet') continue;
+      if (g.pos.distanceTo(s.pos) < 20) out.push(g.pos.clone());
+    }
+    for (const c of this.world.house.cameras) if (c.alive && s.side === 'attack' && c.pos.distanceTo(s.pos) < 20) out.push(c.pos.clone());
+    for (const b of this.world.objectives.bombs) if (b.pos.distanceTo(s.pos) < 20) out.push(b.pos.clone().add(new THREE.Vector3(0, 0.3, 0)));
+    this.iqContacts.set(s.id, out);
+  }
+
+  /** Blitz: blinding flash in a 60° cone, 6 m */
+  private blitzFlash(s: Soldier) {
+    const eye = s.eye();
+    const fwd = s.aimDir();
+    this.world.effects.flashBurst(eye.clone().addScaledVector(fwd, 0.6));
+    this.world.sound({ type: 'gadget', pos: eye.clone(), radius: 25, source: s.id, intensity: 0.8, label: 'flash' });
+    this.world.emit({ t: 'flash', p: eye.toArray(), d: fwd.toArray(), by: s.id });
+    this.applyFlash(eye, fwd, s.side);
+  }
+
+  /** blind everyone in the cone that has line of sight (local sim + local player) */
+  applyFlash(origin: THREE.Vector3, dir: THREE.Vector3, team: string) {
+    for (const a of this.world.soldiers.values()) {
+      if (!a.alive || a.side === team) continue;
+      const head = a.eye();
+      const to = head.clone().sub(origin);
+      const d = to.length();
+      if (d > 6.5) continue;
+      if (to.normalize().dot(dir) < Math.cos(THREE.MathUtils.degToRad(32))) continue;
+      if (!this.world.physics.clearLine(origin, head)) continue;
+      // facing the flash = full effect, back turned = short
+      const facing = new THREE.Vector3(-Math.sin(a.yaw), 0, -Math.cos(a.yaw)).dot(to.clone().negate().setY(0).normalize());
+      a.blindUntil = Math.max(a.blindUntil, this.world.time + (facing > 0.3 ? 4 : 1.5) * (1 - d / 9));
+    }
+  }
+
+  /** Kapkan: Entry Denial Device on the door / window frame in front */
+  private placeEdd(s: Soldier): boolean {
+    const op = this.world.interactions.openingInFront(s, 1.8);
+    if (!op || op.run === 'd' || op.kind === 'vent' || op.kind === 'shutter') return false;
+    const side = Math.sign(s.pos.clone().sub(op.center).dot(op.normal)) || 1;
+    const along = new THREE.Vector3(-op.normal.z, 0, op.normal.x);
+    const p = op.center.clone().addScaledVector(along, -op.w / 2 + 0.04).addScaledVector(op.normal, side * (op.thickness / 2 + 0.02)).setY(op.center.y - op.h / 2 + 0.35);
+    const g = this.make('edd', s, p, op.normal.clone().multiplyScalar(side), true);
+    g.state = 'armed';
+    g.data.opening = op.id;
+    g.data.a = p.toArray();
+    g.data.b = p.clone().addScaledVector(along, op.w - 0.08).toArray();
+    this.addLaser(g);
+    this.broadcastSpawn(g);
+    this.world.sound({ type: 'gadget', pos: p.clone(), radius: 6, source: s.id, intensity: 0.3, label: 'place_edd' });
+    return true;
+  }
+
+  private addLaser(g: Gadget) {
+    const a = new THREE.Vector3(...(g.data.a as number[]));
+    const b = new THREE.Vector3(...(g.data.b as number[]));
+    const len = a.distanceTo(b);
+    const laser = new THREE.Mesh(new THREE.CylinderGeometry(0.0025, 0.0025, len, 4), new THREE.MeshBasicMaterial({ color: '#ff2020', transparent: true, opacity: 0.55, toneMapped: false }));
+    laser.position.copy(a).add(b).multiplyScalar(0.5);
+    laser.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
+    this.group.add(laser);
+    g.data.laser = laser;
+  }
+
+  /** Tachanka: deployable LMG turret on the floor in front */
+  private placeTurret(s: Soldier): boolean {
+    const p = this.floorInFront(s, 0.9);
+    if (!p) return false;
+    const fwd = new THREE.Vector3(-Math.sin(s.yaw), 0, -Math.cos(s.yaw));
+    const g = this.make('turret', s, p.clone(), fwd, true);
+    g.state = 'armed';
+    g.data.yaw = s.yaw;
+    g.mesh.rotation.set(0, s.yaw, 0);
+    g.mesh.position.copy(p);
+    // a waist-high armour plate in front of the gun (bulletproof)
+    const plate = p.clone().addScaledVector(fwd, 0.35).add(new THREE.Vector3(0, 0.75, 0));
+    const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), s.yaw);
+    g.data.plate = this.world.physics.addBox(plate.x, plate.y, plate.z, 0.38, 0.28, 0.03, { kind: 'gadget', gadgetId: `plate:${g.id}` }, q, G_GADGET);
+    this.broadcastSpawn(g);
+    this.world.sound({ type: 'gadget', pos: p.clone(), radius: 10, source: s.id, intensity: 0.5, label: 'deploy_turret' });
+    return true;
+  }
+
+  /** the turret this soldier could mount (own team, standing behind it) */
+  turretNear(s: Soldier): Gadget | null {
+    for (const g of this.list.values()) {
+      if (g.type !== 'turret' || g.team !== s.side || g.state === 'done') continue;
+      if (g.data.gunner && g.data.gunner !== s.id) continue;
+      const fwd = new THREE.Vector3(-Math.sin(g.data.yaw as number), 0, -Math.cos(g.data.yaw as number));
+      const behind = g.pos.clone().addScaledVector(fwd, -0.55);
+      if (behind.distanceTo(s.pos.clone().setY(g.pos.y)) < 0.9) return g;
+    }
+    return null;
   }
 
   /* ---------------------------------------------------------------- creation */
@@ -133,8 +355,9 @@ export class Gadgets {
     g.mesh.position.copy(pos);
     if (normal.lengthSq() > 0.1) g.mesh.lookAt(pos.clone().add(normal));
     this.group.add(g.mesh);
-    if (['jammer', 'ads', 'battery', 'breach', 'thermite', 'cluster', 'drone', 'defuser'].includes(type)) {
-      g.collider = this.world.physics.addBall(pos.x, pos.y, pos.z, type === 'drone' ? 0.14 : 0.1, { kind: 'gadget', gadgetId: g.id }, G_GADGET);
+    if (['jammer', 'ads', 'battery', 'breach', 'thermite', 'cluster', 'drone', 'defuser', 'edd', 'turret'].includes(type)) {
+      // drone: 17 cm ball — fits under door barricades (19 cm) and through vents (25 cm)
+      g.collider = this.world.physics.addBall(pos.x, pos.y, pos.z, type === 'drone' ? DRONE_R : type === 'turret' ? 0.25 : 0.1, { kind: 'gadget', gadgetId: g.id }, G_GADGET);
     }
     this.list.set(g.id, g);
     return g;
@@ -154,23 +377,26 @@ export class Gadgets {
       battery: () => deviceSpec('g_battery', '#d9792a', '#7fd0ff'),
       drone: () => droneSpec(),
       defuser: () => deviceSpec('g_defuser', '#2a2c30', '#ff2020'),
+      edd: () => extraGadgetSpec('edd')!,
+      turret: () => extraGadgetSpec('turret')!,
     }[type]();
     const m = buildAsset(spec);
     // gadget specs are authored "in hand" (-Z forward, offset); recentre for world placement
     m.children.forEach((c) => c.position.set(0, -0.05, 0.12));
-    if (type === 'drone') m.children.forEach((c) => c.position.set(0, -0.09, 0));
+    if (type === 'drone') m.children.forEach((c) => c.position.set(0, -DRONE_R - 0.005, 0));
+    if (type === 'turret') m.children.forEach((c) => c.position.set(0, 0, 0));
     return m;
   }
 
   /** stick a charge on the panel/wall the soldier is looking at */
-  private plant(s: Soldier, type: 'breach' | 'thermite' | 'cluster' | 'battery'): boolean {
+  private plant(s: Soldier, type: string): boolean {
     const hit = this.world.physics.raycast(s.eye(), s.aimDir(), 1.9, G_WORLD);
     if (!hit) return false;
     const panel = hit.tag?.kind === 'panel' ? this.world.destruction.get(hit.tag.panelId) ?? null : null;
     if (type === 'battery' && !(panel && (panel.reinforced || panel.kind === 'castle'))) return false;
     if ((type === 'breach' || type === 'cluster') && (!panel || panel.reinforced)) return false;
     if (type === 'thermite' && !panel) return false;
-    const g = this.make(type, s, hit.point.clone().addScaledVector(hit.normal, 0.05), hit.normal, true);
+    const g = this.make(type as GadgetType, s, hit.point.clone().addScaledVector(hit.normal, 0.05), hit.normal, true);
     g.panelId = panel?.id ?? null;
     g.state = 'armed';
     if (type === 'battery' && panel) panel.electrified++;
@@ -189,12 +415,12 @@ export class Gadgets {
     return true;
   }
 
-  private deploy(s: Soldier, type: 'jammer' | 'ads'): boolean {
+  private deploy(s: Soldier, type: string): boolean {
     const fwd = new THREE.Vector3(-Math.sin(s.yaw), 0, -Math.cos(s.yaw));
     const start = s.pos.clone().addScaledVector(fwd, 0.7).add(new THREE.Vector3(0, 0.5, 0));
     const down = this.world.physics.raycast(start, new THREE.Vector3(0, -1, 0), 2, G_WORLD);
     if (!down) return false;
-    const g = this.make(type, s, down.point.clone().add(new THREE.Vector3(0, 0.05, 0)), new THREE.Vector3(0, 1, 0), true);
+    const g = this.make(type as GadgetType, s, down.point.clone().add(new THREE.Vector3(0, 0.05, 0)), new THREE.Vector3(0, 1, 0), true);
     g.state = 'armed';
     this.broadcastSpawn(g);
     this.world.sound({ type: 'gadget', pos: g.pos.clone(), radius: 8, source: s.id, intensity: 0.3, label: `deploy_${type}` });
@@ -235,20 +461,25 @@ export class Gadgets {
     this.world.effects.impact(hit.point, hit.normal, panel?.props.mat ?? 'concrete', null, false);
   }
 
-  private detonateOwned(s: Soldier) {
-    for (const g of this.list.values()) {
+  private detonateOwned(s: Soldier): boolean {
+    let any = false;
+    for (const g of [...this.list.values()]) {
       if (g.owner !== s.id || !g.local) continue;
       if (g.type === 'breach' && g.state === 'armed') {
         if (this.jammedAt(g.pos, g.team)) { this.world.effects.spark(g.pos, '#ff4040'); continue; }
         this.explodeBreach(g);
+        any = true;
       } else if (g.type === 'thermite' && g.state === 'armed') {
         g.state = 'burning';
         g.fuse = 4.0;
         this.world.emit({ t: 'gadget', op: 'trigger', id: g.id });
+        any = true;
       } else if (g.type === 'gas' && g.state === 'stuck') {
         this.releaseGas(g);
+        any = true;
       }
     }
+    return any;
   }
 
   /* ---------------------------------------------------------------- effects */
@@ -310,6 +541,8 @@ export class Gadgets {
   }
 
   shootGadget(id: string, by: string) {
+    if (id.startsWith('cctv:')) { this.destroyCamera(id.slice(5), true); return; }
+    if (id.startsWith('shield:') || id.startsWith('plate:')) return;
     const g = this.list.get(id);
     if (!g || g.type === 'defuser') return;
     const shooter = this.world.actors.get(by);
@@ -369,6 +602,11 @@ export class Gadgets {
       if (!g.local) { g.mesh.position.copy(g.pos); continue; }
       // owner-side logic
       switch (g.type) {
+        case 'edd': this.updateEdd(g); break;
+        case 'battery':
+          // spec #19: an electrified wall is obvious — crackling sparks on BOTH faces + a hum
+          if (g.state !== 'done' && Math.random() < dt * 3.2) this.zapPanel(g);
+          break;
         case 'ash_round':
           if (g.t >= g.fuse) this.explodeAsh(g);
           break;
@@ -415,6 +653,41 @@ export class Gadgets {
       }
     }
     this.toxic = this.toxic.filter((z) => z.until > w.time);
+  }
+
+  /** Bandit feedback: arcs across the panel face, both sides, plus an electric crackle */
+  private zapPanel(g: Gadget) {
+    const panel = g.panelId !== null ? this.world.destruction.get(g.panelId) : undefined;
+    if (!panel) { this.world.effects.spark(g.pos, '#9fd8ff'); return; }
+    const c = panel.center;
+    for (const side of [-1, 1]) {
+      const p = c.clone();
+      p.setComponent(panel.uAx, panel.min.getComponent(panel.uAx) + Math.random() * panel.size(panel.uAx));
+      p.setComponent(panel.vAx, panel.min.getComponent(panel.vAx) + Math.random() * panel.size(panel.vAx));
+      p.setComponent(panel.nAx, (side < 0 ? panel.min : panel.max).getComponent(panel.nAx) + side * 0.02);
+      this.world.effects.spark(p, '#9fd8ff');
+    }
+    if (Math.random() < 0.5) this.world.sound({ type: 'gadget', pos: c.clone(), radius: 9, source: g.owner, intensity: 0.35, label: 'zap_hum' });
+  }
+
+  /** Kapkan EDD: an enemy crossing the laser sets it off */
+  private updateEdd(g: Gadget) {
+    const a = new THREE.Vector3(...(g.data.a as number[]));
+    const b = new THREE.Vector3(...(g.data.b as number[]));
+    const ab = b.clone().sub(a);
+    const L = ab.length();
+    ab.normalize();
+    for (const actor of this.world.actors.values()) {
+      if (!actor.alive || actor.side === g.team || actor.side === 'hostage') continue;
+      const feet = actor.pos.clone().setY(a.y);
+      const t = THREE.MathUtils.clamp(feet.clone().sub(a).dot(ab), 0, L);
+      const closest = a.clone().addScaledVector(ab, t);
+      if (closest.distanceTo(feet) < 0.28 && Math.abs(actor.pos.y + 0.3 - a.y) < 0.6) {
+        this.boom(g, 2.2, 75, 'small');
+        this.remove(g, true);
+        return;
+      }
+    }
   }
 
   private explodeAsh(g: Gadget) {
@@ -469,10 +742,11 @@ export class Gadgets {
     v.x += (wish.x - v.x) * Math.min(1, dt * 6);
     v.z += (wish.z - v.z) * Math.min(1, dt * 6);
     v.y -= 14 * dt;
-    if (inp.jump && g.data.grounded) v.y = 3.2;
+    // hop high enough for door thresholds, low props and stair steps (spec #6)
+    if (inp.jump && g.data.grounded) v.y = 5.4;
     // simple sphere-vs-world movement (3 sub-steps along axes)
     const ph = this.world.physics;
-    const r = 0.13;
+    const r = DRONE_R;
     g.data.grounded = false;
     for (const ax of ['x', 'z', 'y'] as const) {
       const d = v[ax] * dt;
@@ -531,10 +805,31 @@ export class Gadgets {
       if (p) p.electrified = Math.max(0, p.electrified - 1);
     }
     if (g.type === 'drone') for (const [k, d] of this.drones) if (d === g) this.drones.delete(k);
+    if (g.data.laser) this.group.remove(g.data.laser as THREE.Object3D);
+    if (g.data.plate) this.world.physics.remove(g.data.plate as RAPIER.Collider);
+    if (g.type === 'turret' && g.data.gunner) {
+      const gunner = this.world.soldiers.get(g.data.gunner as string);
+      if (gunner) gunner.dismount();
+    }
     if (broadcast && g.local) this.world.emit({ t: 'gadget', op: 'remove', id: g.id });
   }
 
+  /** default CCTV: shooting it kills the feed (sparks, LED off) */
+  destroyCamera(id: string, broadcast: boolean) {
+    const cam = this.world.house.cameras.find((c) => c.id === id);
+    if (!cam || !cam.alive) return;
+    cam.alive = false;
+    this.world.effects.spark(cam.pos);
+    this.world.effects.spark(cam.pos, '#ffffff');
+    cam.mesh.rotation.x = -1.1;
+    cam.mesh.traverse((o) => { if ((o as THREE.Mesh).isMesh && (o as THREE.Mesh).geometry?.type === 'SphereGeometry') o.visible = false; });
+    this.world.physics.remove(cam.collider as RAPIER.Collider);
+    this.world.sound({ type: 'impact', pos: cam.pos.clone(), radius: 12, source: 'cctv', intensity: 0.5, label: 'camera_break' });
+    if (broadcast) this.world.emit({ t: 'gadget', op: 'remove', id: `cctv:${id}` });
+  }
+
   remoteRemove(id: string) {
+    if (id.startsWith('cctv:')) { this.destroyCamera(id.slice(5), false); return; }
     const g = this.list.get(id);
     if (g) this.remove(g, false);
   }
@@ -545,7 +840,19 @@ export class Gadgets {
     this.world.sound({ type: 'explosion', pos: v, radius: 55, source: 'remote', intensity: 1, label: kind });
   }
 
+  /** new round: every default camera works again */
+  resetCameras() {
+    for (const c of this.world.house.cameras) {
+      if (c.alive) continue;
+      c.alive = true;
+      c.mesh.rotation.x = -0.35;
+      c.mesh.traverse((o) => { o.visible = true; });
+      c.collider = this.world.physics.addBox(c.pos.x, c.pos.y, c.pos.z, 0.09, 0.09, 0.16, { kind: 'gadget', gadgetId: `cctv:${c.id}` });
+    }
+  }
+
   clear() {
+    this.resetCameras();
     for (const g of [...this.list.values()]) this.remove(g, false);
     this.toxic = [];
     this.drones.clear();

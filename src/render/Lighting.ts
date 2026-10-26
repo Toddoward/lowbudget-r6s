@@ -81,15 +81,16 @@ export class Lighting {
     // key light
     const sunDir = day ? new THREE.Vector3(0.82, 0.42, 0.38).normalize() : new THREE.Vector3(-0.55, 0.62, -0.56).normalize();
     this.key.color.set(day ? '#ffd7a3' : '#93a9ff');
-    this.key.intensity = day ? 3.6 : 0.55;
+    // night: a readable moon (the original night maps were dark but never pitch black)
+    this.key.intensity = day ? 3.6 : 0.95;
     this.key.position.copy(sunDir).multiplyScalar(60);
     this.key.target.position.set(0, 0, 0);
-    this.hemi.color.set(day ? '#a9c0d6' : '#22304e');
-    this.hemi.groundColor.set(day ? '#4a3d2e' : '#0b0c10');
-    this.hemi.intensity = day ? 1.25 : 0.5;
-    INTERIOR.uInteriorAmb.value = day ? 0.5 : 0.75;
-    r.toneMappingExposure = day ? 1.05 : 1.5;
-    this.scene.fog = day ? new THREE.FogExp2('#c7c0b1', 0.0085) : new THREE.FogExp2('#0a0f19', 0.018);
+    this.hemi.color.set(day ? '#a9c0d6' : '#3a4d7a');
+    this.hemi.groundColor.set(day ? '#4a3d2e' : '#15171f');
+    this.hemi.intensity = day ? 1.25 : 0.8;
+    INTERIOR.uInteriorAmb.value = day ? 0.5 : 0.85;
+    r.toneMappingExposure = day ? 1.05 : 1.75;
+    this.scene.fog = day ? new THREE.FogExp2('#c7c0b1', 0.0085) : new THREE.FogExp2('#0d1320', 0.012);
     this.scene.background = null;
     this.skyMat.uniforms.top.value.set(day ? '#5d86b0' : '#03060d');
     this.skyMat.uniforms.horizon.value.set(day ? '#e9d2ad' : '#1a2336');
@@ -104,9 +105,10 @@ export class Lighting {
       for (const s of lamps) this.addPractical(s);
       let rs = seed || 1;
       const rnd = () => ((rs = (rs * 16807) % 2147483647) / 2147483647);
-      const lit = this.lamps.filter(() => rnd() < 0.45).slice(0, 6);
+      // most rooms keep a light on at night so the interior is playable (and drone-able)
+      const lit = this.lamps.filter(() => rnd() < 0.75).slice(0, 10);
       for (const l of lit) {
-        const pl = new THREE.PointLight('#ffcf8a', 5.5, 8, 1.8);
+        const pl = new THREE.PointLight('#ffcf8a', 7.5, 9.5, 1.6);
         pl.position.copy(l.pos).add(new THREE.Vector3(0, -0.15, 0));
         this.scene.add(pl);
         this.practical.push(pl);
@@ -120,7 +122,7 @@ export class Lighting {
     }
     // daytime bounce: soft warm fill inside each floor (light bouncing off sunlit floors)
     if (day) {
-      for (const [x, y, z] of [[-4, -1.2, 0], [4, -1.2, 0], [-4, 1.8, -3], [4, 1.8, 2], [-4, 4.8, 2], [3, 4.8, -3]]) {
+      for (const [x, y, z] of [[-5, -1.9, -2.5], [3, -1.9, -2.5], [5, -1.9, 2.5], [-5, 1.9, -3.5], [1, 1.9, -2.5], [5.5, 1.9, 2], [-1, 1.9, 2.8], [-5, 5.4, -2], [2, 5.4, -2.5], [5, 5.4, 2.5], [-4, 5.4, 4.5]]) {
         const pl = new THREE.PointLight('#ffe2c0', 4.5, 11, 1.4);
         pl.position.set(x, y, z);
         this.scene.add(pl);

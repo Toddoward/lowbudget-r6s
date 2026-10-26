@@ -6,7 +6,9 @@ import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { Physics, G_WORLD } from '../core/Physics.ts';
 import { preloadGlbAssets, glbStats } from '../assets/library.ts';
-import { Input } from '../core/Input.ts';
+import { Input, type UiAction } from '../core/Input.ts';
+import { QA } from '../qa.ts';
+import { t, has, localizePlace } from '../ui/i18n.ts';
 import { Audio } from '../core/Audio.ts';
 import { DestructionSystem } from '../world/Destruction.ts';
 import { Effects } from '../render/Effects.ts';
@@ -33,7 +35,7 @@ import { WebMcpBridge } from '../webmcp/Bridge.ts';
 import { AgentController } from '../webmcp/AgentController.ts';
 import { LocalAgent } from '../webmcp/LocalAgent.ts';
 import { headingDeg, wrap180 } from '../webmcp/Perception.ts';
-import { Hud, esc, type HudState } from '../ui/Hud.ts';
+import { Hud, esc, type HudState, type HudGadget, type HudHint, type HudMarker, type HudMate } from '../ui/Hud.ts';
 import { mulberry32, pick } from '../../shared/rng.ts';
 import { ATTACKERS, DEFENDERS, MISSIONS, SITES, type SpawnId, type TimeOfDay } from '../../shared/constants.ts';
 import type { ActorSnapshot, GameEvent, MemberInfo, RoomState } from '../../shared/protocol.ts';
@@ -62,9 +64,9 @@ interface AgentSlot {
 export type Quality = 'low' | 'medium' | 'high';
 
 const GRADE = {
-  uniforms: { tDiffuse: { value: null }, vignette: { value: 0.32 }, sat: { value: 0.88 }, contrast: { value: 1.08 }, grain: { value: 0.012 }, time: { value: 0 }, hurt: { value: 0 }, droneFx: { value: 0 } },
+  uniforms: { tDiffuse: { value: null }, vignette: { value: 0.32 }, sat: { value: 0.88 }, contrast: { value: 1.08 }, grain: { value: 0.012 }, time: { value: 0 }, hurt: { value: 0 }, droneFx: { value: 0 }, night: { value: 0 }, blind: { value: 0 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-  fragmentShader: `uniform sampler2D tDiffuse; uniform float vignette, sat, contrast, grain, time, hurt, droneFx; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float vignette, sat, contrast, grain, time, hurt, droneFx, night, blind; varying vec2 vUv;
     float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233)) + time) * 43758.5453); }
     void main(){ vec4 c = texture2D(tDiffuse, vUv); vec3 col = c.rgb;
       col = max(col, vec3(0.0));
@@ -72,7 +74,14 @@ const GRADE = {
       col = 0.18 * pow(col / 0.18, vec3(contrast)); // linear-HDR contrast pivoting on mid-grey
       float d = distance(vUv, vec2(0.5)); col *= 1.0 - vignette * smoothstep(0.35, 0.85, d);
       col = mix(col, vec3(0.55,0.0,0.0), hurt * smoothstep(0.25, 0.75, d));
-      if (droneFx > 0.0) { float s = sin(vUv.y * 900.0) * 0.04; col = mix(col, vec3(dot(col, vec3(0.3,0.6,0.1))) * vec3(0.8,1.0,0.85) + s, droneFx * 0.6); }
+      if (droneFx > 0.0) {
+        // drone / camera feed: auto-exposed (brighter, esp. at night), mono-green tint + scanlines
+        float gain = 1.0 + droneFx * (0.9 + night * 1.6);
+        col = col * gain + droneFx * (0.02 + night * 0.035);
+        float s = sin(vUv.y * 900.0) * 0.03;
+        col = mix(col, vec3(dot(col, vec3(0.3,0.6,0.1))) * vec3(0.82,1.0,0.86) + s, droneFx * 0.55);
+      }
+      col = mix(col, vec3(1.0, 0.99, 0.95), blind);
       col = max(col + (h(vUv * 800.0) - 0.5) * grain * (0.2 + l), vec3(0.0));
       gl_FragColor = vec4(col, c.a); }`,
 };
@@ -135,7 +144,7 @@ export class Game {
   ready = false;
 
   constructor(canvas: HTMLCanvasElement) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', stencil: false });
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', stencil: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -144,8 +153,7 @@ export class Game {
     this.camera.rotation.order = 'YXZ';
     this.scene.add(this.camera);
     this.input = new Input(canvas);
-    this.input.onToggle = (k) => this.onKey(k);
-    canvas.addEventListener('click', () => { if (this.mode !== 'menu') { this.input.lock(); this.audio.ensure(); } });
+    this.input.onUiAction = (a) => this.onUiAction(a);
     window.addEventListener('resize', () => this.resize());
   }
 
@@ -235,7 +243,7 @@ export class Game {
     this.audio.occluded = (p) => !this.physics.clearLine(this.camera.position, p);
     w.onLocalHit.push((target, head, killed) => {
       if (this.player && !killed) { this.hud.hitMarker(head, false); this.audio.ui('hit'); }
-      void target;
+      if (target.side !== this.player?.side) { this.thStats.hits++; if (head) this.thStats.heads++; }
     });
     w.onKill.push((k) => {
       const kn = w.actors.get(k.killer)?.name ?? k.killer;
@@ -274,12 +282,97 @@ export class Game {
     if (cells.length > 6) this.world.sound({ type: 'breach', pos: panel.center, radius: 30, source: 'destruction', intensity: Math.min(1, cells.length / 40), label: panel.kind });
   }
 
-  private onKey(code: string) {
-    if (code === 'KeyT') { this.destruction.setXray(!this.destruction.xray); this.onToast(this.destruction.xray ? 'Destruction tier X-ray ON (red soft · yellow semi · white solid)' : 'X-ray off'); }
-    if (code === 'KeyB') { const on = this.bridge.toggleOverlay(); this.onToast(on ? 'WebMCP bridge debug overlay ON' : 'WebMCP overlay off'); }
-    if (code === 'KeyL') { this.lighting.flashlightOn = !this.lighting.flashlightOn; if (this.player) this.player.flashlight = this.lighting.flashlightOn; }
-    if (code === 'Enter' && this.mode === 'th' && this.world.phase === 'prep') this.phaseEnds = this.world.time;
-    if (code === 'KeyH') document.getElementById('help-overlay')?.classList.toggle('hidden');
+  private onUiAction(a: UiAction) {
+    if (this.mode === 'menu' || this.paused) return;
+    if (a === 'xray' && QA) { this.destruction.setXray(!this.destruction.xray); this.onToast(this.destruction.xray ? 'X-ray ON (red soft · yellow semi · white solid)' : 'X-ray off'); }
+    if (a === 'overlay' && QA) { const on = this.bridge.toggleOverlay(); this.onToast(on ? 'WebMCP bridge debug overlay ON' : 'WebMCP overlay off'); }
+    if (a === 'flashlight') {
+      this.lighting.flashlightOn = !this.lighting.flashlightOn;
+      if (this.player) this.player.flashlight = this.lighting.flashlightOn;
+      this.onToast(t(this.lighting.flashlightOn ? 'toast.flashOn' : 'toast.flashOff'));
+    }
+    if (a === 'help') this.onHelp();
+    if (a === 'ping') this.pingReq = true;
+    if (a === 'observe') this.toggleObserve();
+  }
+
+  /** does gameplay want mouse-look right now? (drives the UI's pointer-lock state machine) */
+  wantsPointer(): boolean {
+    const p = this.player;
+    if (this.mode === 'menu' || !p || !p.alive) return false;
+    if (this.mode === 'th' && this.thResult) return false;
+    return this.world.phase === 'prep' || this.world.phase === 'action';
+  }
+
+  /* ================================================================ drone / camera views */
+  /** 'body' = first person · 'drone' = attacker drone · 'cam' = defender CCTV */
+  view: 'body' | 'drone' | 'cam' = 'body';
+  private camIdx = 0;
+  private pingReq = false;
+  onHelp: () => void = () => {};
+
+  private toggleObserve() {
+    const p = this.player;
+    if (!p || !p.alive || this.world.phase === 'over') return;
+    if (this.view !== 'body') {
+      if (this.view === 'drone' && this.world.phase === 'prep' && p.side === 'attack') return; // prep: the drone is all you have
+      this.view = 'body';
+      return;
+    }
+    if (p.side === 'attack') {
+      if (this.drone && !this.drone.data.destroyed && this.drone.state !== 'done') this.view = 'drone';
+      else this.onToast(t('toast.noDrone'));
+    } else {
+      const live = this.house.cameras.filter((c) => c.alive);
+      if (!live.length) { this.onToast(t('toast.noCams')); return; }
+      this.view = 'cam';
+      this.camIdx = this.house.cameras.indexOf(live[0]);
+      this.camLook = { yaw: live[0].yaw, pitch: -0.35 };
+    }
+  }
+  private camLook = { yaw: 0, pitch: -0.35 };
+
+  private nextCam(dir = 1) {
+    const cams = this.house.cameras;
+    for (let k = 1; k <= cams.length; k++) {
+      const i = (this.camIdx + dir * k + cams.length * 4) % cams.length;
+      if (cams[i].alive) { this.camIdx = i; this.camLook = { yaw: cams[i].yaw, pitch: -0.35 }; return; }
+    }
+    this.view = 'body';
+  }
+
+  /** what the local player currently looks through: [eye position, forward direction] */
+  private viewRay(): [THREE.Vector3, THREE.Vector3] {
+    const pos = this.camera.position.clone();
+    const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
+    return [pos, dir];
+  }
+
+  /** ping: spot an enemy under the crosshair (5 s, whole team) or drop a marker */
+  private doPing() {
+    const p = this.player;
+    if (!p) return;
+    const [o, d] = this.viewRay();
+    let best: { id: string; ang: number } | null = null;
+    for (const a of this.world.actors.values()) {
+      if (!a.alive || a.side === p.side || a.side === 'hostage' || a.id === p.id) continue;
+      const c = a.pos.clone().add(new THREE.Vector3(0, a.kind === 'bot' || a.kind === 'remote' ? 1.1 : 1.1, 0));
+      const to = c.clone().sub(o);
+      const dist = to.length();
+      if (dist > 70) continue;
+      const ang = to.normalize().angleTo(d);
+      if (ang > THREE.MathUtils.degToRad(4) + 0.6 / dist) continue;
+      if (!this.physics.clearLine(o, c)) continue;
+      if (!best || ang < best.ang) best = { id: a.id, ang };
+    }
+    if (best) {
+      this.world.spot(best.id, p.side, 5, true, p.id);
+      this.audio.ui('ping');
+      this.onToast(t('hud.spotted'));
+      return;
+    }
+    const hit = this.physics.raycast(o, d, 80, G_WORLD);
+    if (hit) { this.world.ping(hit.point, p.side, p.id); this.audio.ui('ping'); }
   }
 
   /* ================================================================ common setup */
@@ -305,6 +398,7 @@ export class Game {
     w.onHurt.splice(1);
     w.sounds = [];
     this.drone = null;
+    this.view = 'body';
     this.physics.step();
   }
 
@@ -409,7 +503,9 @@ export class Game {
     this.input.resetStance();
     this.hud.show(true);
     this.onMatchStart();
-    this.hud.showBanner(`TERRORIST HUNT — ${missionName(mission)}`, `${tod === 'day' ? 'MORNING' : 'NIGHT'} · ${w.objectives.siteLabel()} · ${diff.name} · drone phase (Enter to skip)`, 5);
+    this.view = 'drone';
+    this.thStats = { shots: 0, hits: 0, heads: 0, start: w.time };
+    this.hud.showBanner(t('banner.th', missionName(mission)), t('banner.thSub', t(tod === 'day' ? 'hud.day' : 'hud.night'), localizePlace(w.objectives.siteLabel()), t(`diff.${diff.name}`)), 5);
     this.audio.ensure();
     this.input.lock();
   }
@@ -418,12 +514,18 @@ export class Game {
     if (this.thResult) return;
     this.thResult = { win, reason };
     this.world.phase = 'over';
-    this.hud.showBanner(win ? 'MISSION ACCOMPLISHED' : 'MISSION FAILED', `${reason} · ${this.thKills} kills`, 8);
+    this.view = 'body';
+    this.hud.showBanner(t(win ? 'banner.win' : 'banner.lose'), `${reasonText(reason)} · ${t('hud.kills', this.thKills)}`, 3);
     this.audio.ui('round');
-    setTimeout(() => {
-      if (this.mode === 'th' && this.thResult) document.getElementById('th-result')?.classList.remove('hidden');
-    }, 2500);
+    const st = this.thStats;
+    this.onResult({
+      win, reason: reasonText(reason), kills: this.thKills, time: Math.max(0, this.world.time - st.start),
+      accuracy: st.shots ? Math.round((st.hits / st.shots) * 100) : 0, headshots: st.heads, operator: this.player?.op.name ?? '',
+    });
   }
+  /** TH result stats (shots → accuracy, headshots) */
+  private thStats = { shots: 0, hits: 0, heads: 0, start: 0 };
+  onResult: (r: { win: boolean; reason: string; kills: number; time: number; accuracy: number; headshots: number; operator: string }) => void = () => {};
 
   restartTH() { if (this.thOpts) this.startTH(this.thOpts); }
 
@@ -511,6 +613,7 @@ export class Game {
     this.resetMap();
     this.disposePlayer();
     localStorage.setItem('r6.nick', nickname);
+    if (!QA) mode = 'online'; // same-browser rooms are a QA tool (spec #24)
     const room = new RoomClient(code, nickname, asAgent, mode);
     this.room = room;
     this.mode = 'pvp';
@@ -523,8 +626,8 @@ export class Game {
     room.onWelcome = (log) => { for (const ev of log) this.applyEvent('', ev); };
     room.onSnapshots = (from, snaps) => this.onSnapshots(from, snaps);
     room.onEvent = (from, ev) => this.applyEvent(from, ev);
-    room.onError = (m) => this.onToast(`Room: ${m}`);
-    room.onClosed = (m) => { if (this.room === room) this.onToast(`Disconnected: ${m}`); };
+    room.onError = (m) => this.onToast(t('net.error', m));
+    room.onClosed = (m) => { if (this.room === room) this.onToast(t('net.disconnected', m)); };
     return new Promise((resolve) => {
       const t = setTimeout(() => resolve(room.selfId || 'pending'), 15000);
       const prev = room.onWelcome;
@@ -558,10 +661,10 @@ export class Game {
       if (s.phase === 'matchEnd' && this.world.phase !== 'over') {
         const me = s.members.find((m) => m.id === room.selfId);
         const won = me ? s.score[me.squad] > s.score[me.squad === 'A' ? 'B' : 'A'] : false;
-        this.hud.showBanner(won ? 'MATCH WON' : 'MATCH LOST', `${s.score.A} : ${s.score.B}`, 10);
+        this.hud.showBanner(t(won ? 'banner.matchWon' : 'banner.matchLost'), `${s.score.A} : ${s.score.B}`, 10);
       }
       this.world.phase = s.phase === 'lobby' ? 'lobby' : 'over';
-      if (s.phase === 'lobby') { this.roundKey = ''; this.hud.show(false); this.input.unlock(); }
+      if (s.phase === 'lobby') { this.roundKey = ''; this.hud.show(false); this.view = 'body'; this.input.unlock(); }
       this.onLobby(s, room.selfId);
       return;
     }
@@ -574,7 +677,7 @@ export class Game {
     if (s.phase === 'roundEnd' && r.winner) {
       const me = s.members.find((m) => m.id === room.selfId);
       const won = me?.squad === r.winner;
-      this.hud.showBanner(won ? 'ROUND WON' : 'ROUND LOST', `${r.reason ?? ''} · ${s.score.A} : ${s.score.B}`, 6);
+      this.hud.showBanner(t(won ? 'banner.roundWon' : 'banner.roundLost'), `${reasonText(r.reason ?? '')} · ${s.score.A} : ${s.score.B}`, 6);
       this.audio.ui('round');
     }
     if (r.defuserEndsAt) this.world.objectives.serverClockOffset = room.clockOffset;
@@ -615,7 +718,8 @@ export class Game {
     this.input.resetStance();
     this.hud.show(true);
     this.onMatchStart();
-    this.hud.showBanner(`ROUND ${r.index + 1} — ${missionName(r.mission)}`, `${r.timeOfDay === 'day' ? 'MORNING' : 'NIGHT'} · ${w.objectives.siteLabel()} · you are ${this.player?.side === 'attack' ? 'ATTACKING' : 'DEFENDING'}`, 5);
+    this.view = this.player?.side === 'attack' && this.drone ? 'drone' : 'body';
+    this.hud.showBanner(`${t('hud.round', r.index + 1)} — ${missionName(r.mission)}`, t('banner.roundSub', t(r.timeOfDay === 'day' ? 'hud.day' : 'hud.night'), localizePlace(w.objectives.siteLabel()), t(this.player?.side === 'attack' ? 'hud.attacking' : 'hud.defending')), 5);
     void rand;
   }
 
@@ -669,7 +773,17 @@ export class Game {
       case 'explosion': w.gadgets.remoteExplosion(ev.p, ev.r, ev.kind); break;
       case 'emp': w.gadgets.applyEmp(new THREE.Vector3(...ev.p), ev.r, w.actors.get(ev.by)?.side ?? 'attack'); break;
       case 'objective': w.objectives.remote(ev.kind, ev.actor, ev.data); break;
-      case 'spot': break;
+      case 'spot':
+        if (ev.p) w.ping(new THREE.Vector3(...(ev.p as [number, number, number])), ev.team ?? w.actors.get(ev.by)?.side ?? '', ev.by, 4, false);
+        else if (ev.target) w.spot(ev.target, ev.team ?? w.actors.get(ev.by)?.side ?? '', 5, false, ev.by);
+        if (ev.team === this.player?.side) this.audio.ui('ping');
+        break;
+      case 'flash': {
+        const o = new THREE.Vector3(...(ev.p as [number, number, number]));
+        this.effects.flashBurst(o.clone().addScaledVector(new THREE.Vector3(...(ev.d as [number, number, number])), 0.6));
+        w.gadgets.applyFlash(o, new THREE.Vector3(...(ev.d as [number, number, number])), w.actors.get(ev.by)?.side ?? 'attack');
+        break;
+      }
     }
     void from;
   }
@@ -698,8 +812,10 @@ export class Game {
   }
 
   private endDronePhase() {
-    if (this.drone) { this.world.gadgets.remove(this.drone, false); this.drone = null; }
-    this.hud.showBanner('ACTION PHASE', this.player?.side === 'attack' ? 'Breach and clear' : 'Hold the objective', 3);
+    // the drone stays on the map for the action phase ([3] to drive it again)
+    if (this.view !== 'body') this.view = 'body';
+    this.hud.showBanner(t('banner.action'), t(this.player?.side === 'attack' ? 'banner.actionAtk' : 'banner.actionDef'), 3);
+    this.audio.ui('round');
   }
 
   private disposePlayer() {
@@ -743,7 +859,7 @@ export class Game {
       if (this.slowFor > 4) {
         this.slowFor = 0;
         this.setQuality(this.quality === 'high' ? 'medium' : 'low');
-        this.onToast(`Performance: quality lowered to ${this.quality.toUpperCase()} (Settings to override)`);
+        this.onToast(t('toast.quality', t(this.quality === 'medium' ? 'set.qMed' : 'set.qLow')));
       }
     }
     if (this.mode === 'menu') {
@@ -793,9 +909,17 @@ export class Game {
         this.endDronePhase();
       } else if (w.phase === 'action' && w.time >= this.phaseEnds) this.endTH(false, 'Time expired');
     }
-    // --- drone (attackers in prep) or body
+    // --- views: drone (attackers; forced during prep) · CCTV (defenders) · body
+    if (this.mode === 'th' && w.phase === 'prep' && this.input.wasPressed('Enter')) this.phaseEnds = w.time;
     if (p) {
-      if (this.drone && w.phase === 'prep') {
+      if (this.view === 'drone' && (!this.drone || this.drone.data.destroyed || this.drone.state === 'done')) {
+        this.view = 'body';
+        this.hud.showBanner(t('hud.droneDestroyed'), '', 2);
+      }
+      if (this.view !== 'body' && !p.alive) this.view = 'body';
+      if (this.pingReq) { this.pingReq = false; if (p.alive) this.doPing(); }
+      if (inp.ping) this.doPing();
+      if (this.view === 'drone' && this.drone) {
         const dinp = { ...inp };
         if (this.playerCtl && performance.now() - this.playerCtl.lastActionAt < 2000) {
           const d = this.playerCtl.droneInput();
@@ -804,10 +928,20 @@ export class Game {
         }
         w.gadgets.updateDrone(this.drone, dt, dinp);
         p.update(dt, emptyInput());
+      } else if (this.view === 'cam') {
+        const cam = this.house.cameras[this.camIdx];
+        if (!cam?.alive) this.nextCam(1);
+        this.camLook.yaw += inp.lookDYaw;
+        this.camLook.pitch = THREE.MathUtils.clamp(this.camLook.pitch + inp.lookDPitch, -1.1, 0.3);
+        if (cam) { const d = THREE.MathUtils.euclideanModulo(this.camLook.yaw - cam.yaw + Math.PI, Math.PI * 2) - Math.PI; this.camLook.yaw = cam.yaw + THREE.MathUtils.clamp(d, -1.3, 1.3); }
+        const wheel = this.input.consumeWheel();
+        if (inp.firePressed || wheel > 0) this.nextCam(1);
+        if (wheel < 0) this.nextCam(-1);
+        p.update(dt, emptyInput());
       } else {
         this.prevMag = p.weapon?.mag ?? -1;
         p.update(dt, inp);
-        if (p.weapon && p.weapon.mag < this.prevMag) this.firedThisFrame = true;
+        if (p.weapon && p.weapon.mag < this.prevMag) { this.firedThisFrame = true; this.thStats.shots++; }
       }
     }
     // --- agent slots (built-in policy unless an external agent is driving)
@@ -864,13 +998,21 @@ export class Game {
     for (const r of this.remotes.values()) r.rig.root.visible = true;
     let camSoldier: Soldier | null = p;
     let spectating = '';
-    const inDrone = !!(this.drone && w.phase === 'prep' && p);
+    const inDrone = !!(this.drone && this.view === 'drone' && p);
+    const inCam = !!(this.view === 'cam' && p);
     if (this.drone) this.drone.mesh.visible = !inDrone;
     if (inDrone) {
       const d = this.drone!;
-      this.camera.position.copy(d.pos).add(new THREE.Vector3(0, 0.08, 0));
+      this.camera.position.copy(d.pos).add(new THREE.Vector3(0, 0.05, 0));
       this.camera.rotation.set(d.data.pitch as number, d.data.yaw as number, 0, 'YXZ');
       this.camera.fov = 88;
+      camSoldier = null;
+    } else if (inCam) {
+      const c = this.house.cameras[this.camIdx];
+      this.camera.position.copy(c.pos).add(new THREE.Vector3(-Math.sin(this.camLook.yaw) * 0.22, -0.06, -Math.cos(this.camLook.yaw) * 0.22));
+      this.camera.rotation.set(this.camLook.pitch, this.camLook.yaw, 0, 'YXZ');
+      this.camera.fov = 82;
+      camSoldier = null;
     } else if (p && !p.alive) {
       const mates = [...this.slots.map((s) => s.soldier)].filter((s) => s.alive);
       if (mates.length) {
@@ -893,7 +1035,7 @@ export class Game {
         }
       }
     }
-    if (camSoldier && !inDrone) {
+    if (camSoldier && !inDrone && !inCam) {
       this.camera.position.copy(camSoldier.eye());
       this.camera.rotation.set(camSoldier.pitch + camSoldier.recoilP, camSoldier.yaw + camSoldier.recoilY, camSoldier.cameraRoll, 'YXZ');
       const adsFov = camSoldier.weapon ? camSoldier.weapon.def.adsFov : this.fov;
@@ -905,8 +1047,10 @@ export class Game {
     this.audio.setListener(this.camera);
     // FX & lighting
     this.lighting.update(dt, this.camera, this.camera.position);
-    if (this.lighting.flashlightOn && camSoldier) this.lighting.aimFlashlight(this.camera);
-    this.lighting.flashlight.visible = !!camSoldier && !inDrone;
+    // body flashlight, or the drone's own headlight at night so the feed is never black (spec #9/#22)
+    const droneLamp = inDrone && this.lighting.tod === 'night';
+    if ((this.lighting.flashlightOn && camSoldier) || droneLamp) this.lighting.aimFlashlight(this.camera);
+    this.lighting.flashlight.visible = (!!camSoldier && this.lighting.flashlightOn) || droneLamp;
     this.effects.ambient(this.camera.position, dt);
     this.effects.update(dt);
     // hide own body rig when viewing through someone
@@ -914,11 +1058,13 @@ export class Game {
     this.hurtFx = Math.max(0, this.hurtFx - dt * 1.5);
     this.grade.uniforms.hurt.value = this.hurtFx * 0.6 + (p && p.alive && p.hp < 30 ? 0.25 : 0);
     this.grade.uniforms.time.value = w.time;
-    this.grade.uniforms.droneFx.value = inDrone ? 1 : 0;
+    this.grade.uniforms.droneFx.value = inDrone ? 1 : inCam ? 0.75 : 0;
+    this.grade.uniforms.night.value = this.lighting.tod === 'night' ? 1 : 0;
+    this.grade.uniforms.blind.value = p && p.alive ? THREE.MathUtils.clamp((p.blindUntil - w.time) / 1.5, 0, 1) : 0;
     this.renderer.autoClear = true;
     this.composer.render(dt);
     // view model
-    if (camSoldier && camSoldier.alive && !inDrone && camSoldier.mode !== 'swing' && camSoldier.mode !== 'vault') {
+    if (camSoldier && camSoldier.alive && !inDrone && !inCam && camSoldier.mode !== 'swing' && camSoldier.mode !== 'vault') {
       const cp = this.camera.position;
       const inside = cp.x > HOUSE_RECT.x0 && cp.x < HOUSE_RECT.x1 && cp.z > HOUSE_RECT.z0 && cp.z < HOUSE_RECT.z1 && cp.y < ROOF_Y - 0.2;
       const dim = inside ? (this.lighting.tod === 'day' ? 0.6 : 0.45) : this.lighting.tod === 'day' ? 1 : 0.5;
@@ -926,10 +1072,12 @@ export class Game {
       this.vm.update(dt, camSoldier, this.lookDelta, this.firedThisFrame && camSoldier === p, sprint, this.camera.aspect, dim);
       this.renderer.autoClear = false;
       this.renderer.clearDepth();
+      this.renderer.clearStencil();
       this.renderer.render(this.vm.scene, this.vm.camera);
+      if (camSoldier === p) { p.boreYaw = this.vm.boreYaw; p.borePitch = this.vm.borePitch; }
       this.renderer.autoClear = true;
     }
-    if (p) this.updateHud(dt, camSoldier ?? p, inDrone, spectating);
+    if (p) this.updateHud(dt, camSoldier ?? p, inDrone, spectating, inCam);
   }
 
   /** QA / screenshot free camera (null in normal play) */
@@ -942,34 +1090,158 @@ export class Game {
     this.camera.updateProjectionMatrix();
   }
 
-  private updateHud(dt: number, s: Soldier, inDrone: boolean, spectating: string) {
+  private updateHud(dt: number, s: Soldier, inDrone: boolean, spectating: string, inCam: boolean) {
     const w = this.world;
     const st = w.objectives.status();
     const wpn = s.weapon;
-    const phase = w.phase === 'prep' ? (s.side === 'attack' ? 'PREPARATION · DRONE' : 'PREPARATION · FORTIFY') : w.phase === 'action' ? 'ACTION' : w.phase === 'over' ? 'ROUND OVER' : 'LOBBY';
+    const p = this.player!;
+    const cap = (a: string) => this.input.binds.cap(a);
+    const phase = w.phase === 'prep' ? t(s.side === 'attack' ? 'hud.phasePrepAtk' : 'hud.phasePrepDef') : w.phase === 'action' ? t('hud.phaseAction') : w.phase === 'over' ? t('hud.phaseOver') : t('hud.phaseLobby');
     const scanning = w.gadgets.isScanning(s) ? (w.gadgets.heartbeats.get(s.id) ?? []).map((h) => ({ bearing: wrap180(THREE.MathUtils.radToDeg(Math.atan2(h.dir.x, -h.dir.z)) - headingDeg(s.yaw)), dist: h.dist, vertical: h.dy > 1.5 ? 'Above' : h.dy < -1.5 ? 'Below' : 'Same_Floor' })) : [];
     let score = '';
-    if (this.mode === 'th') score = `White Masks left: ${this.bots.filter((b) => b.s.alive).length} · Kills ${this.thKills}`;
+    if (this.mode === 'th') score = `${t('hud.enemiesLeft', this.bots.filter((b) => b.s.alive).length)} · ${t('hud.kills', this.thKills)}`;
     else if (this.room?.state) {
       const me = this.room.state.members.find((m) => m.id === this.room!.selfId);
-      score = `Squad A ${this.room.state.score.A} : ${this.room.state.score.B} Squad B${me ? ` · you: ${me.squad}` : ''} · ${this.room.kind === 'local' ? 'LOCAL' : 'ONLINE'} ${this.room.code}`;
+      score = `A ${this.room.state.score.A} : ${this.room.state.score.B} B${me ? ` · ${t('hud.squad')} ${me.squad}` : ''} · ${this.room.kind === 'local' ? 'LOCAL' : t('lobby.online')} ${this.room.code}`;
     }
-    const def = st.defuserEndsIn !== undefined ? ` · DEFUSER ${Math.ceil(st.defuserEndsIn)}s` : '';
+    const objText = t(st.key, ...st.args.map((a) => a.split(' / ').map(localizePlace).join(' / '))) + (st.defuserEndsIn !== undefined ? ` · ${t('obj.defuserIn', Math.ceil(st.defuserEndsIn))}` : '');
+    const gname = (g: string, fallback: string) => (has(`gname.${g}`) ? t(`gname.${g}`) : fallback);
+    // gadget slots: [G] operator gadget · [X] universal (breach charge / barricades) · reinforcements
+    const gadgets: HudGadget[] = [];
+    if (s.op.gadget !== 'none') gadgets.push({ cap: cap('gadget'), name: gname(s.op.gadget, s.op.gadgetName), left: s.op.gadget === 'heartbeat' || s.op.gadget === 'scanner' || s.op.gadget === 'shield_ext' ? '∞' : `×${s.gadgetLeft}`, active: s.slot === 2 });
+    if (s.op.universal === 'breach') gadgets.push({ cap: cap('gadget2'), name: t('gname.breach'), left: `×${s.universalLeft}`, active: s.slot === 3 });
+    if (s.op.universal === 'barricade') gadgets.push({ cap: cap('interact'), name: t('gname.barricade'), left: '∞', active: false });
+    if (s.side === 'defend') gadgets.push({ cap: cap('interact'), name: t('gname.reinforce'), left: `×${s.reinforcementsLeft}`, active: false });
+    // stance + flags
+    const stance = s.mode === 'rappel' ? t(s.inverted ? 'hud.rappelInv' : 'hud.rappel') : [t('hud.stand'), t('hud.crouch'), t('hud.prone'), t('hud.rappel')][s.stance];
+    const lean = s.lean < -0.3 ? ` · ${t('hud.leanL')}` : s.lean > 0.3 ? ` · ${t('hud.leanR')}` : '';
+    const flags = [t(this.lighting.tod === 'day' ? 'hud.day' : 'hud.night'), this.destruction.xray ? t('hud.xray') : '', w.gadgets.isScanning(s) ? t('hud.scan') : '', w.gadgets.isIqScanning(s) ? t('hud.iqScan') : '', s.shieldExtended ? t('hud.shieldExt') : '', this.extraLine].filter(Boolean).join(' · ');
+    // view (drone / CCTV) labels
+    let viewTitle = '';
+    let viewHelp = '';
+    let location = localizePlace(locationName(s.pos));
+    let heading = headingDeg(s.yaw);
+    if (inDrone && this.drone) {
+      viewTitle = `${t('hud.drone')} · ${localizePlace(locationName(this.drone.pos))}`;
+      viewHelp = w.phase === 'prep' && p.side === 'attack' ? `${t('hud.dronePrepHelp')} · ${t('hud.droneHelp', cap('forward'), cap('left'), cap('back'), cap('right'), cap('vault'), cap('ping'), cap('observe'))}` : t('hud.droneHelp', cap('forward'), cap('left'), cap('back'), cap('right'), cap('vault'), cap('ping'), cap('observe'));
+      location = viewTitle;
+      heading = headingDeg(this.drone.data.yaw as number);
+    } else if (inCam) {
+      const c = this.house.cameras[this.camIdx];
+      viewTitle = `${t('hud.cam')} ${this.camIdx + 1}/${this.house.cameras.length} · ${c ? localizePlace(c.label) : ''}`;
+      viewHelp = t('hud.camHelp', cap('fire'), cap('ping'), cap('observe'));
+      location = viewTitle;
+      heading = headingDeg(this.camLook.yaw);
+    }
     const hs: HudState = {
-      hp: s.hp, operator: `${s.op.name.toUpperCase()} · ${s.op.unit}`, weapon: wpn ? wpn.def.name : s.slot === 2 ? s.op.gadgetName : s.op.universal === 'breach' ? 'Breach Charge' : 'Barricade',
-      mag: wpn?.mag ?? 0, reserve: wpn?.reserve ?? 0, reloading: s.reloading, gadget: s.op.gadgetName, gadgetLeft: s.op.gadget === 'heartbeat' ? '∞' : s.gadgetLeft,
-      universal: s.op.universal === 'breach' ? 'Breach Charge' : s.op.universal === 'barricade' ? 'Barricades' : '—', universalLeft: s.op.universal === 'breach' ? s.universalLeft : '', reinforcements: s.reinforcementsLeft,
-      slot: s.slot, location: inDrone && this.drone ? `DRONE · ${locationName(this.drone.pos)}` : locationName(s.pos), heading: inDrone && this.drone ? headingDeg(this.drone.data.yaw as number) : headingDeg(s.yaw),
-      phase, timer: this.timeLeft(), objective: st.text + def, objectiveProgress: st.progress, site: `${missionName(st.mission)} · ${st.siteLabel}`,
-      prompt: s.interactLabel, progress: s.interactProgress, spread: (wpn ? THREE.MathUtils.lerp(wpn.def.hipSpread, wpn.def.adsSpread, s.ads) : 1) + Math.hypot(s.vel.x, s.vel.z) * 0.3,
-      ads: s.ads, stance: s.mode === 'rappel' ? (s.inverted ? 'RAPPEL · INVERTED' : 'RAPPEL') : ['STAND', 'CROUCH', 'PRONE', 'RAPPEL'][s.stance], lean: s.lean, score,
-      extra: `${this.lighting.tod === 'day' ? '☀ MORNING' : '☾ NIGHT'}${this.destruction.xray ? ' · X-RAY' : ''}${scanning.length || w.gadgets.isScanning(s) ? ' · HEARTBEAT SCAN' : ''}${this.extraLine}`,
-      drone: inDrone, droneJammed: !!(this.drone?.data.jammed), scanning, dead: !!this.player && !this.player.alive && !this.thResult, spectating,
+      hp: s.hp, operator: s.op.name.toUpperCase(), unit: s.op.unit, opColor: s.op.cloth,
+      weapon: wpn ? wpn.def.name : s.slot === 2 ? gname(s.op.gadget, s.op.gadgetName) : t('gname.breach'),
+      mag: wpn?.mag ?? 0, magMax: wpn?.def.mag ?? 1, reserve: wpn?.reserve ?? 0, reloading: s.reloading, reloadCap: cap('reload'), slot: s.slot, gadgets,
+      location, heading, phase, timer: this.timeLeft(), urgent: w.phase === 'action' && this.timeLeft() <= 30,
+      objective: objText, objectiveProgress: st.progress, site: `${t(`missionShort.${st.mission}`)} · ${st.siteLabel.split(' / ').map(localizePlace).join(' / ')}`,
+      prompt: s.interactLabel ? t(s.interactLabel) : this.gadgetHintText(s.gadgetHint), progress: s.interactProgress,
+      spread: (wpn ? THREE.MathUtils.lerp(wpn.def.hipSpread, wpn.def.adsSpread, s.ads) : 1) + Math.hypot(s.vel.x, s.vel.z) * 0.3,
+      ads: s.ads, stance: stance + lean, flags, score,
+      view: inDrone ? 'drone' : inCam ? 'cam' : 'body', viewTitle, viewHelp,
+      droneJammed: inDrone && !!(this.drone?.data.jammed), scanning, dead: !p.alive && !this.thResult, spectating,
+      markers: this.hudMarkers(p), team: this.hudTeam(p), hints: this.hudHints(p, inDrone, inCam),
     };
     this.hud.update(hs, dt);
-    if (this.input.keys.has('Tab')) this.hud.scoreboard(true, this.scoreboardHtml());
+    if (this.input.down('score')) this.hud.scoreboard(true, this.scoreboardHtml());
     else this.hud.scoreboard(false);
-    if (this.player && !this.player.alive && this.input.wasPressed('Space')) this.spectateIdx++;
+    if (!p.alive && this.input.hit('vault')) this.spectateIdx++;
+  }
+
+  /** "gadget.place|G|Exothermic Charge" → "[G] Place Exothermic Charge" with the real key cap & localized name */
+  private gadgetHintText(h: string): string {
+    // equip/throw/fire are always available and already shown in the gadget slots — only surface actionable context
+    if (!h || /^gadget\.(equip|throw|fire)\|/.test(h)) return '';
+    const parts = h.split('|');
+    const key = parts[1] === 'G' ? this.input.binds.cap('gadget') : parts[1] === 'X' ? this.input.binds.cap('gadget2') : parts[1] ?? '';
+    const raw = parts[2] ?? '';
+    const gid = raw === 'gadgetName.breach' ? 'breach' : Object.values(OPERATORS).find((o) => o.gadgetName === raw)?.gadget ?? '';
+    const name = gid && has(`gname.${gid}`) ? t(`gname.${gid}`) : raw;
+    return t(parts[0], key, name);
+  }
+
+  private hudTeam(p: Soldier): HudMate[] {
+    const out: HudMate[] = [];
+    const add = (a: { name: string; operator: string; hp: number; alive: boolean }, me: boolean, agent: boolean) => {
+      const op = OPERATORS[a.operator];
+      out.push({ name: a.name, op: op?.name ?? a.operator, hp: a.alive ? a.hp : 0, alive: a.alive, me, agent, color: op?.cloth ?? '#555' });
+    };
+    add(p, true, false);
+    for (const s of this.slots) if (s.soldier.side === p.side) add(s.soldier, false, true);
+    for (const r of this.remotes.values()) if (r.side === p.side) add(r, false, !!this.room?.state?.members.find((m) => m.id === r.id)?.isAgent);
+    return out.length > 1 ? out.slice(0, 5) : [];
+  }
+
+  private markerTmp = new THREE.Vector3();
+  private project(pos: THREE.Vector3, kind: HudMarker['kind'], label: string, clampOff = true): HudMarker | null {
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    const v = this.markerTmp.copy(pos).project(this.camera);
+    const dist = pos.distanceTo(this.camera.position);
+    const behind = v.z > 1;
+    let x = (v.x * 0.5 + 0.5) * W;
+    let y = (-v.y * 0.5 + 0.5) * H;
+    let off = behind || x < 24 || x > W - 24 || y < 24 || y > H - 24;
+    if (off) {
+      if (!clampOff) return null;
+      // pin to an ellipse at the screen edge, pointing toward the target
+      let dx = v.x;
+      let dy = -v.y;
+      if (behind) { dx = -dx; dy = -dy; if (Math.abs(dy) < 0.05) dy = 0.6; }
+      const a = Math.atan2(dy, dx);
+      x = W / 2 + Math.cos(a) * (W / 2 - 40);
+      y = H / 2 + Math.sin(a) * (H / 2 - 40);
+      off = true;
+    }
+    return { x, y, kind, label, dist, off };
+  }
+
+  private hudMarkers(p: Soldier): HudMarker[] {
+    const w = this.world;
+    const out: HudMarker[] = [];
+    const push = (m: HudMarker | null) => { if (m) out.push(m); };
+    // spotted enemies (team-shared, 5 s)
+    for (const [id, sp] of w.spots) {
+      if (sp.until < w.time || sp.team !== p.side) continue;
+      const a = w.actors.get(id);
+      if (!a || !a.alive) continue;
+      push(this.project(a.pos.clone().add(new THREE.Vector3(0, 2.05, 0)), 'spot', t('hud.spotted')));
+    }
+    for (const pg of w.pings) if (pg.until > w.time && pg.team === p.side) push(this.project(pg.pos, 'ping', w.actors.get(pg.by)?.name ?? ''));
+    // IQ: enemy electronics through walls
+    for (const c of w.gadgets.iqContacts.get(p.id) ?? []) if (w.gadgets.isIqScanning(p)) push(this.project(c, 'iq', '', false));
+    // objective
+    const o = w.objectives;
+    let obj: THREE.Vector3 | null = null;
+    if (o.mission === 'bomb') obj = o.defuser?.pos ?? o.bombs.find((b) => b.state === 'armed')?.pos ?? null;
+    else if (o.mission === 'hostage' && o.hostage?.alive) obj = o.hostage.carrier === p.id ? null : o.hostage.pos.clone().add(new THREE.Vector3(0, 1.2, 0));
+    else if (o.mission === 'secure') obj = o.spotOf(o.site);
+    if (obj && p.alive && this.view === 'body' && obj.distanceTo(p.pos) > 3) push(this.project(obj, 'obj', t(`missionShort.${o.mission}`)));
+    // teammates out of sight: small name tags
+    for (const s of this.slots) if (s.soldier.alive && s.soldier.side === p.side) push(this.project(s.soldier.pos.clone().add(new THREE.Vector3(0, 2, 0)), 'mate', s.nickname, false));
+    for (const r of this.remotes.values()) if (r.alive && r.side === p.side) push(this.project(r.pos.clone().add(new THREE.Vector3(0, 2, 0)), 'mate', r.name, false));
+    return out.slice(0, 24);
+  }
+
+  /** compact, context-sensitive key hints (full keymap: F1) */
+  private hudHints(p: Soldier, inDrone: boolean, inCam: boolean): HudHint[] {
+    const cap = (a: string) => this.input.binds.cap(a);
+    const w = this.world;
+    if (!p.alive) return [{ cap: cap('vault'), label: t('hint.nextMate') }, { cap: cap('score'), label: t('key.score') }];
+    if (inDrone) return [];
+    if (inCam) return [];
+    const h: HudHint[] = [];
+    if (w.phase === 'prep' && this.mode === 'th') h.push({ cap: 'Enter', label: t('hint.skipPrep') });
+    if (p.side === 'attack' && this.drone && !this.drone.data.destroyed && this.drone.state !== 'done') h.push({ cap: cap('observe'), label: t('hint.drone') });
+    if (p.side === 'defend' && this.house.cameras.some((c) => c.alive)) h.push({ cap: cap('observe'), label: t('hint.cams') });
+    h.push({ cap: cap('ping'), label: t('hint.ping') });
+    if (this.lighting.tod === 'night') h.push({ cap: cap('flashlight'), label: t('key.flashlight') });
+    h.push({ cap: cap('help'), label: t('hint.allKeys') });
+    return h;
   }
 
   private scoreboardHtml(): string {
@@ -996,12 +1268,21 @@ function mergeInput(a: SoldierInput, b: SoldierInput): SoldierInput {
     fire: a.fire || b.fire, firePressed: a.firePressed || b.firePressed, ads: a.ads || b.ads, reload: a.reload || b.reload, melee: a.melee || b.melee,
     stance: b.stance ?? a.stance, lean: b.lean || a.lean, interact: a.interact || b.interact, interactPressed: a.interactPressed || b.interactPressed,
     slot: b.slot ?? a.slot, alt: a.alt || b.alt, invert: a.invert || b.invert, jump: a.jump || b.jump, lookDYaw: a.lookDYaw + b.lookDYaw, lookDPitch: a.lookDPitch + b.lookDPitch,
+    gadget: a.gadget || b.gadget, gadgetHeld: a.gadgetHeld || b.gadgetHeld, gadget2: a.gadget2 || b.gadget2, gadget2Held: a.gadget2Held || b.gadget2Held, ping: a.ping || b.ping,
   };
 }
 
 export function missionName(m: string) {
-  return ({ hostage: 'HOSTAGE', secure: 'SECURE AREA', bomb: 'BOMB', elimination: 'CLASSIC' } as Record<string, string>)[m] ?? m.toUpperCase();
+  return has(`missionShort.${m}`) ? t(`missionShort.${m}`) : m.toUpperCase();
 }
+
+const REASON_KEYS: Record<string, string> = {
+  'Time expired': 'reason.timeout', 'All operators down': 'reason.allDown', 'All hostiles eliminated': 'reason.eliminated', 'Bombs disarmed': 'reason.bombs',
+  'Hostage extracted': 'reason.extracted', 'Area secured': 'reason.secured', 'Hostage killed by attackers': 'reason.hostageKilledAtk', 'Hostage killed by defenders': 'reason.hostageKilledDef',
+  'Defuser disabled': 'reason.defuserDisabled', 'Bomb defused': 'reason.bombDefused', 'Defuser completed': 'reason.defuserDone', 'Attackers eliminated': 'reason.atkDead', 'Defenders eliminated': 'reason.defDead',
+};
+/** objective / server reasons are English (agents read them); show them localized */
+export function reasonText(r: string) { return REASON_KEYS[r] ? t(REASON_KEYS[r]) : r; }
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
 const r3 = (v: number) => Math.round(v * 1000) / 1000;

@@ -63,6 +63,8 @@ export class Combat {
     const skip = new Set<number>();
     const exclude = (_t: unknown, c: { handle: number }) => skip.has(c.handle);
     const shooter = w.actors.get(shooterId);
+    const ownShield = (shooter as Soldier | undefined)?.shieldCollider;
+    if (ownShield) skip.add(ownShield.handle);
     for (let iter = 0; iter < 7; iter++) {
       const hit = w.physics.raycast(o, dir, remaining, G_WORLD | G_GADGET, exclude);
       const surfDist = hit ? hit.dist : remaining;
@@ -88,6 +90,13 @@ export class Combat {
       if (!hit) return o.clone().addScaledVector(dir, remaining);
       const tag = hit.tag;
       if (tag?.kind === 'gadget') {
+        if (tag.gadgetId.startsWith('shield:') || tag.gadgetId.startsWith('plate:')) {
+          // ballistic shield / turret plate: the round stops, sparks fly
+          w.effects.impact(hit.point, hit.normal, 'metal', null, false);
+          w.effects.spark(hit.point, '#ffd27a');
+          w.sound({ type: 'impact', pos: hit.point.clone(), radius: 14, source: shooterId, intensity: 0.4, label: 'ricochet' });
+          return hit.point;
+        }
         if (!visualOnly) w.gadgets.shootGadget(tag.gadgetId, shooterId);
         w.effects.impact(hit.point, hit.normal, 'metal', null, false);
         return hit.point;
@@ -100,7 +109,8 @@ export class Combat {
           w.effects.impact(hit.point, hit.normal, panel.props.mat, `${panel.id}:${cell}`);
           if (!visualOnly) this.panelHit(panel, inside, def.wallDmg * (panel.kind === 'barricade' ? 1 : mul));
           power -= panel.kind === 'barricade' ? 0.5 : 1;
-          mul *= panel.kind === 'barricade' ? 0.85 : 0.65;
+          // spec: a round through a soft wall keeps 60 % of its damage
+          mul *= panel.kind === 'barricade' ? 0.85 : 0.6;
           const cos = Math.max(0.25, Math.abs(dir.getComponent(panel.nAx)));
           const step = Math.min(0.7, panel.thickness / cos + 0.03);
           skip.add(hit.collider.handle);

@@ -49,6 +49,10 @@ export class World {
   onLocalHit: ((target: Actor, head: boolean, killed: boolean) => void)[] = [];
   onHurt: ((victim: Actor, attacker: string, dmg: number) => void)[] = [];
   lastWeaponOf = new Map<string, string>();
+  /** spotted enemies (actor id → visible-to-team until world time) */
+  readonly spots = new Map<string, { until: number; team: string }>();
+  /** world pings (drone / camera / player marks) */
+  pings: { pos: THREE.Vector3; until: number; team: string; by: string }[] = [];
 
   constructor(readonly physics: Physics, readonly destruction: DestructionSystem, readonly effects: Effects, readonly house: HouseWorld, readonly scene: THREE.Scene) {}
 
@@ -61,6 +65,17 @@ export class World {
   pruneSounds() {
     const cutoff = this.time - 3.2;
     if (this.sounds.length && this.sounds[0].t! < cutoff) this.sounds = this.sounds.filter((s) => s.t! >= cutoff);
+  }
+
+  spot(target: string, team: string, secs = 5, broadcast = true, by = '') {
+    this.spots.set(target, { until: this.time + secs, team });
+    if (broadcast) this.emit({ t: 'spot', target, by, team });
+  }
+
+  ping(pos: THREE.Vector3, team: string, by: string, secs = 4, broadcast = true) {
+    this.pings = this.pings.filter((p) => p.until > this.time && p.by !== by);
+    this.pings.push({ pos: pos.clone(), until: this.time + secs, team, by });
+    if (broadcast) this.emit({ t: 'spot', target: '', by, team, p: [pos.x, pos.y, pos.z] });
   }
 
   isLocal(id: string) { return this.soldiers.has(id) || (this.objectives?.hostage?.id === id && this.objectives.hostageLocal); }
