@@ -403,14 +403,17 @@ await step('two tabs join one room; lobby screen lists both', async () => {
   assert.ok(await visible(A, '#lobby'));
 });
 await step('host starts: attackers get the drone view in prep, defenders their body; lobby hides', async () => {
-  // each tab notes its view the moment it enters prep (prep is 45 s; two slow tabs polled one after the other
-  // could otherwise read the views after it ended)
+  // each tab notes its view as it handles the first prep state (message-driven: two contended SwiftShader tabs
+  // can stall for most of the 45 s prep, so neither polling from here nor an in-page timer reliably sees it)
   const watch = () => {
+    const g = window.r6game;
+    const room = g.room;
+    const prev = room.onState;
     window.__prep = null;
-    const t = setInterval(() => {
-      const g = window.r6game;
-      if (g.player && g.world.phase === 'prep') { window.__prep = [g.player.side, g.view]; clearInterval(t); }
-    }, 20);
+    room.onState = (st) => {
+      prev.call(room, st);
+      if (st.phase === 'prep' && !window.__prep && g.player) window.__prep = [g.player.side, g.view];
+    };
   };
   await Promise.all([A, B].map((p) => p.evaluate(watch)));
   await A.evaluate(() => window.r6game.room.send({ type: 'start_match' }));
