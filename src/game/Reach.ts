@@ -3,11 +3,12 @@ import type { World } from './World.ts';
 
 /**
  * Interaction reach, by kind of thing:
- *  - objects (hostage, bomb, defuser, ammo crate, turret): within arm's reach of the eyes, under the crosshair
+ *  - objects (hostage, bomb, defuser, ammo crate): within arm's reach of the eyes, under the crosshair
  *    (a cone the size of the object, plus slack), with a clear line to it — never through a wall or a floor.
  *    Standing on top of it counts without looking (the object at your feet).
  *  - openings (barricade a door / window): see Interactions.openingInFront — body at the opening, facing it.
  *  - surfaces (reinforce a wall / hatch): the panel the aim ray hits.
+ *  - positions (mount Tachanka's LMG): standing behind it, facing the way it points.
  *  - movement (vault, climb, rappel): body probes in Soldier.
  * When several are on offer, the one nearest the crosshair wins.
  */

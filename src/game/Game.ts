@@ -1001,7 +1001,8 @@ export class Game {
         this.hud.showBanner(t('hud.droneDestroyed'), '', 2);
       }
       if (this.view !== 'body' && !p.alive) this.view = 'body';
-      if (this.pingReq) { this.pingReq = false; if (p.alive) this.doPing(); }
+      // a key press arrives both as a UI action and in the input sample (agents only use the latter): one ping per frame
+      if (this.pingReq || inp.ping) { this.pingReq = false; if (p.alive) this.doPing(); }
       this.updateScan(dt);
       if (this.view === 'drone' && this.drone) {
         const dinp = { ...inp };

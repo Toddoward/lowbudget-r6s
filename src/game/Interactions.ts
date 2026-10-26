@@ -77,8 +77,10 @@ export class Interactions {
     if (s.op.gadget === 'turret' && !s.mounted) {
       const t = this.world.gadgets.turretNear(s);
       if (t) {
-        const ang = aimAt(this.world, s, { points: [t.pos.clone().setY(t.pos.y + 0.6)], radius: 0.45, reach: 2.0 });
-        if (ang !== null) {
+        // a position, not something to look at: behind the gun (turretNear), facing the way it points
+        const yaw = t.data.yaw as number;
+        const ang = Math.abs(THREE.MathUtils.euclideanModulo(s.yaw - yaw + Math.PI, Math.PI * 2) - Math.PI);
+        if (ang < THREE.MathUtils.degToRad(70)) {
           opts.push({
             key: `mount${t.id}`, label: 'action.mount', hold: 0, ang, run: () => {
               const yaw = t.data.yaw as number;

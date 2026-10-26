@@ -78,7 +78,7 @@ Manual: look along the 2F west wall, soft walls next to hard walls and the hatch
 |---|---|---|---|---|
 | 8.1 | The drone moved by axis raycasts: a sloped stair stopped it dead (hop up every step) | rolls with a character controller (slides along walls, climbs ≤ 50°, snaps down; 4 mm skin so it still fits a 19 cm barricade gap) | `drone.test.ts`: up and down every flight without hopping, under every door barricade, through every vent both ways | ✅ |
 | 8.2 | Vents blocked by furniture (kitchen fridge + dining sideboard, storage shelves) | vent clearance zones (0.6 m each side) for props | `props.test.ts` | ✅ |
-| 8.3 | One key press pinged twice (UI action + input sample) | single path | code | ✅ |
+| 8.3 | One key press pinged twice (UI action + input sample) | both sources merged into one ping per frame (agents ping through the input sample) | `e2e-scenarios` intel · ping | ✅ |
 | 8.4 | Ping missed anyone whose chest was behind cover; cone fixed in degrees | one resolver: head / chest / hips / knees, cone = the body's size at that range, nearest to the crosshair wins | `spotting.test.ts` | ✅ |
 | 8.5 | No drone / camera scan | hold the reticle on an enemy 0.5 s: identified (operator name), spotted for the team, refreshed while held; ring + label on the feed; jammed drones don't scan | `spotting.test.ts`; manual: watch the ring fill | ✅ |
 | 8.6 | Spot markers floated 2 m up whatever the stance, labelled "SPOTTED" | above the head, labelled with the operator | manual | 🟡 |
