@@ -6,6 +6,7 @@ import { buildAsset } from '../assets/build.ts';
 import { weaponSpec } from '../game/weapons.ts';
 import { extraGadgetSpec } from '../assets/gadgetModels.ts';
 import { Stance } from '../game/types.ts';
+import type { ShieldPose } from '../game/Soldier.ts';
 
 /**
  * Third-person operator rig. Pivots (relative to the feet origin, facing -Z):
@@ -25,7 +26,6 @@ export class Rig {
   private legR = new THREE.Group();
   private gun: THREE.Group | null = null;
   private shield: THREE.Group | null = null;
-  private shieldExt = false;
   private walk = 0;
   private stanceBlend = 0;
   dead = false;
@@ -62,7 +62,7 @@ export class Rig {
       // Montagne / Blitz carry the shield in front of the left side of the torso
       this.shield = buildAsset(extraGadgetSpec(def.gadget === 'flash_shield' ? 'flash_shield' : 'shield')!);
       this.torso.add(this.shield);
-      this.setShieldExtended(false);
+      this.setShieldPose('front');
     }
     if (label) {
       const sprite = makeLabel(label, labelColor);
@@ -82,13 +82,18 @@ export class Rig {
     this.torso.add(this.gun);
   }
 
-  /** Montagne's Le Roc: extended = full-body cover */
-  setShieldExtended(ext: boolean) {
-    if (!this.shield || (ext === this.shieldExt && this.shield.userData.init)) return;
-    this.shield.userData.init = true;
-    this.shieldExt = ext;
-    this.shield.position.set(ext ? 0.12 : 0.02, ext ? -0.3 : 0.12, 0.02);
-    this.shield.scale.set(ext ? 1.35 : 1, ext ? 1.85 : 1, 1);
+  /** shield in front (left of the torso) · swung out left for ADS · slung on the back · Montagne's full-body extension */
+  setShieldPose(pose: ShieldPose | null) {
+    if (!this.shield || !pose || pose === this.shield.userData.pose) return;
+    this.shield.userData.pose = pose;
+    const sh = this.shield;
+    sh.scale.set(1, 1, 1);
+    sh.rotation.set(0, 0, 0);
+    if (pose === 'front') sh.position.set(0.02, 0.12, 0.02);
+    else if (pose === 'ext') { sh.position.set(0.12, -0.3, 0.02); sh.scale.set(1.35, 1.85, 1); }
+    else if (pose === 'ads') { sh.position.set(-0.2, 0.12, 0.12); sh.rotation.y = THREE.MathUtils.degToRad(65); }
+    // back: turned round, the plate across the shoulder blades
+    else { sh.position.set(-0.12, 0.1, -0.25); sh.rotation.y = Math.PI; }
   }
 
   /**

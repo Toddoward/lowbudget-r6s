@@ -186,11 +186,11 @@ export class Gadgets {
     }
     if (cls === 'active') {
       if (kind === 'shield_ext') {
-        if (pressed) s.shieldExtended = !s.shieldExtended;
+        if (pressed && !s.shieldBack) s.shieldExtended = !s.shieldExtended;
         return '';
       }
       if (kind === 'flash_shield') {
-        if (pressed && left > 0 && s.flashCd <= 0) { spend(); s.flashCd = 1.2; this.blitzFlash(s); }
+        if (pressed && left > 0 && s.flashCd <= 0 && !s.shieldBack) { spend(); s.flashCd = 1.2; this.blitzFlash(s); }
         return left > 0 ? `gadget.fire|${keyAction}|${name}` : 'gadget.none';
       }
       return '';

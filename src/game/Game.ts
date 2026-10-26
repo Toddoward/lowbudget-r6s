@@ -863,7 +863,7 @@ export class Game {
       id: s.id, t: performance.now(), p: [r2(s.pos.x), r2(s.pos.y), r2(s.pos.z)], v: [r2(s.vel.x), r2(s.vel.y), r2(s.vel.z)],
       yaw: r3(s.yaw), pitch: r3(s.pitch), st: s.mode === 'rappel' ? (s.inverted ? 4 : 3) : s.stance, lean: r2(s.lean), w: s.slot, hp: Math.round(s.hp), alive: s.alive, ads: s.ads > 0.5,
       dr: this.drone && s === this.player && this.view === 'drone' ? [r2(this.drone.pos.x), r2(this.drone.pos.y), r2(this.drone.pos.z)] : undefined,
-      sx: s.shieldExtended || undefined, mt: s.mounted ? true : undefined,
+      sx: s.shieldExtended || undefined, sb: s.shieldBack || undefined, mt: s.mounted ? true : undefined,
     });
     if (this.player) snaps.push(mk(this.player));
     for (const s of this.slots) snaps.push(mk(s.soldier));
@@ -1082,7 +1082,7 @@ export class Game {
       rig.root.position.copy(s.pos);
       rig.root.rotation.y = s.yaw;
       if (rig.dead !== !s.alive) rig.setDead(!s.alive);
-      rig.setShieldExtended(s.shieldExtended);
+      rig.setShieldPose(s.shieldPose);
       rig.pose(dt, s.mode === 'rappel' ? Stance.Rappel : s.stance, s.pitch, s.lean, Math.hypot(s.vel.x, s.vel.z), s.mode === 'rappel' && s.inverted);
     }
     // camera
@@ -1197,6 +1197,7 @@ export class Game {
     const gname = (g: string, fallback: string) => (has(`gname.${g}`) ? t(`gname.${g}`) : fallback);
     // gadget slots: [G] operator gadget · [X] universal (breach charge / barricades) · reinforcements
     const gadgets: HudGadget[] = [];
+    if (s.op.shield) gadgets.push({ cap: cap('primary'), name: t(s.shieldBack ? 'hud.shieldBack' : 'hud.shieldFront'), left: '', active: !s.shieldBack });
     if (s.op.gadget !== 'none') gadgets.push({ cap: cap('gadget'), name: gname(s.op.gadget, s.op.gadgetName), left: s.op.gadget === 'heartbeat' || s.op.gadget === 'scanner' || s.op.gadget === 'shield_ext' ? '∞' : `×${s.gadgetLeft}`, active: s.slot === 2 });
     if (s.op.universal === 'breach') gadgets.push({ cap: cap('gadget2'), name: t('gname.breach'), left: `×${s.universalLeft}`, active: s.slot === 3 });
     if (s.op.universal === 'barricade') gadgets.push({ cap: cap('interact'), name: t('gname.barricade'), left: '∞', active: false });

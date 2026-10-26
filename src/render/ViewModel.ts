@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { buildAsset } from '../assets/build.ts';
 import { chargeSpec, deviceSpec, hammerSpec, launcherSpec, pulseSensorSpec, throwableSpec } from '../assets/weaponModels.ts';
 import { weaponSpec, WEAPONS } from '../game/weapons.ts';
-import type { Soldier } from '../game/Soldier.ts';
+import type { ShieldPose, Soldier } from '../game/Soldier.ts';
 import type { AssetSpec } from '../assets/spec.ts';
 import { vcMaterial } from './palette.ts';
 import { BoxBatch } from '../world/BoxBatch.ts';
@@ -53,6 +53,10 @@ export class ViewModel {
   borePitch = 0;
   private qTmp = new THREE.Quaternion();
   private eTmp = new THREE.Euler(0, 0, 0, 'YXZ');
+  /** shield operators: the shield (left hand on its handle), posed per ShieldPose */
+  private shield: THREE.Group | null = null;
+  private shieldKey = '';
+  private shieldHand: THREE.Group;
 
   constructor() {
     this.scene.add(this.camera, this.sun, this.fill);
@@ -61,6 +65,7 @@ export class ViewModel {
     this.handR = this.buildHand(true);
     this.handL = this.buildHand(false);
     this.holder.add(this.handR, this.handL);
+    this.shieldHand = this.buildHand(false);
     this.flash = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.16), new THREE.MeshBasicMaterial({ color: '#ffd28a', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
     this.holder.add(this.flash);
     this.reticleTex = { dot: reticleTexture('dot'), holo: reticleTexture('holo'), acog: reticleTexture('acog') };
@@ -202,6 +207,9 @@ export class ViewModel {
     hip.x += Math.cos(this.bob) * 0.008 * bobAmt;
     hip.y += Math.abs(Math.sin(this.bob)) * 0.01 * bobAmt - equip * 0.35 - dip * 0.06 - placing * 0.08;
     hip.z += this.kick * 0.045 + meleeK * -0.2 + placing * -0.12;
+    // shield up: the pistol is held one-handed off to the right; extended: lowered behind the shield
+    const sp = s.shieldPose;
+    if (sp && sp !== 'back' && isGun) { hip.x += 0.04; hip.y -= sp === 'ext' ? 0.3 : 0.02; }
     const sightNow = sight.clone().applyQuaternion(this.holder.quaternion);
     const adsPos = new THREE.Vector3(0, 0, -m.eyeRelief).sub(sightNow);
     adsPos.z += this.kick * 0.03;
@@ -230,6 +238,9 @@ export class ViewModel {
       this.handL.position.lerp(magPos.add(new THREE.Vector3(-0.02, -0.06, 0)), dip);
     }
     if (!isGun) { this.handL.position.set(-0.08, -0.04, -0.05 - placing * 0.05); this.handL.rotation.set(-0.3, 0.3, -0.2); }
+    const pose = s.shieldPose;
+    this.handL.visible = !(pose && pose !== 'back' && isGun);
+    this.updateShield(dt, s, pose, equip);
 
     // --- muzzle flash
     const mz = anchors.muzzle;
@@ -263,6 +274,46 @@ export class ViewModel {
     this.fill.intensity = 1.4 * interiorDim + 0.6;
     this.camera.fov = THREE.MathUtils.lerp(58, m.reticle === 'acog' ? 34 : 50, ads);
     this.camera.updateProjectionMatrix();
+  }
+
+  /**
+   * front: lower-left of the view, viewport low · ads: swung out to the left edge, edge-on (the pistol aims past it)
+   * · ext: Montagne's extension across the view · back: not in view
+   */
+  private updateShield(dt: number, s: Soldier, pose: ShieldPose | null, equip: number) {
+    const key = pose ? (s.op.gadget === 'flash_shield' ? 'flash_shield' : 'shield') : '';
+    if (key !== this.shieldKey) {
+      if (this.shield) this.camera.remove(this.shield);
+      this.shield = null;
+      this.shieldKey = key;
+      if (key) {
+        const sh = buildAsset({ ...extraGadgetSpec(key)!, id: `vm_${key}` });
+        sh.traverse((o) => { o.castShadow = false; o.receiveShadow = false; });
+        this.shield = sh;
+        this.camera.add(sh, this.shieldHand);
+      } else this.camera.remove(this.shieldHand);
+    }
+    const sh = this.shield;
+    if (!sh || !pose) return;
+    // shield-local plate centre is (-0.12, 0, -0.42): place the group so the plate lands where it should
+    const T = {
+      front: { p: [-0.32, -0.36, -0.12], ry: 0.12, sc: [1, 1, 1] },
+      ads: { p: [-0.3, -0.24, -0.28], ry: 1.15, sc: [1, 1, 1] },
+      // the viewport slit (plate y +0.2 × 1.85) at eye level
+      ext: { p: [0.16, -0.31, -0.04], ry: 0, sc: [1.35, 1.85, 1] },
+      back: { p: [-0.3, -0.9, 0.1], ry: 0.4, sc: [1, 1, 1] },
+    }[pose];
+    const k = Math.min(1, dt * 12);
+    sh.position.lerp(new THREE.Vector3(T.p[0], T.p[1] - equip * 0.25, T.p[2]), k);
+    sh.rotation.y += (T.ry - sh.rotation.y) * k;
+    sh.scale.lerp(new THREE.Vector3(...T.sc), k);
+    sh.visible = !(pose === 'back' && sh.position.y < -0.8);
+    // the left hand on the handle (shield-local (-0.12, -0.02, -0.39)) in camera space, forearm back and down out of
+    // the view whichever way the shield is turned (parented to the shield, the forearm swept across the screen in ADS)
+    sh.updateMatrix();
+    this.shieldHand.position.set(-0.12, -0.03, -0.37).applyMatrix4(sh.matrix);
+    this.shieldHand.rotation.set(-0.35, 0.45, -0.25);
+    this.shieldHand.visible = sh.visible;
   }
 
   get lastMagCount() { return this.lastMag; }

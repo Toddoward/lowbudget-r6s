@@ -83,11 +83,20 @@ Manual: look along the 2F west wall, soft walls next to hard walls and the hatch
 | 8.5 | No drone / camera scan | hold the reticle on an enemy 0.5 s: identified (operator name), spotted for the team, refreshed while held; ring + label on the feed; jammed drones don't scan | `spotting.test.ts`; manual: watch the ring fill | ✅ |
 | 8.6 | Spot markers floated 2 m up whatever the stance, labelled "SPOTTED" | above the head, labelled with the operator | manual | 🟡 |
 
-## 9. Open items (in progress, in this order)
+## 9. Shield operators
+
+| # | Problem | Fix | Verified by | Status |
+|---|---|---|---|---|
+| 9.1 | Montagne / Blitz: pistol in slot 1 *and* slot 2, no shield in first person | shield + one pistol: both slots are the same pistol, [1] slings the shield on the back / raises it (short transition), the pistol never leaves the hand | `shield.test.ts` | ✅ |
+| 9.2 | No ADS with the shield | RMB swings the shield out to the left (turned 65°, still covers the left flank) and aims the pistol past its edge; one-handed hipfire is wider | `shield.test.ts` (collider front / aside / back against rays) | ✅ |
+| 9.3 | Extend / flash regardless of where the shield is | only with the shield in front; no shooting while extended | `shield.test.ts` | ✅ |
+| 9.4 | First person: no shield | shield in view (front: lower left · ADS: out of view to the left · extended: across the view with an open viewport slit · back: gone), left hand on the handle; the plate is built round a real slit (see-through in 1P and 3P) | manual: screenshots of the four poses | 🟡 |
+| 9.5 | Peers saw the shield only in front | pose synced (`sb` + ADS), rig and collider follow it | code | 🟡 |
+
+## 10. Open items (in progress, in this order)
 
 | # | Item | Status |
 |---|---|---|
-| 9.1 | Shield operators: slot 1 shield front ↔ back, pistol always in hand, RMB turns the shield sideways and aims | ⏳ |
-| 9.2 | Interaction detection per type (door/window barricade, hatch, hostage, defuser, gadget pickup) | ⏳ |
-| 9.3 | First-person arms per item (hands on the grip/handguard, shoulder out of view), gadget / interaction viewmodels | ⏳ |
-| 9.4 | Corpses: proper death pose, no walking pose, not blocking movement | ⏳ |
+| 10.1 | Interaction detection per type (door/window barricade, hatch, hostage, defuser, gadget pickup) | ⏳ |
+| 10.2 | First-person arms per item (hands on the grip/handguard, shoulder out of view), gadget / interaction viewmodels | ⏳ |
+| 10.3 | Corpses: proper death pose, no walking pose, not blocking movement | ⏳ |

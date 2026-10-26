@@ -107,6 +107,8 @@ export interface ActorSnapshot {
   dr?: [number, number, number];
   /** Montagne: shield extended */
   sx?: boolean;
+  /** shield slung on the back */
+  sb?: boolean;
   /** Tachanka: mounted on the LMG */
   mt?: boolean;
 }

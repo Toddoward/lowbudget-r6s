@@ -160,6 +160,8 @@ const D: Record<string, Entry> = {
   'hud.compass': { ko: '북,북동,동,남동,남,남서,서,북서', en: 'N,NE,E,SE,S,SW,W,NW' },
   'hud.iqScan': { ko: '전자장비 탐지', en: 'ELECTRONICS SCAN' },
   'hud.shieldExt': { ko: '방패 펼침', en: 'SHIELD EXTENDED' },
+  'hud.shieldFront': { ko: '방패: 앞 (등에 메기)', en: 'Shield: front (sling)' },
+  'hud.shieldBack': { ko: '방패: 등 (앞으로)', en: 'Shield: back (raise)' },
   'hud.blinded': { ko: '섬광!', en: 'FLASHED' },
   'hint.nextMate': { ko: '다음 아군', en: 'Next teammate' },
   'hint.skipPrep': { ko: '준비 단계 건너뛰기', en: 'Skip prep' },

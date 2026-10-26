@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import { G_CHAR, G_GADGET, G_WORLD, type Physics } from '../core/Physics.ts';
-import { placeShield } from '../game/Soldier.ts';
+import { placeShield, shieldPoseOf, type ShieldPose } from '../game/Soldier.ts';
 import type { ActorSnapshot } from '../../shared/protocol.ts';
 import { computeHitboxes, type Actor, type Hitboxes } from '../game/Actor.ts';
 import { Rig } from '../render/Rig.ts';
@@ -29,12 +29,13 @@ export class RemoteActor implements Actor {
   private collider: RAPIER.Collider;
   private shield: RAPIER.Collider | null = null;
   shieldExtended = false;
+  private shieldPose: ShieldPose = 'front';
   private offset = 0;
   lastHeard = performance.now();
 
   constructor(readonly id: string, public name: string, public side: Side, public operator: string, private physics: Physics, scene: THREE.Scene, friendly: boolean) {
     const def = OPERATORS[operator] ?? OPERATORS.recruit;
-    this.weaponId = def.primary;
+    this.weaponId = def.shield ? def.secondary : def.primary;
     this.rig = new Rig(operator, this.weaponId, name, friendly ? '#7fd0ff' : '#ff6b5a');
     scene.add(this.rig.root);
     this.collider = physics.addCapsule(0, -500, 0, 0.6, 0.3, { kind: 'char', actorId: id }, G_CHAR, G_WORLD);
@@ -82,9 +83,10 @@ export class RemoteActor implements Actor {
       if (wasAlive !== this.alive) this.rig.setDead(!this.alive);
       this.drone = b.dr ? new THREE.Vector3(...b.dr) : null;
       this.shieldExtended = !!b.sx;
-      this.rig.setShieldExtended(this.shieldExtended);
+      this.shieldPose = shieldPoseOf(this.shieldExtended, !!b.sb, !!b.ads);
+      if (this.shield) this.rig.setShieldPose(this.shieldPose);
       const def = OPERATORS[this.operator];
-      const wid = b.w === 0 ? def?.primary : b.w === 1 ? def?.secondary : null;
+      const wid = def?.shield && b.w < 2 ? def.secondary : b.w === 0 ? def?.primary : b.w === 1 ? def?.secondary : null;
       if (wid !== this.weaponId && (wid === null || WEAPONS[wid])) { this.weaponId = wid ?? null; this.rig.setWeapon(this.weaponId); }
     }
     this.rig.root.position.copy(this.pos);
@@ -93,7 +95,7 @@ export class RemoteActor implements Actor {
     const h = this.stance === Stance.Crouch ? 0.33 : this.stance === Stance.Prone ? 0.06 : 0.6;
     this.collider.setHalfHeight(h);
     this.collider.setTranslation(this.alive ? { x: this.pos.x, y: this.pos.y + h + 0.3, z: this.pos.z } : { x: 0, y: -500, z: 0 });
-    if (this.shield) placeShield(this.shield, this.pos, this.yaw, this.stance, this.shieldExtended, this.alive);
+    if (this.shield) placeShield(this.shield, this.pos, this.yaw, this.stance, this.shieldPose, this.alive);
   }
 
   dispose(scene: THREE.Scene) {
