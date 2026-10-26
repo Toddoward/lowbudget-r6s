@@ -1,8 +1,10 @@
 name: Build · Test · Deploy (Cloudflare Workers DO + Pages)
 
+# main    → production build (QA/debug tools compiled out) → r6s-temu.pages.dev
+# develop → QA build (VITE_QA=1: local agent slots, same-browser rooms, X-ray, overlay) → develop.r6s-temu.pages.dev
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, develop]
   pull_request:
   workflow_dispatch:
 
@@ -12,7 +14,7 @@ concurrency:
 
 env:
   NODE_VERSION: 22
-  PAGES_PROJECT: r6s-original-2015
+  PAGES_PROJECT: r6s-temu
 
 jobs:
   build:
@@ -25,16 +27,25 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
-      - name: Typecheck (client + worker) and production build
+      - name: Typecheck (client + worker) and build for this branch
         run: npm run build
+        env:
+          VITE_QA: ${{ github.ref_name == 'develop' && '1' || '' }}
       - name: Unit tests (room logic, destruction, hitboxes, spread)
         run: npm test
-      - name: Browser e2e (SwiftShader WebGL)
+      - name: QA build for the browser suites (they use same-browser rooms + QA hooks)
+        run: VITE_QA=1 npx vite build --outDir dist-qa
+      - name: Browser e2e + UX scenarios (SwiftShader WebGL)
         run: |
           npx playwright install --with-deps chromium
-          npx vite preview --port 4173 --strictPort &
+          # local Durable Object (workerd) for the online reconnect scenario; vite preview proxies /api to it
+          WRANGLER_SEND_METRICS=false npx wrangler dev -c worker/wrangler.toml --port 8787 > wrangler.log 2>&1 &
+          npx vite preview --outDir dist-qa --port 4173 --strictPort &
           for i in $(seq 1 30); do curl -sf http://localhost:4173 >/dev/null && break; sleep 1; done
+          for i in $(seq 1 60); do curl -sf http://localhost:4173/api/health >/dev/null && export E2E_ONLINE=1 && break; sleep 1; done
+          [ "$E2E_ONLINE" = 1 ] || { echo "::warning::local worker did not start — skipping the online scenario"; tail -20 wrangler.log; }
           npm run test:e2e
+          npm run test:scenarios
       - uses: actions/upload-artifact@v4
         with:
           name: dist
@@ -63,12 +74,12 @@ jobs:
       - name: Skip notice (no Cloudflare credentials)
         if: env.CLOUDFLARE_API_TOKEN == ''
         run: echo "::notice::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID secrets are not set — build verified, deploy skipped."
-      - name: Deploy matchmaking Worker + RoomDO Durable Object
-        if: env.CLOUDFLARE_API_TOKEN != ''
+      - name: Deploy matchmaking Worker + RoomDO Durable Object (main only; develop previews share it)
+        if: env.CLOUDFLARE_API_TOKEN != '' && github.ref_name != 'develop'
         run: npx wrangler deploy -c worker/wrangler.toml
       - name: Ensure Pages project exists
         if: env.CLOUDFLARE_API_TOKEN != ''
-        run: npx wrangler pages project create "$PAGES_PROJECT" --production-branch "${GITHUB_REF_NAME}" || true
+        run: npx wrangler pages project create "$PAGES_PROJECT" --production-branch main || true
       - name: Deploy Pages (static build + Functions bound to the DO)
         if: env.CLOUDFLARE_API_TOKEN != ''
         run: npx wrangler pages deploy dist --project-name "$PAGES_PROJECT" --branch "${GITHUB_REF_NAME}" --commit-dirty=true

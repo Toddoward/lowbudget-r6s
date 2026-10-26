@@ -1,5 +1,5 @@
 /**
- * r6-matchmaker — Cloudflare Worker + Durable Object.
+ * r6s-temu-matchmaker — Cloudflare Worker + Durable Object.
  *
  *   GET /api/room/R6-1234  (Upgrade: websocket)  → RoomDO instance "R6-1234"
  *   GET /api/health
@@ -24,7 +24,7 @@ export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
     if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
-    if (url.pathname === '/api/health') return Response.json({ ok: true, service: 'r6-matchmaker' }, { headers: CORS });
+    if (url.pathname === '/api/health') return Response.json({ ok: true, service: 'r6s-temu-matchmaker' }, { headers: CORS });
     const m = url.pathname.match(/^\/api\/room\/([^/]+)$/);
     if (m) {
       const code = normalizeRoomCode(decodeURIComponent(m[1]));
@@ -33,7 +33,7 @@ export default {
       const fwd = new Request(new URL(`/room/${code}`, url.origin), req);
       return stub.fetch(fwd);
     }
-    return new Response('r6-matchmaker: use /api/room/<R6-0000>', { status: 404, headers: CORS });
+    return new Response('r6s-temu-matchmaker: use /api/room/<R6-0000>', { status: 404, headers: CORS });
   },
 };
 
@@ -83,7 +83,8 @@ export class RoomDO {
       if (!this.sockets.has(connId)) return;
       this.sockets.delete(connId);
       logic.onDisconnect(connId);
-      if (this.sockets.size === 0) this.logic = null;
+      // keep the room while a dropped client may still resume its seat
+      if (this.sockets.size === 0 && logic.awayCount === 0) this.logic = null;
     };
     server.addEventListener('close', close);
     server.addEventListener('error', close);

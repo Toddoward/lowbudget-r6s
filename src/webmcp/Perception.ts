@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { tEn } from '../ui/i18n.ts';
 import { G_WORLD } from '../core/Physics.ts';
 import type { World } from '../game/World.ts';
 import type { Soldier } from '../game/Soldier.ts';
@@ -174,7 +175,7 @@ export class Perception {
       room: locationName(s.pos), floor: FLOOR_LABEL[floorOf(s.pos.y + 0.2)],
       heading: Math.round(headingDeg(s.yaw)), pitch: Math.round(THREE.MathUtils.radToDeg(s.pitch)),
       position: { x: r1(s.pos.x), y: r1(s.pos.y), z: r1(s.pos.z) },
-      interactPrompt: s.interactLabel || null, interactProgress: Math.round(s.interactProgress * 100) / 100,
+      interactPrompt: s.interactLabel ? tEn(s.interactLabel) : null, gadgetHint: s.gadgetHint ? tEn(s.gadgetHint) : null, interactProgress: Math.round(s.interactProgress * 100) / 100,
       heartbeat: (this.world.gadgets.isScanning(s) ? this.world.gadgets.heartbeats.get(s.id) ?? [] : []).map((h) => ({ bearingDeg: Math.round(wrap180(THREE.MathUtils.radToDeg(Math.atan2(h.dir.x, -h.dir.z)) - headingDeg(s.yaw))), distance: r1(h.dist), vertical: h.dy > 1.5 ? 'Above_Floor' : h.dy < -1.5 ? 'Below_Floor' : 'Same_Floor' })),
     };
   }

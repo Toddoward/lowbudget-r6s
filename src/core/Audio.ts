@@ -167,12 +167,14 @@ export class Audio {
     }
   }
 
-  ui(kind: 'hit' | 'kill' | 'tick' | 'round') {
+  ui(kind: 'hit' | 'kill' | 'tick' | 'round' | 'ping' | 'click') {
     if (!this.ctx) return;
     const c = this.chain(null, 0.25, new THREE.Vector3());
     if (kind === 'hit') this.tone(c, 1800, 1400, 0.05, 'square', 0.3);
     else if (kind === 'kill') { this.tone(c, 900, 1800, 0.12, 'square', 0.35); }
     else if (kind === 'tick') this.tone(c, 1000, 1000, 0.04, 'sine', 0.3);
+    else if (kind === 'ping') { this.tone(c, 1320, 1320, 0.07, 'sine', 0.35); this.tone(c, 1760, 1760, 0.09, 'sine', 0.25); }
+    else if (kind === 'click') this.tone(c, 2200, 1800, 0.02, 'square', 0.15);
     else this.tone(c, 300, 600, 0.6, 'triangle', 0.5);
   }
 }

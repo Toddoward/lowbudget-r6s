@@ -14,7 +14,9 @@ export interface AgentAction {
   reload?: boolean;
   melee?: boolean;
   switchWeapon?: 'primary' | 'secondary' | 'gadget' | 'universal';
-  gadget?: 'use' | 'detonate' | 'equip' | 'equip_universal';
+  gadget?: 'use' | 'detonate' | 'equip' | 'equip_universal' | 'key' | 'key_hold' | 'key_universal' | 'key_universal_hold';
+  /** ping: spot the enemy under the crosshair / mark the spot (team-wide) */
+  ping?: boolean;
   interact?: boolean | 'press' | 'hold';
   rappel?: 'start' | 'up' | 'down' | 'left' | 'right' | 'stop' | 'invert' | 'swing' | 'detach';
   drone?: { forward?: number; strafe?: number; jump?: boolean };
@@ -40,7 +42,8 @@ export class AgentController {
   private lean: -1 | 0 | 1 = 0;
   private stance: Stance | null = null;
   private interactUntil = 0;
-  private pulses = { reload: false, melee: false, interact: false, alt: false, invert: false, jump: false, firePressed: false, slot: null as number | null };
+  private gKey = { op: 0, uni: 0 };
+  private pulses = { reload: false, melee: false, interact: false, alt: false, invert: false, jump: false, firePressed: false, slot: null as number | null, gadget: false, gadget2: false, ping: false };
   private rappelMove = { f: 0, r: 0, until: 0 };
   private drone = { f: 0, r: 0, jump: false, until: 0 };
   lastActionAt = -1e9;
@@ -80,6 +83,12 @@ export class AgentController {
     if (a.gadget === 'equip_universal') this.pulses.slot = 3;
     if (a.gadget === 'use') { this.pulses.firePressed = true; this.fireUntil = Math.max(this.fireUntil, now + 120); if (this.s.slot < 2) warnings.push('gadget:use while a firearm is equipped fires the gun — send gadget:"equip" first'); }
     if (a.gadget === 'detonate') this.pulses.alt = true;
+    // the human context keys: [G] operator gadget, [X] secondary (tap = use/toggle/throw, hold = place)
+    if (a.gadget === 'key') { this.pulses.gadget = true; this.gKey.op = 0; }
+    if (a.gadget === 'key_universal') { this.pulses.gadget2 = true; this.gKey.uni = 0; }
+    if (a.gadget === 'key_hold') { this.pulses.gadget = true; this.gKey.op = now + Math.max(dur, 1600); }
+    if (a.gadget === 'key_universal_hold') { this.pulses.gadget2 = true; this.gKey.uni = now + Math.max(dur, 1600); }
+    if (a.ping) this.pulses.ping = true;
     if (a.interact !== undefined) {
       if (a.interact === 'hold') this.interactUntil = now + Math.max(dur, 3000);
       else if (a.interact === true || a.interact === 'press') { this.pulses.interact = true; this.interactUntil = now + dur; }
@@ -149,8 +158,19 @@ export class AgentController {
     inp.invert = this.pulses.invert;
     inp.jump = this.pulses.jump;
     inp.slot = this.pulses.slot;
-    this.pulses = { reload: false, melee: false, interact: false, alt: false, invert: false, jump: false, firePressed: false, slot: null };
+    inp.gadget = this.pulses.gadget;
+    inp.gadget2 = this.pulses.gadget2;
+    inp.gadgetHeld = now < this.gKey.op || this.pulses.gadget;
+    inp.gadget2Held = now < this.gKey.uni || this.pulses.gadget2;
+    inp.ping = this.pulses.ping;
+    this.pulses = { reload: false, melee: false, interact: false, alt: false, invert: false, jump: false, firePressed: false, slot: null, gadget: false, gadget2: false, ping: false };
     return inp;
+  }
+
+  /** an agent's input stays merged while any of its timed actions (holds, moves, bursts) is still running */
+  active(now = performance.now()): boolean {
+    if (now - this.lastActionAt < 2000) return true;
+    return now < Math.max(this.move.until, this.fireUntil, this.interactUntil, this.gKey.op, this.gKey.uni, this.rappelMove.until, this.drone.until, this.look?.until ?? 0);
   }
 
   droneInput(): { f: number; r: number; jump: boolean } {

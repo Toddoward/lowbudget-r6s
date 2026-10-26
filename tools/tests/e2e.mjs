@@ -37,7 +37,7 @@ assert.equal(r.ok, true);
 step('window.webmcp.act');
 const destr = await A.evaluate(() => {
   const g = window.r6game;
-  const p = [...g.destruction.panels.values()].find((x) => x.kind === 'wall_soft' && x.size(1) > 2.5);
+  const p = [...g.destruction.panels.values()].find((x) => x.kind === 'wall_soft' && !x.reinforced && x.size(1) > 2.5);
   g.destruction.impactAndApply('breach', p.center, p);
   g.destruction.update();
   return p.passable;
@@ -46,11 +46,18 @@ assert.equal(destr, true);
 step('breach charge opens a passable soft wall');
 const rap = await A.evaluate(() => {
   const g = window.r6game; const P = g.player; const V3 = P.pos.constructor;
-  g.bots.forEach((b) => b.s.die('t', false));
-  P.teleport(new V3(2, -0.15, -7.75), Math.PI); g.physics.step();
-  const ok = P.startRappel();
-  const inp = { moveF: 1, moveR: 0, sprint: false, fire: false, firePressed: false, ads: false, reload: false, melee: false, stance: null, lean: 0, interact: false, interactPressed: false, slot: null, alt: false, invert: false, jump: false, lookDYaw: 0, lookDPitch: 0 };
-  for (let i = 0; i < 500 && P.mode !== 'normal'; i++) { P.update(1 / 60, inp); g.physics.step(); }
+  // a plain stretch of the north (front) wall, west of the porch and east of the storage well
+  const inp0 = { moveF: 0, moveR: 0, sprint: false, fire: false, firePressed: false, ads: false, reload: false, melee: false, stance: null, lean: 0, interact: false, interactPressed: false, slot: null, alt: false, invert: false, jump: false, lookDYaw: 0, lookDPitch: 0, gadget: false, gadgetHeld: false, gadget2: false, gadget2Held: false, ping: false };
+  g.bots.forEach((b) => { b.update = () => inp0; b.s.teleport(g.nav.randomNodeIn(['__ext']).pos.clone()); }); // freeze (killing them all would end the hunt)
+  // windows on this wall may or may not be barricaded (TH fortifies at random): scan for a solid stretch
+  let ok = false;
+  for (let x = -6; x <= -1.5 && !ok; x += 0.5) {
+    P.teleport(new V3(x, -0.23, -8.05), Math.PI); P.pitch = 0; P.update(1 / 60, inp0); P.update(1 / 60, inp0);
+    ok = P.startRappel(true);
+  }
+  ok = ok && P.startRappel();
+  const inp = { moveF: 1, moveR: 0, sprint: false, fire: false, firePressed: false, ads: false, reload: false, melee: false, stance: null, lean: 0, interact: false, interactPressed: false, slot: null, alt: false, invert: false, jump: false, lookDYaw: 0, lookDPitch: 0, gadget: false, gadgetHeld: false, gadget2: false, gadget2Held: false, ping: false };
+  for (let i = 0; i < 900 && P.mode !== 'normal'; i++) { P.update(1 / 60, inp); g.physics.step(); }
   return { ok, y: P.pos.y };
 });
 assert.ok(rap.ok && rap.y > 5.5, `rappel to roof ${JSON.stringify(rap)}`);

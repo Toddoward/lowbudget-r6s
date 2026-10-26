@@ -32,11 +32,16 @@ export function gunSpec(id: string, st: GunStyle): AssetSpec {
     P.push(box([0, -0.045, 0.005], [0.03, 0.1, 0.045], st.accent, { r: [-12, 0, 0] })); // grip
     P.push(box([0, -0.05, 0.005], [0.026, 0.11, 0.035], MET, { bone: 'mag', r: [-12, 0, 0] }));
     P.push(box([0, 0.0, -0.035], [0.006, 0.02, 0.04], MET)); // trigger guard
-    P.push(box([0, 0.083, -0.15], [0.006, 0.012, 0.008], MET)); // front post
-    P.push(box([0, 0.083, 0.02], [0.022, 0.012, 0.008], MET)); // rear notch
+    // irons: thin front post with a tritium dot, rear sight = two ears with an open notch (the post sits in the gap)
+    P.push(box([0, 0.0835, -0.15], [0.0045, 0.013, 0.008], MET)); // front post
+    P.push(box([0, 0.0905, -0.1535], [0.0042, 0.0042, 0.002], '#7dff6a', { emissive: true })); // front tritium
+    for (const sx of [-1, 1]) {
+      P.push(box([sx * 0.0085, 0.083, 0.02], [0.0075, 0.014, 0.008], MET)); // rear ears
+      P.push(box([sx * 0.0085, 0.0875, 0.0244], [0.003, 0.003, 0.001], '#ff9a3a', { emissive: true })); // rear dots
+    }
     P.push(barrel([0, 0.055, -0.18], 0.007, 0.02, MET));
     if (st.suppressor) P.push(barrel([0, 0.055, -0.25], 0.017, 0.13, '#1b1c1f'));
-    return { id, category: 'weapon', parts: P, anchors: { muzzle: [0, 0.055, st.suppressor ? -0.32 : -0.19], sight: [0, 0.088, -0.05], grip: [0, -0.03, 0] } };
+    return { id, category: 'weapon', parts: P, anchors: { muzzle: [0, 0.055, st.suppressor ? -0.32 : -0.19], sight: [0, 0.0905, 0.03], grip: [0, -0.03, 0], fore: [0, -0.03, 0.0], lens: [0, 0.0905, -0.153] } };
   }
   const bull = st.layout === 'bullpup';
   const recLen = bull ? 0.5 : st.layout === 'smg' ? 0.26 : 0.34;
@@ -99,27 +104,54 @@ export function gunSpec(id: string, st: GunStyle): AssetSpec {
   // optic
   const oy = top + 0.012;
   sightZ = recZ - 0.05;
+  // optics are HOLLOW frames: the eye looks through them. The reticle itself is drawn by the
+  // view model as a collimated overlay (it sits at infinity along the bore, clipped to `lens`).
+  const ring = (cy: number, cz: number, r: number, len: number, t: number, col: string) => {
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      P.push(box([Math.cos(a) * r, cy + Math.sin(a) * r, cz], [t * 1.9, t * 1.9, len], col, { r: [0, 0, (a * 180) / Math.PI] }));
+    }
+  };
+  let sightY: number;
+  let lensZ: number;
+  let rearZ: number;
   if (st.optic === 'acog') {
-    P.push(box([0, oy + 0.012, sightZ], [0.03, 0.024, 0.07], MET));
-    P.push(barrel([0, oy + 0.045, sightZ], 0.022, 0.13, '#202226'));
-    P.push(barrel([0, oy + 0.045, sightZ - 0.075], 0.027, 0.025, '#202226'));
-    P.push(box([0, oy + 0.075, sightZ], [0.016, 0.012, 0.02], '#35583d'));
-    P.push(barrel([0, oy + 0.045, sightZ - 0.088], 0.018, 0.002, '#ff3a2a', { emissive: true }));
+    sightY = oy + 0.045;
+    P.push(box([0, oy + 0.008, sightZ], [0.03, 0.016, 0.07], MET)); // mount
+    ring(sightY, sightZ + 0.045, 0.021, 0.04, 0.004, '#202226'); // eyepiece
+    ring(sightY, sightZ - 0.065, 0.026, 0.05, 0.004, '#202226'); // objective bell
+    P.push(box([0, sightY + 0.024, sightZ - 0.01], [0.02, 0.008, 0.11], '#202226')); // body spine (above the line of sight)
+    P.push(box([0, sightY + 0.032, sightZ - 0.01], [0.014, 0.01, 0.02], '#35583d')); // fibre
+    lensZ = sightZ - 0.08;
+    rearZ = sightZ + 0.065;
   } else if (st.optic === 'holo') {
+    sightY = oy + 0.045;
     P.push(box([0, oy + 0.012, sightZ], [0.042, 0.024, 0.08], MET));
-    P.push(box([0.021, oy + 0.045, sightZ - 0.02], [0.006, 0.05, 0.05], MET));
-    P.push(box([-0.021, oy + 0.045, sightZ - 0.02], [0.006, 0.05, 0.05], MET));
-    P.push(box([0, oy + 0.072, sightZ - 0.02], [0.048, 0.006, 0.05], MET));
-    P.push(box([0, oy + 0.045, sightZ - 0.03], [0.004, 0.004, 0.002], '#ff4030', { emissive: true }));
+    P.push(box([0.021, oy + 0.045, sightZ - 0.02], [0.005, 0.05, 0.05], MET));
+    P.push(box([-0.021, oy + 0.045, sightZ - 0.02], [0.005, 0.05, 0.05], MET));
+    P.push(box([0, oy + 0.0715, sightZ - 0.02], [0.047, 0.005, 0.05], MET));
+    lensZ = sightZ - 0.035;
+    rearZ = sightZ + 0.04;
   } else if (st.optic === 'reflex') {
-    P.push(box([0, oy + 0.01, sightZ], [0.03, 0.02, 0.05], MET));
-    P.push(box([0, oy + 0.035, sightZ - 0.012], [0.03, 0.03, 0.006], '#262626'));
-    P.push(box([0, oy + 0.035, sightZ - 0.01], [0.003, 0.003, 0.002], '#ff3030', { emissive: true }));
+    sightY = oy + 0.035;
+    P.push(box([0, oy + 0.008, sightZ], [0.03, 0.016, 0.05], MET));
+    // open window frame
+    P.push(box([0.0145, oy + 0.035, sightZ - 0.012], [0.004, 0.034, 0.008], '#262626'));
+    P.push(box([-0.0145, oy + 0.035, sightZ - 0.012], [0.004, 0.034, 0.008], '#262626'));
+    P.push(box([0, oy + 0.0525, sightZ - 0.012], [0.033, 0.004, 0.008], '#262626'));
+    lensZ = sightZ - 0.012;
+    rearZ = sightZ + 0.03;
   } else {
-    P.push(box([0, oy + 0.02, sightZ + 0.08], [0.03, 0.03, 0.012], MET)); // rear aperture
+    // rifle irons: rear peep = ring with a real hole, front post at the gas block
+    sightY = oy + 0.03;
+    ring(sightY, sightZ + 0.08, 0.008, 0.01, 0.0025, MET);
+    P.push(box([0, oy + 0.012, sightZ + 0.08], [0.03, 0.02, 0.012], MET));
+    P.push(box([0, sightY - 0.012, barrelStart + 0.02], [0.004, 0.024, 0.008], MET));
+    P.push(box([0, sightY - 0.002, barrelStart + 0.016], [0.0035, 0.0035, 0.002], '#7dff6a', { emissive: true }));
+    lensZ = barrelStart + 0.02;
+    rearZ = sightZ + 0.09;
   }
-  const sightY = st.optic === 'acog' ? oy + 0.045 : st.optic === 'holo' ? oy + 0.045 : st.optic === 'reflex' ? oy + 0.035 : oy + 0.03;
-  return { id, category: 'weapon', parts: P, anchors: { muzzle: [0, 0.065, muzzleZ], sight: [0, sightY, sightZ], grip: [0, -0.03, 0], fore: [0, 0.03, hgZ] } };
+  return { id, category: 'weapon', parts: P, anchors: { muzzle: [0, 0.065, muzzleZ], sight: [0, sightY, rearZ], lens: [0, sightY, lensZ], grip: [0, -0.03, 0], fore: [0, 0.03, hgZ] } };
 }
 
 /* gadgets held in hands */

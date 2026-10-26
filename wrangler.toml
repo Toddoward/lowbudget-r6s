@@ -1,15 +1,15 @@
 # Cloudflare Pages project (static Vite build + Pages Functions).
 # Deploy:  npm run build && npx wrangler pages deploy dist
 #
-# The Durable Object class lives in the separate Worker "r6-matchmaker"
+# The Durable Object class lives in the separate Worker "r6s-temu-matchmaker"
 # (worker/wrangler.toml) — Pages cannot define DO classes itself, so the
 # binding below points at that script. functions/api/room/[code].ts forwards
 # the room WebSocket to the DO instance named by the 6-char room code.
-name = "r6s-original-2015"
+name = "r6s-temu"
 pages_build_output_dir = "./dist"
 compatibility_date = "2025-09-01"
 
 [[durable_objects.bindings]]
 name = "ROOMS"
 class_name = "RoomDO"
-script_name = "r6-matchmaker"
+script_name = "r6s-temu-matchmaker"

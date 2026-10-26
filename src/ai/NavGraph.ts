@@ -59,8 +59,8 @@ export class NavGraph {
     }
     // doors
     for (const op of openings) {
-      if (op.kind === 'window' || op.kind === 'open_window' || op.kind === 'shutter') continue;
-      const n = op.run === 'x' ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0);
+      if (op.kind === 'window' || op.kind === 'open_window' || op.kind === 'shutter' || op.kind === 'vent' || op.kind === 'french') continue;
+      const n = op.normal;
       const a = snap(op.center.clone().addScaledVector(n, -0.6).setY(op.floorY));
       const b = snap(op.center.clone().addScaledVector(n, 0.6).setY(op.floorY));
       if (!a || !b) continue;
@@ -106,16 +106,20 @@ export class NavGraph {
     }
     // exterior ring + spawns
     const ring: [number, number, number][] = [];
-    for (let x = -12; x <= 6; x += 3) { ring.push([x, GROUND_Y, -10]); ring.push([x, GROUND_Y, 11]); }
-    for (let z = -9; z <= 9; z += 3) ring.push([-12.5, GROUND_Y, z]);
-    for (let z = -10; z <= 10; z += 2.5) ring.push([11, LOWER_GROUND_Y, z]);
+    // ring around the House: front porch (N), back porch (S), west yard, garage driveway (river level)
+    for (let x = -12; x <= 10; x += 2.5) { ring.push([x, GROUND_Y, -9.5]); ring.push([x, GROUND_Y, 8.5]); }
+    for (let z = -9; z <= 8; z += 2.5) ring.push([-11.5, GROUND_Y, z]);
+    for (let x = -1.2; x <= 4; x += 1.3) ring.push([x, 0, -6.0]);
+    for (let x = -6.8; x <= 1.5; x += 1.4) ring.push([x, 0, 5.8]);
+    for (let z = -6; z <= 6; z += 1.5) { ring.push([10.6, LOWER_GROUND_Y, z]); ring.push([8.3, LOWER_GROUND_Y, z]); }
+    ring.push([-11.0, -2.0, -6.5], [-8.3, LOWER_GROUND_Y, -6.5]); // storage stairwell
     for (const zone of SPAWN_ZONES) ring.push(zone.center);
-    ring.push([-6, GROUND_Y, -20], [-20, GROUND_Y, 0], [0, GROUND_Y, 22], [-20, GROUND_Y, 22], [-20, GROUND_Y, -22], [22, LOWER_GROUND_Y, 0], [14, GROUND_Y - 1.4, -11.5], [14, GROUND_Y - 1.4, 15.5], [4, GROUND_Y, 8.2], [-0.25, GROUND_Y, 8.0], [-14, GROUND_Y, 0], [-11.5, GROUND_Y, 0]);
+    ring.push([0, GROUND_Y, -18.5], [-20, GROUND_Y, 0], [0, GROUND_Y, 22], [-20, GROUND_Y, 22], [-20, GROUND_Y, -18.5], [22, LOWER_GROUND_Y, 0], [17.5, GROUND_Y - 1.6, -12.2], [17.5, GROUND_Y - 1.6, 15.8], [-4.3, GROUND_Y, 12], [0.1, GROUND_Y, -12]);
     // coarse exterior grid so every spawn zone connects to the house (both ground levels)
     for (let x = -49; x <= 49; x += 7) {
       for (let z = -49; z <= 49; z += 7) {
-        if (Math.abs(x) < 10 && Math.abs(z) < 9) continue;
-        ring.push([x, x > 8 ? LOWER_GROUND_Y : GROUND_Y, z]);
+        if (x > -12 && x < 12.5 && z > -9.5 && z < 8.5) continue;
+        ring.push([x, x > 12 ? LOWER_GROUND_Y : GROUND_Y, z]);
       }
     }
     for (const [x, y, z] of ring) {
@@ -188,9 +192,8 @@ export class NavGraph {
   private crossesBarricade(a: THREE.Vector3, b: THREE.Vector3): boolean {
     for (const op of this.openings) {
       if (op.barricadePanel === null) continue;
-      const n = op.run === 'x' ? 2 : 0;
-      const ca = a.getComponent(n) - op.c;
-      const cb = b.getComponent(n) - op.c;
+      const ca = a.clone().sub(op.center).dot(op.normal);
+      const cb = b.clone().sub(op.center).dot(op.normal);
       if (Math.sign(ca) !== Math.sign(cb) && Math.abs(op.center.y - (a.y + 1)) < 2 && a.distanceTo(op.center) < 4) return true;
     }
     return false;

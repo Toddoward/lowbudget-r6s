@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
-import { G_CHAR, G_CLIP, G_WORLD, groups } from '../core/Physics.ts';
+import { G_CHAR, G_CLIP, G_GADGET, G_WORLD, groups } from '../core/Physics.ts';
 import { computeHitboxes, type Actor, type Hitboxes } from './Actor.ts';
 import { OPERATORS, ARMOR_MUL, SPEED_MUL, MAX_HP, REINFORCEMENTS_PER_ROUND, type OperatorDef } from './operators.ts';
 import { WEAPONS, type WeaponDef } from './weapons.ts';
@@ -31,12 +31,21 @@ export interface SoldierInput {
   invert: boolean;
   /** rappel: push off / vault [Space] */
   jump: boolean;
+  /** operator gadget key [G]: press edge / held */
+  gadget: boolean;
+  gadgetHeld: boolean;
+  /** secondary gadget key [X] */
+  gadget2: boolean;
+  gadget2Held: boolean;
+  /** ping / spot [B] */
+  ping: boolean;
   lookDYaw: number;
   lookDPitch: number;
 }
 export const emptyInput = (): SoldierInput => ({
   moveF: 0, moveR: 0, sprint: false, fire: false, firePressed: false, ads: false, reload: false, melee: false,
   stance: null, lean: 0, interact: false, interactPressed: false, slot: null, alt: false, invert: false, jump: false, lookDYaw: 0, lookDPitch: 0,
+  gadget: false, gadgetHeld: false, gadget2: false, gadget2Held: false, ping: false,
 });
 
 export interface WeaponState { def: WeaponDef; mag: number; reserve: number }
@@ -53,9 +62,15 @@ interface RappelState {
 interface MoveAnim { t: number; dur: number; from: THREE.Vector3; mid: THREE.Vector3; to: THREE.Vector3; onMid?: () => void; midDone: boolean; endStance: Stance }
 
 const UP = new THREE.Vector3(0, 1, 0);
-const RADIUS = 0.3;
-const HALF: Record<number, number> = { [Stance.Stand]: 0.6, [Stance.Crouch]: 0.33, [Stance.Prone]: 0.06, [Stance.Rappel]: 0.6 };
-const EYE: Record<number, number> = { [Stance.Stand]: 1.64, [Stance.Crouch]: 1.12, [Stance.Prone]: 0.38, [Stance.Rappel]: 1.64 };
+// spec: 1.8 m tall standing capsule (r 0.35); eye heights 1.65 / 1.05 / 0.40
+const RADIUS = 0.35;
+const HALF: Record<number, number> = { [Stance.Stand]: 0.55, [Stance.Crouch]: 0.25, [Stance.Prone]: 0.0, [Stance.Rappel]: 0.55 };
+const EYE: Record<number, number> = { [Stance.Stand]: 1.65, [Stance.Crouch]: 1.05, [Stance.Prone]: 0.4, [Stance.Rappel]: 1.65 };
+/** generic vault: anything with its top at most this high above the feet */
+const VAULT_MAX_H = 1.3;
+/** shallower than this → vault over; deeper → climb on top */
+const VAULT_OVER_DEPTH = 0.85;
+export interface VaultPlan { over: boolean; top: number; mid: THREE.Vector3; land: THREE.Vector3 }
 const WALL_GAP = 0.42;
 
 export class Soldier implements Actor {
@@ -109,6 +124,22 @@ export class Soldier implements Actor {
   private headBob = 0;
   private wasFire = false;
   private camLean = 0;
+  /** HUD hint for the gadget keys in the current context (i18n key) */
+  gadgetHint = '';
+  /** Montagne: shield extended (full cover, no shooting) */
+  shieldExtended = false;
+  /** Blitz flash cooldown */
+  flashCd = 0;
+  /** blinded by a flash until world time */
+  blindUntil = -1;
+  /** Tachanka: mounted turret gadget id */
+  mounted: string | null = null;
+  private mountSave: WeaponState[] | null = null;
+  /** ballistic shield collider (Montagne / Blitz) */
+  shieldCollider: RAPIER.Collider | null = null;
+  /** angular offset of the weapon bore from the camera axis (local player, from the view model) — the shot follows the collimated reticle */
+  boreYaw = 0;
+  borePitch = 0;
   /** set by World.damage to let HUD flash */
   hitMarker = 0;
   onDeath?: (s: Soldier, killer: string, head: boolean) => void;
@@ -131,6 +162,45 @@ export class Soldier implements Actor {
     this.controller.setMinSlopeSlideAngle((60 * Math.PI) / 180);
     this.controller.setApplyImpulsesToDynamicBodies(false);
     this.resetLoadout();
+    this.syncShield();
+  }
+
+  /** (re)create / remove the ballistic shield collider to match the operator */
+  private syncShield() {
+    const want = !!this.op.shield;
+    if (want && !this.shieldCollider) {
+      this.shieldCollider = this.world.physics.addBox(this.pos.x, this.pos.y + 1, this.pos.z, 0.3, 0.55, 0.03, { kind: 'gadget', gadgetId: `shield:${this.id}` }, undefined, G_GADGET);
+    } else if (!want && this.shieldCollider) {
+      this.world.physics.remove(this.shieldCollider);
+      this.shieldCollider = null;
+    }
+  }
+
+  /** shield follows the body: left-of-centre at the hip, or the whole body when extended */
+  private updateShield() {
+    if (this.shieldCollider) placeShield(this.shieldCollider, this.pos, this.yaw, this.stance, this.shieldExtended, this.alive);
+  }
+
+  mountTurret(turretId: string, at: THREE.Vector3, yaw: number) {
+    if (this.mounted) return;
+    this.mounted = turretId;
+    this.mountSave = this.weapons;
+    this.weapons = [{ def: WEAPONS.rp46, mag: WEAPONS.rp46.mag, reserve: 0 }, this.weapons[1]];
+    this.slot = 0;
+    this.equipT = 0.5;
+    this.trySetStance(Stance.Crouch);
+    this.teleport(at, yaw);
+    this.mounted = turretId;
+    this.mode = 'normal';
+  }
+
+  dismount() {
+    if (!this.mounted) return;
+    this.mounted = null;
+    if (this.mountSave) this.weapons = this.mountSave;
+    this.mountSave = null;
+    this.slot = 0;
+    this.equipT = 0.4;
   }
 
   resetLoadout() {
@@ -143,6 +213,10 @@ export class Soldier implements Actor {
     this.gadgetLeft = op.gadgetCount;
     this.universalLeft = op.universalCount;
     this.reinforcementsLeft = this.side === 'defend' ? REINFORCEMENTS_PER_ROUND : 0;
+    this.shieldExtended = false;
+    this.blindUntil = -1;
+    this.mounted = null;
+    this.mountSave = null;
     this.hp = MAX_HP;
     this.alive = true;
     this.mode = 'normal';
@@ -157,6 +231,7 @@ export class Soldier implements Actor {
     this.operator = id;
     this.op = OPERATORS[id] ?? OPERATORS.recruit;
     this.resetLoadout();
+    this.syncShield();
   }
 
   get weapon(): WeaponState | null { return this.slot < 2 ? this.weapons[this.slot] : null; }
@@ -210,7 +285,9 @@ export class Soldier implements Actor {
   /* ================================================================ update */
   update(dt: number, inp: SoldierInput) {
     this.fireCd = Math.max(0, this.fireCd - dt);
+    this.flashCd = Math.max(0, this.flashCd - dt);
     this.meleeCd = Math.max(0, this.meleeCd - dt);
+    this.updateShield();
     this.equipT = Math.max(0, this.equipT - dt);
     this.hitMarker = Math.max(0, this.hitMarker - dt);
     if (!this.alive) { this.mode = 'dead'; return; }
@@ -235,6 +312,22 @@ export class Soldier implements Actor {
     }
 
     if (this.anim) { this.updateAnim(dt); return; }
+    if (this.mounted) {
+      // turret gunner: body locked, limited traverse, [F]/[Space]/weapon key to leave
+      const g = this.world.gadgets.list.get(this.mounted);
+      if (!g || (inp.interactPressed || inp.jump || inp.slot === 1)) { this.dismount(); if (g) g.data.gunner = null; }
+      else {
+        const base = g.data.yaw as number;
+        let d = THREE.MathUtils.euclideanModulo(this.yaw - base + Math.PI, Math.PI * 2) - Math.PI;
+        d = THREE.MathUtils.clamp(d, -1.05, 1.05);
+        this.yaw = base + d;
+        this.pitch = THREE.MathUtils.clamp(this.pitch, -0.35, 0.35);
+        g.mesh.rotation.y = this.yaw;
+        this.vel.set(0, 0, 0);
+        this.updateWeapon(dt, { ...inp, slot: null });
+        return;
+      }
+    }
     if (this.mode === 'rappel') this.updateRappel(dt, inp);
     else this.updateMove(dt, inp);
     this.updateWeapon(dt, inp);
@@ -265,6 +358,7 @@ export class Soldier implements Actor {
     speed *= 1 - this.ads * 0.4;
     if (Math.abs(this.lean) > 0.3) speed *= 0.75;
     if (this.world.gadgets.isScanning(this)) speed *= 0.6;
+    if (this.op.shield) speed *= this.shieldExtended ? 0.6 : 0.9;
     if (this.world.gadgets.inToxicGas(this.pos)) speed *= 0.85;
     const target = wish.multiplyScalar(speed);
     const k = Math.min(1, dt * (this.grounded ? 14 : 2));
@@ -290,7 +384,7 @@ export class Soldier implements Actor {
     }
     // fall damage
     if (this.pos.y < -20) this.world.damageActor(this, 999, this.id, false);
-    if (inp.jump && this.grounded) this.world.interactions.tryVault(this);
+    if (inp.jump && this.grounded) this.tryVault();
   }
 
   /** move with the character controller; updates pos & grounded */
@@ -329,6 +423,70 @@ export class Soldier implements Actor {
     }
     this.stance = s;
     this.syncCollider();
+    return true;
+  }
+
+  /* ------------------------------------------------------------ vault / climb */
+  /**
+   * Generic, geometry-driven vault (no special "vaultable" flags): look for an
+   * obstacle right in front, find its top, then march along the top to measure
+   * its depth. Thin things (window sills, breach lips, stair rails, counters)
+   * are vaulted over; deep things (tables, beds, ledges) are climbed onto.
+   */
+  probeVault(): VaultPlan | null {
+    if (this.mode !== 'normal' || !this.grounded || this.stance === Stance.Prone) return null;
+    const ph = this.world.physics;
+    const mask = G_WORLD | G_CLIP;
+    const fwd = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
+    const feet = this.pos;
+    let hitD = Infinity;
+    for (const h of [0.4, 0.75, 1.1]) {
+      const hit = ph.raycast(feet.clone().add(new THREE.Vector3(0, h, 0)), fwd, 0.9, mask);
+      if (hit && Math.abs(hit.normal.y) < 0.5) hitD = Math.min(hitD, hit.dist);
+    }
+    if (hitD === Infinity) return null;
+    const down = new THREE.Vector3(0, -1, 0);
+    const front = feet.clone().addScaledVector(fwd, hitD + 0.1);
+    const fromY = feet.y + VAULT_MAX_H + 0.5;
+    const topHit = ph.raycast(front.clone().setY(fromY), down, VAULT_MAX_H + 0.5, mask);
+    if (!topHit || topHit.dist < 0.02 || topHit.normal.y < 0.6) return null;
+    const top = topHit.point.y;
+    const rel = top - feet.y;
+    if (rel < 0.33 || rel > VAULT_MAX_H) return null;
+    // the body has to fit over the top (a window opening, not a wall with a shelf)
+    if (ph.raycast(topHit.point.clone().add(new THREE.Vector3(0, 0.04, 0)), new THREE.Vector3(0, 1, 0), 0.85, mask)) return null;
+    if (ph.raycast(feet.clone().add(new THREE.Vector3(0, rel + 0.45, 0)), fwd, hitD + 0.35, mask)) return null;
+    // depth along the top
+    let depth = 0;
+    let land: THREE.Vector3 | null = null;
+    for (let d = hitD + 0.25; d <= hitD + 2.2; d += 0.15) {
+      const p = feet.clone().addScaledVector(fwd, d).setY(top + 0.45);
+      const h = ph.raycast(p, down, 4.2, mask);
+      if (h && Math.abs(h.point.y - top) < 0.14 && h.normal.y > 0.6) { depth = d - hitD; continue; }
+      if (depth < VAULT_OVER_DEPTH) {
+        const lp = feet.clone().addScaledVector(fwd, d + 0.35).setY(top + 0.45);
+        const lh = ph.raycast(lp, down, 4.6, mask);
+        if (lh && lh.normal.y > 0.6 && top - lh.point.y < 4.0) land = lh.point.clone().add(new THREE.Vector3(0, 0.02, 0));
+      }
+      break;
+    }
+    const mid = feet.clone().addScaledVector(fwd, hitD + 0.15).setY(top + 0.55);
+    if (land && depth < VAULT_OVER_DEPTH) {
+      if (ph.overlapsWorld(land.clone().add(new THREE.Vector3(0, 0.65, 0)), 0.3)) return null;
+      return { over: true, top, mid, land };
+    }
+    const onTop = feet.clone().addScaledVector(fwd, hitD + 0.45).setY(top + 0.02);
+    if (ph.overlapsWorld(onTop.clone().add(new THREE.Vector3(0, 0.62, 0)), 0.3)) return null;
+    return { over: false, top, mid, land: onTop };
+  }
+
+  tryVault(): boolean {
+    const plan = this.probeVault();
+    if (!plan) return false;
+    const clearUp = !this.world.physics.raycast(plan.land.clone().add(new THREE.Vector3(0, 0.1, 0)), new THREE.Vector3(0, 1, 0), 1.75, G_WORLD | G_CLIP);
+    const dur = plan.over ? 0.55 + Math.max(0, plan.top - this.pos.y) * 0.15 : 0.75;
+    this.playMove(this.pos, plan.mid, plan.land, dur, plan.over || !clearUp ? Stance.Crouch : Stance.Stand);
+    this.world.sound({ type: 'footstep', pos: this.pos.clone(), radius: 10, source: this.id, intensity: 0.6, label: 'vault' });
     return true;
   }
 
@@ -504,7 +662,7 @@ export class Soldier implements Actor {
   private updateWeapon(dt: number, inp: SoldierInput) {
     if (inp.slot !== null && inp.slot !== this.slot) this.switchSlot(inp.slot);
     const w = this.weapon;
-    const canAds = !!w && !this.reloading && this.equipT <= 0 && !(this.mode === 'rappel' && this.inverted);
+    const canAds = !!w && !this.reloading && this.equipT <= 0 && !(this.mode === 'rappel' && this.inverted) && !this.shieldExtended;
     this.ads += ((inp.ads && canAds ? 1 : 0) - this.ads) * Math.min(1, dt * 11);
     if (inp.melee && this.meleeCd <= 0) { this.meleeCd = 0.75; this.world.combat.melee(this); }
     if (!w) { this.wasFire = inp.fire; return; }
@@ -522,7 +680,7 @@ export class Soldier implements Actor {
       this.reloadT = this.reloadDur;
       this.ads = Math.min(this.ads, 0.2);
     }
-    const trigger = w.def.mode === 'auto' ? inp.fire : inp.fire && !this.wasFire;
+    const trigger = (w.def.mode === 'auto' ? inp.fire : inp.fire && !this.wasFire) && !this.shieldExtended;
     this.wasFire = inp.fire;
     if (trigger && this.fireCd <= 0 && this.reloadT <= 0 && this.equipT <= 0) {
       if (w.mag <= 0) {
@@ -550,6 +708,12 @@ export class Soldier implements Actor {
   private shoot(def: WeaponDef) {
     const origin = this.eye();
     const base = this.aimDir();
+    if (this.kind === 'local' && this.ads > 0.05) {
+      // optical collimation: the round leaves along the bore the reticle is drawn on
+      const p = this.pitch + this.recoilP + this.borePitch * this.ads;
+      const y = this.yaw + this.recoilY + this.boreYaw * this.ads;
+      base.set(-Math.sin(y) * Math.cos(p), Math.sin(p), -Math.cos(y) * Math.cos(p));
+    }
     // spread: hip vs ADS, movement, stance; bots add their own gaussian/linear aim error
     const moving = Math.hypot(this.vel.x, this.vel.z) > 0.6 ? 1 : 0;
     const stanceMul = this.stance === Stance.Crouch ? 0.85 : this.stance === Stance.Prone ? 0.7 : 1;
@@ -592,6 +756,8 @@ export class Soldier implements Actor {
   }
 
   die(killer: string, head: boolean) {
+    if (this.mounted) { const g = this.world.gadgets.list.get(this.mounted); if (g) g.data.gunner = null; this.dismount(); }
+    this.shieldExtended = false;
     this.alive = false;
     this.mode = 'dead';
     this.killer = killer;
@@ -607,12 +773,28 @@ export class Soldier implements Actor {
   }
 
   dispose() {
+    if (this.shieldCollider) { this.world.physics.remove(this.shieldCollider); this.shieldCollider = null; }
     this.world.physics.remove(this.collider);
     this.world.physics.world.removeCharacterController(this.controller);
   }
 }
 
 /** Rotate `dir` by a random cone. gaussian: σ = spread/2 per axis ; linear: uniform disc of radius spread. */
+/** ballistic shield collider pose (local soldiers and remote peers share it) */
+export function placeShield(c: RAPIER.Collider, pos: THREE.Vector3, yaw: number, stance: Stance, ext: boolean, alive: boolean) {
+  if (!alive) { c.setTranslation({ x: pos.x, y: -600, z: pos.z }); return; }
+  const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+  const right = new THREE.Vector3().crossVectors(fwd, UP);
+  const crouch = stance === Stance.Crouch;
+  const h = ext ? (crouch ? 0.62 : 0.9) : crouch ? 0.42 : 0.5;
+  const cy = ext ? h + 0.02 : (crouch ? 0.62 : 1.0);
+  const p = pos.clone().addScaledVector(fwd, 0.5).addScaledVector(right, ext ? 0 : -0.1).add(new THREE.Vector3(0, cy, 0));
+  c.setTranslation({ x: p.x, y: p.y, z: p.z });
+  const q = new THREE.Quaternion().setFromAxisAngle(UP, yaw);
+  c.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w });
+  (c as unknown as { setHalfExtents?: (v: { x: number; y: number; z: number }) => void }).setHalfExtents?.({ x: ext ? 0.38 : 0.28, y: h, z: 0.03 });
+}
+
 export function applySpread(dir: THREE.Vector3, spreadDeg: number, extraDeg: number, model: 'gaussian' | 'linear'): THREE.Vector3 {
   const total = spreadDeg + extraDeg;
   let ax: number, ay: number;

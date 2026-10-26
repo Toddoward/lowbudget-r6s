@@ -1,6 +1,8 @@
 // Constants shared by the browser client and the Cloudflare Durable Object.
 
-export const PROTOCOL_VERSION = 4;
+export const PROTOCOL_VERSION = 6;
+/** a dropped connection keeps its seat this long while the client reconnects */
+export const RESUME_GRACE_MS = 20000;
 
 export type Squad = 'A' | 'B';
 export type Team = 'attack' | 'defend';
@@ -32,8 +34,8 @@ export const ATTACK_SPAWNS = [
 ] as const;
 export type SpawnId = (typeof ATTACK_SPAWNS)[number]['id'];
 
-export const ATTACKERS = ['sledge', 'ash', 'thermite', 'thatcher', 'fuze'] as const;
-export const DEFENDERS = ['smoke', 'mute', 'castle', 'pulse', 'jager', 'bandit'] as const;
+export const ATTACKERS = ['sledge', 'ash', 'thermite', 'thatcher', 'fuze', 'montagne', 'blitz', 'iq'] as const;
+export const DEFENDERS = ['smoke', 'mute', 'castle', 'pulse', 'jager', 'bandit', 'kapkan', 'tachanka'] as const;
 export type AttackerId = (typeof ATTACKERS)[number];
 export type DefenderId = (typeof DEFENDERS)[number];
 export type OperatorId = AttackerId | DefenderId | 'terrorist' | 'recruit' | 'hostage';

@@ -53,6 +53,9 @@ export interface ObjectiveStatus {
   site: string;
   siteLabel: string;
   text: string;
+  /** i18n key + args (args are English place names → localizePlace) */
+  key: string;
+  args: string[];
   progress: number;
   defuserEndsIn?: number;
 }
@@ -178,17 +181,17 @@ export class Objectives {
     const attack = s.side === 'attack';
     const defend = s.side === 'defend';
     if (this.hostage && this.hostage.alive && attack) {
-      if (this.hostage.carrier === s.id) return { key: 'drop', label: '[F] Put down hostage', hold: 0, run: () => this.setCarrier(null, true) };
-      if (!this.hostage.carrier && this.hostage.pos.distanceTo(s.pos) < 1.6) return { key: 'pick', label: 'Hold [F] Secure hostage', hold: 1.2, run: () => this.setCarrier(s.id, true) };
+      if (this.hostage.carrier === s.id) return { key: 'drop', label: 'action.putDownHostage', hold: 0, run: () => this.setCarrier(null, true) };
+      if (!this.hostage.carrier && this.hostage.pos.distanceTo(s.pos) < 1.6) return { key: 'pick', label: 'action.secureHostage', hold: 1.2, run: () => this.setCarrier(s.id, true) };
     }
     if (this.mission === 'bomb') {
       for (const b of this.bombs) {
         if (b.state !== 'armed' || b.pos.distanceTo(s.pos) > 1.7) continue;
-        if (this.mode === 'th' && attack) return { key: `dis${b.id}`, label: 'Hold [F] Disarm bomb', hold: 6, run: () => this.disarmTH(b) };
-        if (this.mode === 'pvp' && attack && !this.defuser) return { key: `plant${b.id}`, label: 'Hold [F] Plant defuser', hold: 4, run: () => this.plantDefuser(b.id, s.id, true) };
+        if (this.mode === 'th' && attack) return { key: `dis${b.id}`, label: 'action.disarmBomb', hold: 6, run: () => this.disarmTH(b) };
+        if (this.mode === 'pvp' && attack && !this.defuser) return { key: `plant${b.id}`, label: 'action.plantDefuser', hold: 4, run: () => this.plantDefuser(b.id, s.id, true) };
       }
       if (this.mode === 'pvp' && defend && this.defuser && this.defuser.pos.distanceTo(s.pos) < 1.7) {
-        return { key: 'disable', label: 'Hold [F] Disable defuser', hold: 4, run: () => { this.world.emit({ t: 'objective', kind: 'defuser_disabled', actor: s.id }); this.removeDefuser(); } };
+        return { key: 'disable', label: 'action.disableDefuser', hold: 4, run: () => { this.world.emit({ t: 'objective', kind: 'defuser_disabled', actor: s.id }); this.removeDefuser(); } };
       }
     }
     return null;
@@ -284,20 +287,21 @@ export class Objectives {
       case 'hostage': {
         const h = this.hostage;
         const text = !h ? '' : !h.alive ? 'Hostage KIA' : h.carrier ? 'Escort the hostage to an extraction zone' : `Locate & secure the hostage — ${label}`;
-        return { mission: 'hostage', site: this.site, siteLabel: label, text, progress: 0 };
+        const key = !h ? '' : !h.alive ? 'obj.hostageKia' : h.carrier ? 'obj.escort' : 'obj.locateHostage';
+        return { mission: 'hostage', site: this.site, siteLabel: label, text, key, args: [label], progress: 0 };
       }
       case 'bomb': {
         const left = this.bombs.filter((b) => b.state === 'armed').length;
         if (this.mode === 'pvp') {
           const defIn = this.defuser ? Math.max(0, this.defuser.endsAt - (Date.now() + this.serverClockOffset) / 1000) : undefined;
-          return { mission: 'bomb', site: this.site, siteLabel: `${label} / ${this.siteLabel(this.bombs[1]?.room)}`, text: this.defuser ? 'Defuser planted — protect it!' : 'Plant the defuser on a bomb', progress: 0, defuserEndsIn: defIn };
+          return { mission: 'bomb', site: this.site, siteLabel: `${label} / ${this.siteLabel(this.bombs[1]?.room)}`, text: this.defuser ? 'Defuser planted — protect it!' : 'Plant the defuser on a bomb', key: this.defuser ? 'obj.protectDefuser' : 'obj.plantDefuser', args: [], progress: 0, defuserEndsIn: defIn };
         }
-        return { mission: 'bomb', site: this.site, siteLabel: `${label} / ${this.siteLabel(this.bombs[1]?.room)}`, text: `Disarm the bombs (${left} left)`, progress: 0 };
+        return { mission: 'bomb', site: this.site, siteLabel: `${label} / ${this.siteLabel(this.bombs[1]?.room)}`, text: `Disarm the bombs (${left} left)`, key: 'obj.disarm', args: [String(left)], progress: 0 };
       }
       case 'secure':
-        return { mission: 'secure', site: this.site, siteLabel: label, text: this.secureContested ? 'CONTESTED — clear the room' : `Secure the biohazard container — ${label}`, progress: this.secureProgress / 10 };
+        return { mission: 'secure', site: this.site, siteLabel: label, text: this.secureContested ? 'CONTESTED — clear the room' : `Secure the biohazard container — ${label}`, key: this.secureContested ? 'obj.contested' : 'obj.secure', args: [label], progress: this.secureProgress / 10 };
       default:
-        return { mission: 'elimination', site: this.site, siteLabel: label, text: 'Eliminate all White Masks', progress: 0 };
+        return { mission: 'elimination', site: this.site, siteLabel: label, text: 'Eliminate all White Masks', key: 'obj.eliminate', args: [], progress: 0 };
     }
   }
 

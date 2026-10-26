@@ -290,6 +290,23 @@ export class Effects {
 
   spark(p: THREE.Vector3, color = '#7fd0ff') {
     for (let i = 0; i < 3; i++) this.add.spawn(p, new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 3, (Math.random() - 0.5) * 3), this.tmpC.set(color), 1, 0.03, 0.15, { drag: 2, grav: 4 });
+    // a short blue-white arc so electrified walls read from across the room
+    this.boom.position.copy(p);
+    this.boom.color.set(color);
+    this.boom.intensity = Math.max(this.boom.intensity, 6);
+    this.boomT = Math.max(this.boomT, 0.06);
+  }
+
+  /** Blitz flash: a blinding white burst (light + additive sprites) */
+  flashBurst(p: THREE.Vector3) {
+    this.boom.position.copy(p);
+    this.boom.color.set('#ffffff');
+    this.boom.intensity = 220;
+    this.boomT = 0.12;
+    for (let i = 0; i < 14; i++) {
+      const v = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.3, Math.random() - 0.5).multiplyScalar(4);
+      this.add.spawn(p, v, this.tmpC.set('#fffbe8'), 1, 0.25, 0.12, { drag: 6, grow: 1.5 });
+    }
   }
 
   /** ambient motes + gas emitters */

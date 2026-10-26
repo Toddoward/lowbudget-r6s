@@ -45,8 +45,9 @@ interface KindProps {
 }
 const PROPS: Record<PanelKind, KindProps> = {
   wall_soft: { hp: 3, beamEvery: 0, mat: 'plaster', face: PAL.softWall, core: PAL.softCore, xray: TIER_XRAY.soft, collapse: 2, penetrable: true },
-  wall_semi: { hp: 3, beamEvery: 3, mat: 'wood', face: PAL.semiWall, core: PAL.semiCore, xray: TIER_XRAY.semi, collapse: 2, penetrable: true },
-  floor_semi: { hp: 3, beamEvery: 3, mat: 'wood', face: PAL.woodFloor, core: PAL.semiCore, xray: TIER_XRAY.semi, collapse: 2, penetrable: true },
+  // semi: a thin stud / joist in every 25 cm column — eyes, bullets and grenades pass, bodies never do
+  wall_semi: { hp: 3, beamEvery: 1, mat: 'wood', face: PAL.semiWall, core: PAL.semiCore, xray: TIER_XRAY.semi, collapse: 2, penetrable: true },
+  floor_semi: { hp: 3, beamEvery: 1, mat: 'wood', face: PAL.woodFloor, core: PAL.semiCore, xray: TIER_XRAY.semi, collapse: 2, penetrable: true },
   hatch: { hp: 6, beamEvery: 0, mat: 'wood', face: PAL.hatch, core: PAL.woodDark, xray: TIER_XRAY.soft, collapse: 0.6, penetrable: true },
   barricade: { hp: 1, beamEvery: 0, mat: 'wood', face: PAL.barricade, core: PAL.woodDark, xray: TIER_XRAY.soft, collapse: 0.45, penetrable: true },
   castle: { hp: 8, beamEvery: 0, mat: 'metal', face: PAL.castle, core: PAL.darkMetal, xray: TIER_XRAY.solid, collapse: 2, penetrable: false },
@@ -90,6 +91,10 @@ export class Panel {
   readonly state: Uint8Array;
   readonly hp: Float32Array;
   reinforced = false;
+  /** a reinforced wall that Thermite burnt open can never be reinforced again */
+  thermited = false;
+  /** visual details that live and die with the panel (baseboard, hatch handle) */
+  details: THREE.Object3D[] = [];
   /** Bandit batteries attached */
   electrified = 0;
   destroyed = false;
@@ -128,7 +133,7 @@ export class Panel {
         const i = v * this.nu + u;
         if (be > 0) {
           const edge = u === 0 || u === this.nu - 1 || (spec.nAx !== 1 && (v === 0 || v === this.nv - 1));
-          if (edge || u % be === 1) this.state[i] |= F_BEAM;
+          if (edge || u % be === (be === 1 ? 0 : 1)) this.state[i] |= F_BEAM;
         }
         if (spec.voids) {
           const cu = this.min.getComponent(this.uAx) + (u + 0.5) * this.cu;
@@ -234,6 +239,8 @@ export class Panel {
       }
     }
     if (broke.length) {
+      // only Thermite can hurt steel: once it has, this section is lost for good (spec #15)
+      if (this.reinforced) this.thermited = true;
       if (this.brokenFraction >= this.props.collapse) {
         for (let i = 0; i < this.state.length; i++) {
           if (!(this.state[i] & F_BROKEN)) { this.state[i] |= F_BROKEN; this.brokenCount++; broke.push(i); }
@@ -281,9 +288,44 @@ export class Panel {
     };
     emit(greedy(skin, this.nu, this.nv), 0, face, core);
     const t = this.thickness;
-    emit(greedy(beams, this.nu, this.nv), t * 0.18, PAL.stud, PAL.stud);
+    // plates (wall top/bottom rows, floor rim columns) stay full width; studs / joists are thin members
+    const plates = new Uint8Array(this.state.length);
+    const studs = new Uint8Array(this.state.length);
+    for (let i = 0; i < beams.length; i++) {
+      if (!beams[i]) continue;
+      const u = i % this.nu;
+      const v = Math.floor(i / this.nu);
+      const plate = this.isWall ? v === 0 || v === this.nv - 1 : u === 0 || u === this.nu - 1;
+      if (plate) plates[i] = 1; else studs[i] = 1;
+    }
+    emit(greedy(plates, this.nu, this.nv), t * 0.18, PAL.stud, PAL.stud);
+    const STUD_W = 0.06;
+    for (let u = 0; u < this.nu; u++) {
+      let v = 0;
+      while (v < this.nv) {
+        if (!studs[v * this.nu + u]) { v++; continue; }
+        let v1 = v;
+        while (v1 < this.nv && studs[v1 * this.nu + u]) v1++;
+        const mn = new THREE.Vector3();
+        const mx = new THREE.Vector3();
+        const cu = this.min.getComponent(this.uAx) + (u + 0.5) * this.cu;
+        mn.setComponent(this.uAx, cu - STUD_W / 2);
+        mx.setComponent(this.uAx, cu + STUD_W / 2);
+        mn.setComponent(this.vAx, this.min.getComponent(this.vAx) + v * this.cv);
+        mx.setComponent(this.vAx, this.min.getComponent(this.vAx) + v1 * this.cv);
+        mn.setComponent(this.nAx, n0 + t * 0.15);
+        mx.setComponent(this.nAx, n1 - t * 0.15);
+        batch.box(mn.toArray(), mx.toArray(), PAL.stud, PAL.studDark, this.uAx);
+        const c = mn.clone().add(mx).multiplyScalar(0.5);
+        const h = mx.clone().sub(mn).multiplyScalar(0.5);
+        this.colliders.push(physics.addBox(c.x, c.y, c.z, h.x, h.y, h.z, { kind: 'panel', panelId: this.id }));
+        v = v1;
+      }
+    }
     batch.build(this.mesh.geometry);
     this.mesh.visible = !batch.empty;
+    const intact = this.brokenFraction < 0.5;
+    for (const d of this.details) d.visible = intact && !this.reinforced;
     this.passable = this.computePassable();
   }
 
@@ -309,6 +351,7 @@ export class Panel {
 
   /** Restore all non-void skin (used when a barricade is re-placed). */
   resetSkin() {
+    this.thermited = false;
     for (let i = 0; i < this.state.length; i++) {
       if (this.state[i] & F_VOID) continue;
       this.state[i] &= ~F_BROKEN;
@@ -376,6 +419,7 @@ export class DestructionSystem {
   remove(id: number) {
     const p = this.panels.get(id);
     if (!p) return;
+    for (const d of p.details) this.group.remove(d);
     for (const c of p.colliders) this.physics.remove(c);
     p.colliders = [];
     this.group.remove(p.mesh);
@@ -451,8 +495,9 @@ export class DestructionSystem {
       }
     } else if (kind === 'breach' || kind === 'thermite') {
       if (target && !(kind === 'breach' && target.reinforced) && !(kind === 'thermite' && target.electrified > 0)) {
-        const w = kind === 'thermite' ? 1.5 : 1.05;
-        const h = kind === 'thermite' ? 2.3 : 2.0;
+        // spec: a body-sized 1.8 × 2.2 m passage (Thermite burns slightly taller through steel)
+        const w = 1.8;
+        const h = kind === 'thermite' ? 2.4 : 2.2;
         if (target.isWall) {
           const pu = point.getComponent(target.uAx);
           const baseV = target.min.getComponent(target.vAx);
@@ -463,10 +508,19 @@ export class DestructionSystem {
           push(target, target.cellsInSphere(point, kind === 'thermite' ? 0.9 : 0.65), 999);
         }
       } else blocked = true;
+      if (kind === 'thermite' && target?.reinforced && !blocked) target.thermited = true;
       if (kind === 'breach') for (const p of this.panelsNear(point, 1.2)) {
         if (p === target || immune(p)) continue;
         push(p, p.cellsInSphere(point, 0.9), 4);
       }
+    } else if ((kind === 'sledge' || kind === 'ash') && target && target.isWall && !immune(target) && (target.kind === 'wall_soft' || target.kind === 'wall_semi')) {
+      // spec: hammer / Ash round open a 1.8 × 2.2 m body-sized passage in soft walls (semi keeps its studs)
+      const pu = point.getComponent(target.uAx);
+      const baseV = target.min.getComponent(target.vAx);
+      let v0 = point.getComponent(target.vAx) - 1.1;
+      if (v0 - baseV < 0.7) v0 = baseV - 0.01;
+      push(target, target.cellsInRect(pu - 0.9, v0, pu + 0.9, v0 + 2.2), 999);
+      for (const p of this.panelsNear(point, 1.0)) if (p !== target && !immune(p) && p.isWall) push(p, p.cellsInSphere(point, 0.9), 60);
     } else {
       const r = kind === 'sledge' ? 0.8 : kind === 'ash' ? 1.05 : kind === 'cluster' ? 0.5 : 0.65;
       const dmg = kind === 'sledge' || kind === 'ash' ? 60 : 4;

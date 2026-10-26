@@ -86,6 +86,9 @@ export class Bot {
   private slot = perceptionSlot++ % 6;
   private tick = 0;
   private trackErr = new THREE.Vector3();
+  /** initial misjudgment on (re)acquiring a target: decays over ~1 s, so the first shot isn't a laser (spec #10) */
+  private acquireErr = new THREE.Vector3();
+  private acquiredAt = -99;
   readonly guard: boolean;
   /** human-readable debug of the last transition */
   reason = 'spawn';
@@ -138,6 +141,8 @@ export class Bot {
   }
 
   private see(dt: number) {
+    // flashed (Blitz): blind — no new contacts, keep shooting where the target was last
+    if (this.s.blindUntil > this.world.time) { this.visibleNow = false; return; }
     const eye = this.s.eye();
     const fwd = this.aim;
     let best: Actor | null = null;
@@ -178,12 +183,23 @@ export class Bot {
         this.setState(BotState.Attack, `spotted ${best.name}`);
       }
       if (this.target !== best) this.reactT = Math.min(this.reactT, this.diff.reaction * 0.5);
+      if (this.target !== best || this.world.time - this.lastSeenT > 1.2) this.acquire(best);
       this.target = best;
       this.visibleNow = true;
       this.lastSeen.copy(best.pos);
       this.lastSeenT = this.world.time;
       this.world.sound({ type: 'voice', pos: this.s.pos.clone(), radius: 14, source: this.s.id, intensity: 0.5, label: 'contact' });
     }
+  }
+
+  private acquire(t: Actor) {
+    const d = t.pos.distanceTo(this.s.pos);
+    // 0.35..0.9 m off at Normal, less at higher difficulty; random direction, mostly sideways
+    const mag = (0.35 + this.diff.spread * 0.5) * THREE.MathUtils.clamp(0.6 + d / 20, 0.6, 1.6);
+    const a = Math.random() * Math.PI * 2;
+    this.acquireErr.set(Math.cos(a) * mag, Math.sin(a) * mag * 0.55, Math.sin(a + 1.3) * mag);
+    this.acquiredAt = this.world.time;
+    this.trackErr.set(0, 0, 0);
   }
 
   private shotLog = new Map<string, number>();
@@ -279,12 +295,15 @@ export class Bot {
         if (s.hp < 35 && this.visibleNow && t.pos.distanceTo(s.pos) > 6 && Math.random() < dt * 0.6) { this.goCover('wounded'); break; }
         if (this.visibleNow) {
           const hb = t.hitboxes();
-          const aimAtHead = Math.random() < this.diff.headAim * 0.02 || (this.trackErr.lengthSq() === 0 && Math.random() < this.diff.headAim);
+          const settled = this.world.time - this.acquiredAt > 1.2;
+          const aimAtHead = settled && Math.random() < this.diff.headAim * 0.02;
           const pt = (aimAtHead ? hb.head.c : hb.torso.a.clone().lerp(hb.torso.b, 0.55)).clone().addScaledVector(t.vel, 0.08);
           // drifting tracking error (random walk), scaled by difficulty
           this.trackErr.add(new THREE.Vector3((Math.random() - 0.5), (Math.random() - 0.5) * 0.6, (Math.random() - 0.5)).multiplyScalar(dt * 0.9));
           this.trackErr.clampLength(0, 0.12 + this.diff.spread * 0.05);
-          lookTarget = pt.add(this.trackErr);
+          // acquisition error decays exponentially (faster on harder difficulties)
+          this.acquireErr.multiplyScalar(Math.exp(-dt * (0.8 + this.diff.turnSpeed * 0.1)));
+          lookTarget = pt.add(this.trackErr).add(this.acquireErr);
           this.reactT += dt;
           // strafe / stance
           this.strafeT -= dt;
@@ -348,7 +367,9 @@ export class Bot {
     // ---- fire control: only when residual aim error is inside the cone
     const err = THREE.MathUtils.radToDeg(this.aim.angleTo(targetDir));
     const dist = this.target ? this.target.pos.distanceTo(s.pos) : 10;
-    s.extraSpread = this.diff.spread * (1 + dist / 30) * (s.vel.lengthSq() > 1 ? 1.25 : 1) * (this.target && this.target.vel.lengthSq() > 1 ? 1.15 : 1) + err * 0.35;
+    const fresh = Math.exp(-(this.world.time - this.acquiredAt) / 1.2); // first shots after acquiring are wild
+    const blind = s.blindUntil > this.world.time ? 6 : 0;
+    s.extraSpread = this.diff.spread * (1 + dist / 30) * (s.vel.lengthSq() > 1 ? 1.25 : 1) * (this.target && this.target.vel.lengthSq() > 1 ? 1.15 : 1) + err * 0.35 + fresh * (2.6 + this.diff.spread * 2.6) + blind;
     if (fire && err < this.diff.fireCone && w) {
       if (this.burstPause > 0) this.burstPause -= dt;
       else {

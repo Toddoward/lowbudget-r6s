@@ -14,6 +14,8 @@ export interface MemberInfo {
   alive: boolean;
   kills: number;
   deaths: number;
+  /** connection dropped; the seat is kept for RESUME_GRACE_MS while the client reconnects */
+  away?: boolean;
 }
 
 export interface RoundInfo {
@@ -62,7 +64,8 @@ export type GameEvent =
   | { t: 'explosion'; p: number[]; r: number; kind: string; by: string }
   | { t: 'emp'; p: number[]; r: number; by: string }
   | { t: 'objective'; kind: ObjectiveEventKind; actor: string; data?: Record<string, unknown> }
-  | { t: 'spot'; target: string; by: string };
+  | { t: 'spot'; target: string; by: string; team?: string; p?: number[] }
+  | { t: 'flash'; p: number[]; d: number[]; by: string };
 
 export type ObjectiveEventKind =
   | 'defuser_planted'
@@ -102,11 +105,15 @@ export interface ActorSnapshot {
   ads: boolean;
   /** drone position while droning (prep phase) */
   dr?: [number, number, number];
+  /** Montagne: shield extended */
+  sx?: boolean;
+  /** Tachanka: mounted on the LMG */
+  mt?: boolean;
 }
 
 /* ------------------------------------------------------------ client → server */
 export type ClientMessage =
-  | { type: 'hello'; nickname: string; isAgent: boolean; version: number }
+  | { type: 'hello'; nickname: string; isAgent: boolean; version: number; resume?: { id: string; token: string } }
   | { type: 'add_agent'; nickname: string }
   | { type: 'remove_agent'; id: string }
   | { type: 'loadout'; actor: string; squad?: Squad; operator?: OperatorId; spawn?: SpawnId; ready?: boolean }
@@ -132,7 +139,7 @@ export interface RTCIceCandidateLike {
 
 /* ------------------------------------------------------------ server → client */
 export type ServerMessage =
-  | { type: 'welcome'; selfId: string; state: RoomState; log: GameEvent[] }
+  | { type: 'welcome'; selfId: string; state: RoomState; log: GameEvent[]; resume?: string; resumed?: boolean }
   | { type: 'state'; state: RoomState }
   | { type: 'rtc'; from: string; data: RtcSignal }
   | { type: 'relay'; from: string; snaps: ActorSnapshot[]; fast?: FastEvent[] }

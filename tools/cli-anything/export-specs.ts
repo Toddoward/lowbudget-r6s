@@ -15,6 +15,7 @@ import { hammerSpec, launcherSpec, chargeSpec, deviceSpec, throwableSpec, pulseS
 import { box, cyl, type AssetSpec, type PartSpec } from '../../src/assets/spec.ts';
 import { WALLS, FLOORS, STAIRS, HATCHES, ROOMS, SPAWN_ZONES, OPENING_DIMS, WALL_H, CELL } from '../../src/map/houseLayout.ts';
 import { PROPS } from '../../src/map/houseProps.ts';
+import { extraGadgetSpec } from '../../src/assets/gadgetModels.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const out = join(here, 'build', 'specs');
@@ -27,6 +28,7 @@ specs.push(hammerSpec(), launcherSpec(), pulseSensorSpec(), droneSpec(),
   chargeSpec('g_breach', '#3f4533', 0.32, 0.5), chargeSpec('g_thermite', '#7a6a48', 0.5, 0.75), chargeSpec('g_cluster', '#4a4f3a', 0.3, 0.3),
   throwableSpec('g_emp', '#2c5c8a', true), throwableSpec('g_gas', '#6a6f2a', true),
   deviceSpec('g_jammer', '#1b1d20', '#ff3a3a'), deviceSpec('g_ads', '#3c4136'), deviceSpec('g_battery', '#d9792a', '#7fd0ff'));
+for (const k of ['scanner', 'shield', 'flash_shield', 'edd', 'turret']) specs.push(extraGadgetSpec(k)!);
 
 /* House architecture modules (Tactical Low-Poly, tier colour coded) */
 const panel = (id: string, face: string, core: string, studs: boolean): AssetSpec => {

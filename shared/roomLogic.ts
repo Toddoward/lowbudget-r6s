@@ -1,5 +1,5 @@
 import {
-  ATTACKERS, DEFENDERS, MAX_ROOM_MEMBERS, MISSIONS, PROTOCOL_VERSION, PVP_TIMINGS, SITES,
+  ATTACKERS, DEFENDERS, MAX_ROOM_MEMBERS, MISSIONS, PROTOCOL_VERSION, PVP_TIMINGS, RESUME_GRACE_MS, SITES,
   sanitizeNickname, type OperatorId, type Squad,
 } from './constants.ts';
 import type { ClientMessage, GameEvent, MemberInfo, RoomState, RoundInfo, ServerMessage } from './protocol.ts';
@@ -38,29 +38,98 @@ export class RoomLogic {
   }
 
   get connectionCount() { return this.conns.size; }
+  /** seats kept for clients that are reconnecting (the DO must not drop the room yet) */
+  get awayCount() { return this.away.size; }
+
+  /*
+   * Connections vs seats: a member is keyed by the connection id it first joined
+   * with (its "seat"). After a reconnect the new connection is aliased to that
+   * seat, so member ids, actor ids and agent ownership survive a dropped socket.
+   */
+  private seatOf = new Map<string, string>();
+  private connOf = new Map<string, string>();
+  private tokens = new Map<string, string>();
+  private away = new Map<string, unknown>();
+  private logSent = new Map<string, { n: number; round: number }>();
+
+  private seat(conn: string) { return this.seatOf.get(conn) ?? conn; }
+  private sendTo(seat: string, msg: ServerMessage) { this.io.send(this.connOf.get(seat) ?? seat, msg); }
+  private broadcastExcept(msg: ServerMessage, seat: string) { this.io.broadcast(msg, this.connOf.get(seat) ?? seat); }
 
   onConnect(connId: string) {
     this.conns.add(connId);
   }
 
-  onDisconnect(connId: string) {
-    this.conns.delete(connId);
-    this.state.members = this.state.members.filter((m) => m.ownerId !== connId);
-    if (this.state.hostId === connId) this.state.hostId = this.state.members.find((m) => !m.isAgent)?.id ?? '';
+  onDisconnect(conn: string) {
+    const seat = this.seat(conn);
+    this.seatOf.delete(conn);
+    if ((this.connOf.get(seat) ?? seat) !== conn) return; // a stale socket of a seat that already resumed
+    this.connOf.delete(seat);
+    this.conns.delete(seat);
+    if (this.tokens.has(seat) && this.state.members.some((m) => m.ownerId === seat)) {
+      // keep the seat for a while: the client reconnects with its resume token
+      for (const m of this.state.members) if (m.ownerId === seat) m.away = true;
+      this.logSent.set(seat, { n: this.log.length, round: this.state.round?.index ?? -1 });
+      this.away.set(seat, this.io.setTimer(RESUME_GRACE_MS, () => this.dropSeat(seat)));
+      this.pushState();
+      return;
+    }
+    this.dropSeat(seat);
+  }
+
+  private dropSeat(seat: string) {
+    const t = this.away.get(seat);
+    if (t !== undefined) this.io.clearTimer(t);
+    this.away.delete(seat);
+    this.tokens.delete(seat);
+    this.logSent.delete(seat);
+    this.state.members = this.state.members.filter((m) => m.ownerId !== seat);
+    if (this.state.hostId === seat) this.state.hostId = this.state.members.find((m) => !m.isAgent && !m.away)?.id ?? this.state.members.find((m) => !m.isAgent)?.id ?? '';
     if (this.state.members.length === 0) this.resetToLobby();
     this.checkElimination();
     this.pushState();
   }
 
-  onMessage(connId: string, msg: ClientMessage) {
+  /** hello with a valid resume token: re-attach this connection to its old seat */
+  private tryResume(conn: string, r: { id: string; token: string }): boolean {
+    if (!r.id || this.tokens.get(r.id) !== r.token || !this.state.members.some((m) => m.ownerId === r.id)) return false;
+    const t = this.away.get(r.id);
+    if (t !== undefined) this.io.clearTimer(t);
+    this.away.delete(r.id);
+    const old = this.connOf.get(r.id);
+    if (old && old !== conn) this.seatOf.delete(old);
+    this.conns.delete(conn);
+    this.conns.add(r.id);
+    this.seatOf.set(conn, r.id);
+    this.connOf.set(r.id, conn);
+    for (const m of this.state.members) if (m.ownerId === r.id) m.away = false;
+    // only what was logged while the socket was gone (the log restarts each round)
+    const sent = this.logSent.get(r.id);
+    this.logSent.delete(r.id);
+    const sameRound = !!sent && sent.round === (this.state.round?.index ?? -1) && sent.n <= this.log.length;
+    this.sendTo(r.id, { type: 'welcome', selfId: r.id, state: this.snapshot(), log: sameRound ? this.log.slice(sent!.n) : this.log, resume: r.token, resumed: true });
+    this.pushState();
+    return true;
+  }
+
+  private newToken() {
+    let s = '';
+    for (let i = 0; i < 4; i++) s += Math.floor(this.io.random() * 2 ** 32).toString(36);
+    return s;
+  }
+
+  onMessage(conn: string, msg: ClientMessage) {
+    if (msg.type === 'hello' && msg.resume && msg.version === PROTOCOL_VERSION && this.tryResume(conn, msg.resume)) return;
+    const connId = this.seat(conn);
     switch (msg.type) {
       case 'hello': {
         if (msg.version !== PROTOCOL_VERSION) {
-          this.io.send(connId, { type: 'error', message: `protocol mismatch (server ${PROTOCOL_VERSION}, client ${msg.version}) — hard refresh` });
+          this.io.send(conn, { type: 'error', message: `protocol mismatch (server ${PROTOCOL_VERSION}, client ${msg.version}) — hard refresh` });
           return;
         }
+        if (this.member(connId)) return; // duplicate hello (retry timer)
         if (this.state.members.length >= MAX_ROOM_MEMBERS) {
-          this.io.send(connId, { type: 'error', message: 'room is full' });
+          this.io.send(conn, { type: 'error', message: 'room is full' });
           return;
         }
         const nickname = this.uniqueNick(sanitizeNickname(msg.nickname));
@@ -73,14 +142,16 @@ export class RoomLogic {
         if (this.state.phase !== 'lobby') member.alive = false;
         this.state.members.push(member);
         if (!this.state.hostId) this.state.hostId = connId;
-        this.io.send(connId, { type: 'welcome', selfId: connId, state: this.snapshot(), log: this.log });
+        const token = this.newToken();
+        this.tokens.set(connId, token);
+        this.sendTo(connId, { type: 'welcome', selfId: connId, state: this.snapshot(), log: this.log, resume: token });
         this.pushState(connId);
         return;
       }
       case 'add_agent': {
         if (!this.member(connId)) return;
         if (this.state.members.length >= MAX_ROOM_MEMBERS) {
-          this.io.send(connId, { type: 'error', message: 'room is full' });
+          this.sendTo(connId, { type: 'error', message: 'room is full' });
           return;
         }
         const id = `${connId}#agent${++this.agentCounter}`;
@@ -119,11 +190,11 @@ export class RoomLogic {
         return;
       }
       case 'rtc': {
-        if (this.conns.has(msg.to)) this.io.send(msg.to, { type: 'rtc', from: connId, data: msg.data });
+        if (this.conns.has(msg.to)) this.sendTo(msg.to, { type: 'rtc', from: connId, data: msg.data });
         return;
       }
       case 'relay': {
-        this.io.broadcast({ type: 'relay', from: connId, snaps: msg.snaps, fast: msg.fast }, connId);
+        this.broadcastExcept({ type: 'relay', from: connId, snaps: msg.snaps, fast: msg.fast }, connId);
         return;
       }
       case 'event': {
@@ -131,7 +202,7 @@ export class RoomLogic {
         return;
       }
       case 'ping': {
-        this.io.send(connId, { type: 'pong', t: msg.t, serverTime: this.io.now() });
+        this.io.send(conn, { type: 'pong', t: msg.t, serverTime: this.io.now() });
         return;
       }
     }
@@ -142,7 +213,7 @@ export class RoomLogic {
     if (ev.t === 'cells' || ev.t === 'barricade' || ev.t === 'reinforce') {
       if (this.log.length < MAX_LOG) this.log.push(ev);
     }
-    this.io.broadcast({ type: 'event', from: connId, ev }, connId);
+    this.broadcastExcept({ type: 'event', from: connId, ev }, connId);
 
     const round = this.state.round;
     if (!round || (this.state.phase !== 'action' && this.state.phase !== 'prep')) return;

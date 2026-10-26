@@ -7,11 +7,14 @@ import * as THREE from 'three';
  * Press [T] in-game for the saturated "tier X-ray" overlay.
  */
 export const PAL = {
-  softWall: new THREE.Color('#9e675d'),
+  /** soft walls: wallpaper tone — reads differently from bare plaster hard walls */
+  softWall: new THREE.Color('#a7766a'),
   softCore: new THREE.Color('#e6dccb'),
   semiWall: new THREE.Color('#bb9b60'),
   semiCore: new THREE.Color('#8a6a3c'),
   stud: new THREE.Color('#6d5232'),
+  studDark: new THREE.Color('#4c3922'),
+  baseboard: new THREE.Color('#5a3f27'),
   solidWall: new THREE.Color('#e4e0d6'),
   solidExt: new THREE.Color('#d7d2c6'),
   concrete: new THREE.Color('#8f8c86'),
@@ -63,13 +66,13 @@ export function patchInterior<T extends THREE.Material>(m: T): T {
       .replace('#include <common>', '#include <common>\nvarying vec3 vWPos;\nuniform float uInteriorAmb;')
       .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
         {
-          vec3 dIn = min(vWPos - vec3(-8.0, -3.1, -7.0), vec3(8.0, 5.85, 7.0) - vWPos);
+          vec3 dIn = min(vWPos - vec3(-9.5, -3.6, -7.45), vec3(9.75, 6.75, 6.65) - vWPos);
           float inside = smoothstep(0.0, 0.3, min(min(dIn.x, dIn.y), dIn.z));
           reflectedLight.indirectDiffuse *= mix(1.0, uInteriorAmb, inside);
           reflectedLight.indirectSpecular *= mix(1.0, uInteriorAmb, inside);
         }`);
   };
-  m.customProgramCacheKey = () => 'interior-v1';
+  m.customProgramCacheKey = () => 'interior-v2';
   return m;
 }
 

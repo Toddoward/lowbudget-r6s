@@ -3,119 +3,200 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Rainbow Six Siege: Original 2015 Edition (Web Tactical FPS)</title>
-  <meta name="description" content="Browser tactical FPS: the original 2015 House, real-time destruction, rappelling, Terrorist Hunt bots, room-code PvP over Cloudflare Durable Objects + WebRTC, and a WebMCP agent bridge." />
+  <title>R6S: TEMU — 테무 에디션 (Web Tactical FPS)</title>
+  <meta name="description" content="R6S: TEMU — a low-budget, fan-made browser tactical FPS: the original 2015 House, real-time destruction, rappelling, Terrorist Hunt bots, room-code PvP and a WebMCP agent bridge." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" />
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23111'/%3E%3Ctext x='16' y='22' font-size='15' text-anchor='middle' fill='%23e8c35a' font-family='Arial' font-weight='bold'%3ER6%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;600&family=Noto+Sans+KR:wght@500;700&display=swap" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23ff6a00'/%3E%3Ctext x='16' y='21' font-size='12' text-anchor='middle' fill='%23111' font-family='Arial' font-weight='bold'%3ER6S%3C/text%3E%3C/svg%3E" />
 </head>
 <body>
   <canvas id="game" tabindex="0"></canvas>
 
+  <!-- ============================================================ loading -->
   <div id="loading" class="screen">
-    <div class="brand"><span class="r6">R6</span> SIEGE <small>ORIGINAL 2015 EDITION · WEB TACTICAL FPS</small></div>
+    <div class="brand"><span class="r6">R6S</span><span class="temu">TEMU</span><small data-i18n="brand.sub">테무 에디션 · 브라우저 전술 FPS</small></div>
     <div id="loading-msg">Loading…</div>
     <div class="bar"><div id="loading-bar"></div></div>
   </div>
 
+  <!-- ============================================================ home (depth 1) -->
   <div id="menu" class="screen hidden">
-    <header class="brand"><span class="r6">R6</span> SIEGE <small>ORIGINAL 2015 EDITION · WEB TACTICAL FPS</small></header>
-    <p class="tag">Fan-made, non-commercial tribute. House (2015) · Tactical Low-Poly · E3 2014 lighting · Rapier3D destruction</p>
-    <div class="cols">
-      <section class="card" id="card-th">
-        <h2>TERRORIST HUNT <span class="sub">Single player · FSM bots</span></h2>
-        <label>Difficulty <select id="th-diff"><option>Normal</option><option>Hard</option><option>Realistic</option></select></label>
-        <label>Mission <select id="th-mission"><option value="random">Random</option><option value="elimination">Classic (eliminate)</option><option value="bomb">Disarm Bomb</option><option value="hostage">Hostage Rescue</option><option value="secure">Secure Area</option></select></label>
-        <label>Time of day <select id="th-tod"><option value="random">Random</option><option value="day">Morning</option><option value="night">Night</option></select></label>
-        <label>Spawn <select id="th-spawn"><option value="random">Random</option><option value="construction">Construction Site (N)</option><option value="docks">River Docks (E)</option><option value="apc">APC Area (SW)</option><option value="sidestreet">Side Street (S)</option></select></label>
-        <div class="ops" id="th-ops"></div>
-        <div class="agent-row">
-          <span>WebMCP AI teammates: <b id="th-agents">0</b></span>
-          <button id="th-add-agent" class="ghost">+ 로컬 WebMCP AI 에이전트 슬롯 추가</button>
-          <button id="th-clear-agents" class="ghost small">reset</button>
+    <div class="home">
+      <header class="brand left"><span class="r6">R6S</span><span class="temu">TEMU</span><small data-i18n="brand.sub"></small></header>
+      <nav class="home-nav">
+        <button class="nav-item hero" id="nav-quick"><b data-i18n="menu.quick"></b><small id="quick-sub"></small></button>
+        <button class="nav-item" id="nav-th"><b data-i18n="menu.th"></b><small data-i18n="menu.thSub"></small></button>
+        <button class="nav-item" id="nav-mp"><b data-i18n="menu.pvp"></b><small data-i18n="menu.pvpSub"></small></button>
+        <button class="nav-item" id="nav-settings"><b data-i18n="menu.settings"></b><small data-i18n="menu.settingsSub"></small></button>
+        <button class="nav-item" id="nav-controls"><b data-i18n="menu.controls"></b><small data-i18n="menu.controlsSub"></small></button>
+      </nav>
+      <p class="tag" data-i18n="brand.tag"></p>
+    </div>
+    <div class="lang-switch"><button data-lang="ko">한국어</button><button data-lang="en">English</button></div>
+  </div>
+
+  <!-- ============================================================ Terrorist Hunt setup (depth 2) -->
+  <div id="th-setup" class="screen hidden">
+    <div class="page">
+      <header class="page-head"><button class="back" data-back>‹ <span data-i18n="menu.back"></span></button><h2 data-i18n="menu.th"></h2></header>
+      <div class="setup-grid">
+        <section class="card">
+          <h3 data-i18n="menu.operator"></h3>
+          <div id="th-ops" class="op-groups"></div>
+          <div id="th-op-info" class="op-info"></div>
+        </section>
+        <section class="card">
+          <h3 data-i18n="menu.mission"></h3>
+          <label><span data-i18n="menu.mission"></span><select id="th-mission"><option value="random" data-i18n="mission.random"></option><option value="elimination" data-i18n="mission.elimination"></option><option value="bomb" data-i18n="mission.bomb"></option><option value="hostage" data-i18n="mission.hostage"></option><option value="secure" data-i18n="mission.secure"></option></select></label>
+          <label><span data-i18n="menu.difficulty"></span><select id="th-diff"><option value="Normal" data-i18n="diff.Normal"></option><option value="Hard" data-i18n="diff.Hard"></option><option value="Realistic" data-i18n="diff.Realistic"></option></select></label>
+          <label><span data-i18n="menu.tod"></span><select id="th-tod"><option value="random" data-i18n="menu.random"></option><option value="day" data-i18n="menu.morning"></option><option value="night" data-i18n="menu.night"></option></select></label>
+          <label><span data-i18n="menu.spawn"></span><select id="th-spawn"><option value="random" data-i18n="menu.random"></option><option value="construction" data-i18n="spawn.construction"></option><option value="docks" data-i18n="spawn.docks"></option><option value="apc" data-i18n="spawn.apc"></option><option value="sidestreet" data-i18n="spawn.sidestreet"></option></select></label>
+          <div class="agent-row qa-only">
+            <span>[QA] <span data-i18n="menu.localAgents"></span>: <b id="th-agents">0</b></span>
+            <button id="th-add-agent" class="ghost small">+1</button>
+            <button id="th-clear-agents" class="ghost small">0</button>
+          </div>
+          <button id="th-start" class="primary" data-i18n="menu.deploy"></button>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ multiplayer (depth 2) -->
+  <div id="mp" class="screen hidden">
+    <div class="page narrow">
+      <header class="page-head"><button class="back" data-back>‹ <span data-i18n="menu.back"></span></button><h2 data-i18n="menu.pvp"></h2></header>
+      <section class="card">
+        <label><span data-i18n="menu.nickname"></span><input id="nick" maxlength="16" placeholder="Recruit" /></label>
+        <label><span data-i18n="menu.roomCode"></span><input id="room-code" maxlength="7" placeholder="R6-8492" /></label>
+        <p class="hint left" data-i18n="menu.roomHint"></p>
+        <div class="btn-row">
+          <button id="pvp-join" class="primary" data-i18n="menu.joinRoom"></button>
+          <button id="pvp-create" class="ghost" data-i18n="menu.createRoom"></button>
         </div>
-        <button id="th-start" class="primary">DEPLOY</button>
-      </section>
-      <section class="card" id="card-pvp">
-        <h2>PVP <span class="sub">Nickname + 6-char room code</span></h2>
-        <label>Nickname <input id="nick" maxlength="16" placeholder="Recruit" /></label>
-        <label>Room code <span class="row"><input id="room-code" maxlength="7" placeholder="R6-8492" /><button id="room-random" class="ghost small">random</button></span></label>
-        <label>Transport <select id="room-mode"><option value="online">Online · Cloudflare Durable Object + WebRTC</option><option value="local">Local · same-browser tabs (no server)</option></select></label>
-        <label class="check"><input type="checkbox" id="join-as-agent" /> Join as WebMCP agent (window.webmcp controls this player)</label>
-        <button id="pvp-join" class="primary">JOIN ROOM</button>
-        <button id="open-agent-guide" class="agent-btn">[AI Agent WebMCP 접속 가이드 &amp; 스키마 보기]</button>
-        <details class="settings">
-          <summary>Settings</summary>
-          <label>Mouse sensitivity <input type="range" id="set-sens" min="0.5" max="4" step="0.1" value="2.2" /></label>
-          <label>Field of view <input type="range" id="set-fov" min="60" max="95" step="1" value="75" /></label>
-          <label>Quality <select id="set-quality"><option value="high">High (bloom, 2k shadows)</option><option value="medium">Medium</option><option value="low">Low</option></select></label>
-          <label>Volume <input type="range" id="set-vol" min="0" max="1" step="0.05" value="0.7" /></label>
-        </details>
+        <div class="qa-only qa-box">
+          <label><span>[QA] Transport</span><select id="room-mode"><option value="online">Online · Durable Object + WebRTC</option><option value="local">Local · same-browser tabs</option></select></label>
+          <label class="check"><input type="checkbox" id="join-as-agent" /> [QA] Join as WebMCP agent</label>
+        </div>
+        <button class="agent-btn" data-guide data-i18n="menu.agentGuide"></button>
       </section>
     </div>
-    <footer class="controls">WASD move · Shift sprint · C crouch · Z prone · Q/E lean · LMB fire · RMB ADS · R reload · V melee · F interact/rappel/barricade/reinforce · G detonate · 1-4 slots · Space vault/detach · L flashlight · T tier X-ray · B WebMCP overlay · Tab score · H help</footer>
   </div>
 
+  <!-- ============================================================ lobby -->
   <div id="lobby" class="screen hidden">
-    <header class="brand small"><span class="r6">R6</span> ROOM <b id="lobby-code"></b> <small id="lobby-mode"></small></header>
-    <div class="lobby-grid">
-      <div class="squad" id="squad-A"><h3>SQUAD A</h3><div class="members"></div></div>
-      <div class="squad" id="squad-B"><h3>SQUAD B</h3><div class="members"></div></div>
+    <div class="page">
+      <header class="page-head"><button class="back" id="lobby-leave">‹ <span data-i18n="lobby.leave"></span></button><h2><span data-i18n="lobby.title"></span> <b id="lobby-code" class="code"></b> <button id="lobby-copy" class="ghost small" data-i18n="lobby.copy"></button></h2><small id="lobby-mode"></small></header>
+      <div class="lobby-grid">
+        <div class="squad" id="squad-A"><h3>SQUAD A</h3><div class="members"></div></div>
+        <div class="squad" id="squad-B"><h3>SQUAD B</h3><div class="members"></div></div>
+      </div>
+      <div class="lobby-actions">
+        <button id="lobby-start" class="primary" data-i18n="lobby.start"></button>
+        <button id="lobby-add-agent" class="ghost qa-only">[QA] + local WebMCP agent</button>
+        <button class="agent-btn" data-guide data-i18n="menu.agentGuide"></button>
+      </div>
+      <p class="hint" data-i18n="lobby.hint"></p>
+      <div id="lobby-net" class="netinfo"></div>
     </div>
-    <div class="lobby-actions">
-      <button id="lobby-add-agent" class="ghost">+ 로컬 WebMCP AI 에이전트 슬롯 추가</button>
-      <button id="lobby-guide" class="agent-btn">[AI Agent WebMCP 접속 가이드 &amp; 스키마 보기]</button>
-      <button id="lobby-start" class="primary">START MATCH (host)</button>
-      <button id="lobby-leave" class="ghost">Leave</button>
-    </div>
-    <p class="hint" id="lobby-hint">Share the code. Squad A attacks first; sides swap every round. First to 3. Each round: random mission, site and morning/night.</p>
-    <div id="lobby-net" class="netinfo"></div>
   </div>
 
+  <!-- ============================================================ HUD -->
   <div id="hud" class="hidden">
+    <div id="markers"></div>
     <div id="crosshair"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i><i class="dot"></i></div>
     <div id="hitmarker"></div>
     <div id="damage-dirs"></div>
     <div id="compass"><div id="compass-strip"></div><div id="heading"></div></div>
     <div id="topbar"><span id="phase"></span><span id="timer"></span></div>
     <div id="objbox"><div id="site"></div><div id="objective"></div><div id="obj-progress-wrap" class="hidden"><div id="obj-progress"></div></div><div id="score"></div><div id="extra"></div></div>
+    <div id="team"></div>
     <div id="killfeed"></div>
     <div id="locbox"><div id="location"></div><div id="stance"></div></div>
-    <div id="vitals"><div id="op-name"></div><div class="hp"><div id="hp-fill"></div><span id="hp-num"></span></div></div>
-    <div id="weaponbox"><div id="weapon-name"></div><div><span id="ammo"></span> <span id="reserve"></span></div><div id="reload-hint" class="hidden"></div><div id="gadget-1"></div><div id="gadget-2"></div></div>
+    <div id="vitals"><div class="op-line"><i id="op-badge"></i><span id="op-name"></span><small id="op-unit"></small></div><div class="hp"><div id="hp-fill"></div><span id="hp-num"></span></div></div>
+    <div id="weaponbox"><div id="weapon-name"></div><div class="ammo-line"><span id="ammo"></span> <span id="reserve"></span></div><div id="reload-hint" class="hidden"></div><div id="gadgets"></div></div>
     <div id="prompt" class="hidden"></div>
     <div id="prompt-progress-wrap" class="hidden"><div id="prompt-progress"></div></div>
+    <div id="hints"></div>
     <div id="radar" class="hidden"><div class="ring"></div><div class="me"></div></div>
-    <div id="drone-overlay" class="hidden"><div class="drone-frame"></div><div class="drone-label">DRONE · WASD drive · Space hop · Enter skip prep</div><div id="drone-jammed" class="hidden">SIGNAL JAMMED</div></div>
-    <div id="dead-overlay" class="hidden"><div>YOU ARE DOWN</div><small id="spectating"></small><small>Space: next teammate</small></div>
+    <div id="feed-overlay" class="hidden"><div class="feed-frame"></div><div class="feed-rec">● REC</div><div id="feed-title" class="feed-title"></div><div id="feed-help" class="feed-help"></div><div id="drone-jammed" class="hidden" data-i18n="hud.jammed"></div></div>
+    <div id="dead-overlay" class="hidden"><div data-i18n="hud.dead"></div><small id="spectating"></small></div>
     <div id="banner" class="hidden"></div>
     <div id="scoreboard" class="hidden"></div>
-    <div id="prep-picker" class="hidden"></div>
   </div>
 
+  <!-- click-to-resume (pointer lock lost without a pause request, e.g. new round) -->
+  <div id="click-to-play" class="hidden"><div><kbd>🖱</kbd> <span data-i18n="hint.clickToLock"></span></div></div>
+
+  <!-- ============================================================ pause -->
   <div id="pause" class="screen hidden">
-    <h2>PAUSED</h2>
-    <button id="pause-resume" class="primary">RESUME (click)</button>
-    <button id="pause-guide" class="agent-btn">[AI Agent WebMCP 접속 가이드 &amp; 스키마 보기]</button>
-    <button id="pause-quit" class="ghost">Quit to menu</button>
+    <div class="page narrow center">
+      <h2 data-i18n="pause.title"></h2>
+      <div id="prep-picker" class="hidden"></div>
+      <button id="pause-resume" class="primary" data-i18n="pause.resume"></button>
+      <button id="pause-settings" class="ghost" data-i18n="menu.settings"></button>
+      <button class="agent-btn" data-guide data-i18n="menu.agentGuide"></button>
+      <button id="pause-quit" class="ghost danger" data-i18n="pause.quit"></button>
+    </div>
   </div>
 
+  <!-- ============================================================ TH result -->
   <div id="th-result" class="screen hidden">
-    <button id="th-restart" class="primary">REDEPLOY</button>
-    <button id="th-menu" class="ghost">Main menu</button>
+    <div class="page narrow center">
+      <h2 id="res-title"></h2>
+      <p id="res-reason" class="res-reason"></p>
+      <div class="res-stats">
+        <div><small data-i18n="result.kills"></small><b id="res-kills"></b></div>
+        <div><small data-i18n="result.time"></small><b id="res-time"></b></div>
+        <div><small data-i18n="result.accuracy"></small><b id="res-acc"></b></div>
+        <div><small data-i18n="result.headshots"></small><b id="res-hs"></b></div>
+      </div>
+      <button id="th-restart" class="primary" data-i18n="result.retry"></button>
+      <button id="th-change" class="ghost" data-i18n="result.change"></button>
+      <button id="th-menu" class="ghost" data-i18n="result.menu"></button>
+    </div>
   </div>
 
-  <div id="help-overlay" class="hidden">
-    <h3>Controls</h3>
-    <p>WASD move · Shift sprint · C crouch · Z prone · Q/E lean · LMB fire · RMB ADS · R reload · V melee (murder holes) · F context (barricade · reinforce · vault · hostage · plant/defuse · rappel hook) · G remote detonate · 1 primary · 2 secondary · 3 operator gadget · 4 breach charge/barricades · Space vault / detach rope · L flashlight · T destruction tier X-ray · B WebMCP DOM overlay · Tab scoreboard</p>
-    <p>Rappel: look at an exterior wall (from the ground) or at the roof edge and press F. W/S climb, A/D traverse, Shift fast descent, C invert (upside down), F Breach &amp; Swing through the window in front, Space push off.</p>
-    <p>Walls: <span style="color:#ff5a4a">red soft</span> = holes & breaches · <span style="color:#ffd23a">yellow semi</span> = studs stay (see/shoot through) · white solid = indestructible. Defenders hold F on soft walls/hatches to reinforce (2 each).</p>
+  <!-- ============================================================ F1 help: full keymap -->
+  <div id="help-overlay" class="hidden"></div>
+
+  <!-- ============================================================ settings -->
+  <div id="settings" class="modal hidden">
+    <div class="modal-body">
+      <button class="close" data-close>✕</button>
+      <h2 data-i18n="set.title"></h2>
+      <div class="tabs" id="set-tabs"><button data-tab="general" class="on" data-i18n="set.tabGeneral"></button><button data-tab="controls" data-i18n="set.tabControls"></button><button data-tab="video" data-i18n="set.tabVideo"></button></div>
+      <div class="set-tab" id="set-general">
+        <label><span data-i18n="set.language"></span><select id="set-lang"><option value="ko">한국어</option><option value="en">English</option></select></label>
+        <label><span><span data-i18n="set.sens"></span> <b id="set-sens-v"></b></span><input type="range" id="set-sens" min="0.5" max="4" step="0.1" value="2.2" /></label>
+        <label><span><span data-i18n="set.adsSens"></span> <b id="set-ads-v"></b></span><input type="range" id="set-ads" min="0.3" max="1.5" step="0.05" value="0.8" /></label>
+        <label class="check"><input type="checkbox" id="set-invert" /> <span data-i18n="set.invertY"></span></label>
+        <label><span><span data-i18n="set.volume"></span> <b id="set-vol-v"></b></span><input type="range" id="set-vol" min="0" max="1" step="0.05" value="0.7" /></label>
+        <label class="check"><input type="checkbox" id="set-fslock" checked /> <span data-i18n="set.fullscreen"></span></label>
+        <p class="hint left" data-i18n="set.fullscreenHint"></p>
+      </div>
+      <div class="set-tab hidden" id="set-controls">
+        <div class="prefs">
+          <label><span data-i18n="set.crouchToggle"></span><select id="pref-crouch"><option value="toggle" data-i18n="set.crouchTap"></option><option value="hold" data-i18n="set.hold"></option></select></label>
+          <label><span data-i18n="set.leanToggle"></span><select id="pref-lean"><option value="hold" data-i18n="set.hold"></option><option value="toggle" data-i18n="set.toggle"></option></select></label>
+          <label><span data-i18n="set.adsToggle"></span><select id="pref-ads"><option value="hold" data-i18n="set.hold"></option><option value="toggle" data-i18n="set.toggle"></option></select></label>
+        </div>
+        <p class="hint left" data-i18n="set.rebindHint"></p>
+        <div id="binds" data-capture-keys></div>
+        <button id="binds-reset" class="ghost small" data-i18n="set.reset"></button>
+      </div>
+      <div class="set-tab hidden" id="set-video">
+        <label><span><span data-i18n="set.fov"></span> <b id="set-fov-v"></b></span><input type="range" id="set-fov" min="60" max="95" step="1" value="75" /></label>
+        <label><span data-i18n="set.quality"></span><select id="set-quality"><option value="high" data-i18n="set.qHigh"></option><option value="medium" data-i18n="set.qMed"></option><option value="low" data-i18n="set.qLow"></option></select></label>
+      </div>
+    </div>
   </div>
 
+  <!-- ============================================================ WebMCP guide -->
   <div id="agent-modal" class="modal hidden">
     <div class="modal-body">
       <button id="agent-modal-close" class="close">✕</button>
-      <h2>AI Agent · WebMCP 접속 가이드 &amp; 스키마</h2>
+      <h2 data-i18n="menu.agentGuide"></h2>
       <div class="tabs"><button data-tab="guide" class="on">Guide (AGENT_CONTEXT.md)</button><button data-tab="schema">Schema JSON</button><button data-tab="live">Live observation</button><button data-tab="snippet">Quick start</button></div>
       <div class="tab" id="tab-guide"></div>
       <pre class="tab hidden" id="tab-schema"></pre>
