@@ -101,8 +101,13 @@ export class LocalTransport implements Transport {
         lastSeen.set(m.from, Date.now());
         logic.onMessage(m.from, m.msg);
       };
+      let lastCheck = Date.now();
       window.setInterval(() => {
         const now = Date.now();
+        // this tab itself stalled (a long frame, a background tab): its peers' silence is ours — give them a fresh
+        // window instead of dropping everyone, our own seat included (which reset the room to the lobby)
+        if (now - lastCheck > 4000) for (const id of lastSeen.keys()) lastSeen.set(id, now);
+        lastCheck = now;
         for (const [id, t] of lastSeen) if (now - t > 7000) { lastSeen.delete(id); logic.onDisconnect(id); }
       }, 2000);
     };

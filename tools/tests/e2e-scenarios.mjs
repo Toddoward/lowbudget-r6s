@@ -411,8 +411,9 @@ await step('two tabs join one room; lobby screen lists both', async () => {
   assert.ok(await visible(A, '#lobby'));
 });
 await step('host starts: attackers get the drone view in prep, defenders their body; lobby hides', async () => {
-  // each tab notes its view as it handles the first prep state (message-driven: two contended SwiftShader tabs
-  // can stall for most of the 45 s prep, so neither polling from here nor an in-page timer reliably sees it)
+  // each tab notes its view and the lobby as it handles the first prep state (message-driven: two contended
+  // SwiftShader tabs can stall for most of the 45 s prep — and a stalled tab can miss heartbeats and drop the
+  // round back to the lobby — so neither polling from here nor an in-page timer reliably sees it)
   const watch = () => {
     const g = window.r6game;
     const room = g.room;
@@ -420,14 +421,19 @@ await step('host starts: attackers get the drone view in prep, defenders their b
     window.__prep = null;
     room.onState = (st) => {
       prev.call(room, st);
-      if (st.phase === 'prep' && !window.__prep && g.player) window.__prep = [g.player.side, g.view];
+      if (st.phase === 'prep' && !window.__prep && g.player) {
+        const lobby = document.querySelector('#lobby');
+        window.__prep = [g.player.side, g.view, !!lobby && !lobby.classList.contains('hidden') && getComputedStyle(lobby).display !== 'none'];
+      }
     };
   };
   await Promise.all([A, B].map((p) => p.evaluate(watch)));
   await A.evaluate(() => window.r6game.room.send({ type: 'start_match' }));
   const seen = await Promise.all([A, B].map(async (p) => { await until(p, () => window.__prep !== null, null, 60000); return p.evaluate(() => window.__prep); }));
-  for (const [side, view] of seen) assert.equal(view, side === 'attack' ? 'drone' : 'body');
-  assert.ok(!(await visible(A, '#lobby')));
+  for (const [side, view, lobby] of seen) {
+    assert.equal(view, side === 'attack' ? 'drone' : 'body');
+    assert.equal(lobby, false, 'the lobby hides as the round starts');
+  }
 });
 
 /* ================================================================== S5 · online reconnect (needs the Worker: `npm run dev:worker`) */
