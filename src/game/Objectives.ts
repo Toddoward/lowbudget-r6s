@@ -102,12 +102,20 @@ export class Objectives {
     return SITES.find((s) => s.id === id)?.label ?? ROOMS.find((r) => r.id === id)?.name ?? id;
   }
 
+  /** nav-backed resolver (set by Game): nearest free floor point in a room */
+  freeSpot?: (roomId: string, near: THREE.Vector3) => THREE.Vector3 | null;
+
   spotOf(roomId: string): THREE.Vector3 {
     const room = ROOMS.find((r) => r.id === roomId) ?? ROOMS[0];
     const y = FLOOR_Y[room.floor];
     const p = new THREE.Vector3(room.spot[0], y + 1.2, room.spot[1]);
     const hit = this.world.physics.raycast(p, new THREE.Vector3(0, -1, 0), 2, G_WORLD);
     p.y = hit ? hit.point.y : y;
+    // the authored spot may be under furniture: use the nearest free floor point in the room
+    if (Math.abs(p.y - y) > 0.12 || this.world.physics.overlapsWorld(p.clone().setY(y + 0.5), 0.4)) {
+      const alt = this.freeSpot?.(roomId, p);
+      if (alt) return alt;
+    }
     return p;
   }
 

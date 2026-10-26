@@ -101,8 +101,8 @@ export class Physics {
   }
 
   /** Is a ball of radius r at p overlapping world geometry? */
-  overlapsWorld(p: THREE.Vector3, r: number): boolean {
-    return !!this.world.intersectionWithShape({ x: p.x, y: p.y, z: p.z }, { x: 0, y: 0, z: 0, w: 1 }, new RAPIER.Ball(r), undefined, groups(0xffff, G_WORLD));
+  overlapsWorld(p: THREE.Vector3, r: number, mask = G_WORLD): boolean {
+    return !!this.world.intersectionWithShape({ x: p.x, y: p.y, z: p.z }, { x: 0, y: 0, z: 0, w: 1 }, new RAPIER.Ball(r), undefined, groups(0xffff, mask));
   }
 
   step() {

@@ -178,6 +178,7 @@ export class Game {
     progress('Baking navigation graph…');
     this.nav = new NavGraph(this.physics, this.destruction);
     this.nav.build(this.house.openings, this.house.wallPanels);
+    this.world.objectives.freeSpot = (room, near) => this.nav.nearest(near, (n) => n.room === room && n.kind === 'room' && this.nav.capsuleFree(n.pos))?.pos.clone() ?? null;
     this.lighting = new Lighting(this.scene, this.renderer, this.suburb, this.house.lamps, this.house.openings);
     this.lighting.apply('day');
     this.setupComposer();
@@ -435,9 +436,24 @@ export class Game {
     return { p, yaw };
   }
 
+  /** a free standing spot (capsule-checked) that nobody else is already standing on */
   private spawnInRoom(roomId: string, rand: () => number): { p: THREE.Vector3; yaw: number } {
-    const n = this.nav.randomNodeIn([roomId], rand) ?? this.nav.randomNodeIn(ROOMS.map((r) => r.id), rand)!;
-    return { p: n.pos.clone(), yaw: rand() * Math.PI * 2 };
+    const avoid = this.occupied();
+    const p = this.nav.spawnSpots([roomId], 1, rand, avoid)[0]
+      ?? this.nav.spawnSpots(ROOMS.filter((r) => r.floor === ROOMS.find((x) => x.id === roomId)?.floor).map((r) => r.id), 1, rand, avoid)[0]
+      ?? this.nav.spawnSpots(ROOMS.map((r) => r.id), 1, rand, avoid, 0.8)[0];
+    return { p: p.clone(), yaw: rand() * Math.PI * 2 };
+  }
+
+  private spawnOutside(rand: () => number): { p: THREE.Vector3; yaw: number } {
+    const p = this.nav.spawnSpots(['__ext'], 1, rand, this.occupied())[0];
+    return { p: p.clone(), yaw: rand() * Math.PI * 2 };
+  }
+
+  /** feet positions already taken by actors and objective props */
+  private occupied(): THREE.Vector3[] {
+    const o = this.world.objectives;
+    return [...[...this.world.actors.values()].filter((a) => a.alive).map((a) => a.pos), ...o.bombs.map((b) => b.pos), ...(o.container ? [o.container.pos] : [])];
   }
 
   private dronePoint(zoneId: SpawnId): THREE.Vector3 {
@@ -484,15 +500,15 @@ export class Game {
     // terrorists
     const diff = DIFFICULTY[opts.difficulty];
     const siteRooms = w.objectives.roomOfSite();
-    const allRooms = ROOMS.filter((r) => r.id !== 'closet').map((r) => r.id);
+    const allRooms = ROOMS.filter((r) => r.id !== 'closet' && !r.transit).map((r) => r.id);
     for (let i = 0; i < diff.count; i++) {
       const guard = i < 3;
       const exterior = i === diff.count - 1 || i === diff.count - 2;
       const home = guard ? siteRooms[i % siteRooms.length] : pick(allRooms, rand);
       const homeFloor = ROOMS.find((r) => r.id === home)!.floor;
-      const near = ROOMS.filter((r) => r.floor === homeFloor && r.id !== home).map((r) => r.id);
+      const near = ROOMS.filter((r) => r.floor === homeFloor && r.id !== home && !r.transit).map((r) => r.id);
       const patrol = exterior ? ['__ext'] : [home, pick(near, rand), pick(near, rand)];
-      const spn = exterior ? { p: this.nav.randomNodeIn(['__ext'], rand)!.pos.clone(), yaw: rand() * 6 } : this.spawnInRoom(home, rand);
+      const spn = exterior ? this.spawnOutside(rand) : this.spawnInRoom(home, rand);
       const s = this.makeSoldier(`tango${i}`, `White Mask ${i + 1}`, 'terrorist', 'terrorist', 'bot', spn.p, spn.yaw);
       if (rand() < 0.2) { s.weapons[0] = { def: WEAPONS.spas12t, mag: 7, reserve: 600 }; this.rigs.get(s.id)?.setWeapon('spas12t'); }
       const bot = new Bot(w, this.nav, s, diff, patrol, guard && !exterior);

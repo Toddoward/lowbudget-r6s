@@ -386,7 +386,8 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
   // main stairs (2F gallery around the well)
   rail(1.4, -4.9, 4.2, -4.88, 3.5);
   rail(1.4, -4.9, 1.42, -1.2, 3.5);
-  rail(2.8, -1.22, 4.2, -1.2, 3.5);
+  rail(2.8, -3.02, 4.2, -3.0, 3.5); // edge of flight a's headroom cut-out
+  rail(2.79, -3.0, 2.81, -1.2, 3.5); // flight b's east side
   rail(2.79, -3.95, 2.81, -1.2, 0); // between the two flights (1F)
   clip([1.42, 0, -3.95], [2.78, 1.6, -1.2]); // nobody walks under the upper flight
   rail(1.4, -4.85, 1.42, -1.2, 0, 1.0); // lobby side
@@ -403,8 +404,11 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
     const c = new THREE.Color(p.color);
     const dark = c.clone().multiplyScalar(0.6);
     const light = c.clone().lerp(new THREE.Color('#ffffff'), 0.25);
-    const B = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, col = c) => propBatch.box([p.x + x0, fy + y0, p.z + z0], [p.x + x1, fy + y1, p.z + z1], col);
-    const hx = sx / 2, hz = sz / 2;
+    // rot90: the model is authored with its long axis along local Z; lay it along world X
+    const B = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, col = c) => (p.rot90
+      ? propBatch.box([p.x + Math.min(z0, z1), fy + y0, p.z + Math.min(-x0, -x1)], [p.x + Math.max(z0, z1), fy + y1, p.z + Math.max(-x0, -x1)], col)
+      : propBatch.box([p.x + x0, fy + y0, p.z + z0], [p.x + x1, fy + y1, p.z + z1], col));
+    const hx = (p.rot90 ? sz : sx) / 2, hz = (p.rot90 ? sx : sz) / 2;
     switch (p.style) {
       case 'sofa': {
         const backZ = sz > sx; // long axis along z → back on the x side
@@ -499,7 +503,7 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
         if (p.style === 'appliance') B(-hx + 0.05, sy * 0.55, -hz - 0.005, hx - 0.05, sy * 0.58, -hz, dark);
         if (p.style === 'box') B(-hx - 0.005, sy * 0.45, -hz - 0.005, hx + 0.005, sy * 0.55, hz + 0.005, new THREE.Color('#c8b28a'));
     }
-    if (sy > 0.08) physics.addBox(p.x, fy + sy / 2, p.z, hx, sy / 2, hz, { kind: 'static', mat: p.mat });
+    if (sy > 0.08) physics.addBox(p.x, fy + sy / 2, p.z, sx / 2, sy / 2, sz / 2, { kind: 'static', mat: p.mat });
   }
 
   /* ------------------------------------------------------------- CCTV cameras */

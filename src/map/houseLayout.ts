@@ -253,7 +253,10 @@ export const LANDINGS: { rect: Rect; y: number; label: string }[] = [
   { rect: R(1.45, -4.85, 4.15, -3.95), y: 1.75, label: 'Lobby Stairs Landing' },
 ];
 export const STAIR_HOLES = {
-  main: R(1.4, -4.9, 4.2, -1.2),
+  // flight b (landing → 2F) needs the full opening; flight a only where its headroom is < 2 m
+  // (south of z −3.0) — the rest is hallway floor in front of the workshop door
+  main: R(1.4, -4.9, 2.8, -1.2),
+  mainA: R(2.8, -4.9, 4.2, -3.0),
   basement: R(-1.75, -0.95, 2.3, 0.6),
   side: R(-8.4, 0.85, -3.75, 2.05),
 };
@@ -300,7 +303,7 @@ export const FLOORS: FloorDef[] = [
   { id: 'wood_2f_west2', y: 3.5, rect: R(-7.95, -2.45, -3.15, 2.2), tier: 'semi', kind: 'wood', label: '2F West Hall Floor' },
   { id: 'wood_2f_west3', y: 3.5, rect: R(-8.65, 2.2, -5.55, 3.75), tier: 'semi', kind: 'wood', label: '2F West Hall Floor (S)' },
   { id: 'bay_2f', y: 3.5, rect: R(-9.45, 1.1, -8.65, 3.25), tier: 'solid', kind: 'wood' },
-  { id: 'wood_2f_hall', y: 3.5, rect: R(-3.15, -5.5, 4.35, 0.55), tier: 'semi', kind: 'wood', holes: [STAIR_HOLES.main, HATCHES[2].rect], label: '2F Upper Hallway Floor' },
+  { id: 'wood_2f_hall', y: 3.5, rect: R(-3.15, -5.5, 4.35, 0.55), tier: 'semi', kind: 'wood', holes: [STAIR_HOLES.main, STAIR_HOLES.mainA, HATCHES[2].rect], label: '2F Upper Hallway Floor' },
   { id: 'wood_2f_hall_s', y: 3.5, rect: R(-3.15, 0.55, 1.25, 2.2), tier: 'semi', kind: 'wood', label: '2F Upper Hallway Floor (S)' },
   { id: 'wood_2f_workshop', y: 3.5, rect: R(4.35, -5.15, 8.3, -0.6), tier: 'semi', kind: 'wood', label: '2F Workshop Floor' },
   { id: 'wood_2f_master', y: 3.5, rect: R(1.25, -0.6, 9.7, 4.85), tier: 'semi', kind: 'wood', holes: [HATCHES[3].rect, R(1.25, -0.6, 4.35, 0.55)], label: '2F Master Bedroom Floor' },
@@ -330,33 +333,36 @@ export interface RoomDef {
   name: string;
   floor: FloorId;
   rects: Rect[];
-  /** default objective spot (hostage / container / bomb) – x,z on the room floor */
+  /** a stairwell: named for callouts, but nobody spawns, patrols or gets an objective there */
+  transit?: boolean;
+  /** default objective spot (hostage / container / bomb) – x,z on the room floor, reachable upright (tools/tests/walk.test.ts) */
   spot: [number, number];
 }
 export const ROOMS: RoomDef[] = [
   // basement
-  { id: 'storage', name: 'Storage Room', floor: -1, rects: [R(-7.25, -7.4, -1.7, -4.8)], spot: [-3.2, -6.4] },
+  { id: 'storage', name: 'Storage Room', floor: -1, rects: [R(-7.25, -7.4, -1.7, -4.8)], spot: [-3.35, -5.6] },
   { id: 'training', name: 'Training Room', floor: -1, rects: [R(-7.95, -4.8, 0.35, -0.95), R(-7.95, -0.95, -2.35, 0.55)], spot: [-3.6, -2.9] },
-  { id: 'bstairs', name: 'Basement Stairs', floor: -1, rects: [R(-2.35, -0.95, 1.95, 0.55)], spot: [1.5, -0.2] },
-  { id: 'garage', name: 'Garage', floor: -1, rects: [R(0.35, -4.8, 7.2, -0.6), R(1.95, -0.6, 9.7, 4.85)], spot: [4.2, 1.6] },
-  { id: 'laundry', name: 'Laundry Room', floor: -1, rects: [R(-3.6, 0.55, 1.95, 3.7)], spot: [-0.6, 2.9] },
-  { id: 'sidestairs_b', name: 'Side Stairs', floor: -1, rects: [R(-8.65, 0.55, -3.6, 3.7), R(-9.45, 1.1, -8.65, 3.25)], spot: [-6.0, 3.0] },
-  { id: 'backhall_b', name: 'Back Hallway', floor: -1, rects: [R(-5.45, 3.7, 1.95, 6.45)], spot: [-1.6, 5.4] },
+  // the flight's footprint only: east of x 0.75 is the closed-off void under the upper steps
+  { id: 'bstairs', name: 'Basement Stairs', floor: -1, transit: true, rects: [R(-2.35, -0.95, 0.75, 0.55)], spot: [-2.3, -0.15] },
+  { id: 'garage', name: 'Garage', floor: -1, rects: [R(0.35, -4.8, 7.2, -0.6), R(1.95, -0.6, 9.7, 4.85)], spot: [6.6, 1.6] },
+  { id: 'laundry', name: 'Laundry Room', floor: -1, rects: [R(-3.6, 0.55, 1.95, 3.7)], spot: [-0.65, 2.85] },
+  { id: 'sidestairs_b', name: 'Side Stairs', floor: -1, rects: [R(-8.65, 0.55, -3.6, 3.7), R(-9.45, 1.1, -8.65, 3.25)], spot: [-5.15, 2.7] },
+  { id: 'backhall_b', name: 'Back Hallway', floor: -1, rects: [R(-5.45, 3.7, 1.95, 6.45)], spot: [-1.5, 5.2] },
   // 1F
-  { id: 'living', name: 'Living Room', floor: 0, rects: [R(-7.25, -7.4, -1.75, -2.45), R(-7.95, -2.45, -1.75, 0.6)], spot: [-5.6, -5.8] },
+  { id: 'living', name: 'Living Room', floor: 0, rects: [R(-7.25, -7.4, -1.75, -2.45), R(-7.95, -2.45, -1.75, 0.6)], spot: [-5.6, -6.05] },
   { id: 'lobby', name: 'Lobby', floor: 0, rects: [R(-1.75, -4.9, 4.3, -0.95), R(1.8, -0.95, 4.3, 0.6)], spot: [-0.4, -3.4] },
-  { id: 'office', name: 'Office', floor: 0, rects: [R(4.3, -5.15, 8.3, -0.6)], spot: [6.2, -3.0] },
-  { id: 'dining', name: 'Dining Room', floor: 0, rects: [R(4.3, -0.6, 9.7, 4.85)], spot: [7.0, 3.4] },
-  { id: 'kitchen', name: 'Kitchen', floor: 0, rects: [R(-3.15, 0.6, 4.3, 4.85)], spot: [-0.4, 3.8] },
-  { id: 'backentry', name: 'Back Entrance', floor: 0, rects: [R(-8.65, 0.6, -3.15, 3.75), R(-5.45, 3.75, -3.15, 4.85), R(-9.45, 1.1, -8.65, 3.25)], spot: [-6.4, 3.0] },
+  { id: 'office', name: 'Office', floor: 0, rects: [R(4.3, -5.15, 8.3, -0.6)], spot: [6.2, -4.15] },
+  { id: 'dining', name: 'Dining Room', floor: 0, rects: [R(4.3, -0.6, 9.7, 4.85)], spot: [8.5, 3.35] },
+  { id: 'kitchen', name: 'Kitchen', floor: 0, rects: [R(-3.15, 0.6, 4.3, 4.85)], spot: [-1.35, 3.2] },
+  { id: 'backentry', name: 'Back Entrance', floor: 0, rects: [R(-8.65, 0.6, -3.15, 3.75), R(-5.45, 3.75, -3.15, 4.85), R(-9.45, 1.1, -8.65, 3.25)], spot: [-4.75, 3.0] },
   // 2F
   { id: 'bathroom', name: 'Bathroom', floor: 1, rects: [R(-7.25, -7.4, -1.7, -5.5), R(-3.15, -5.5, -1.7, -2.5)], spot: [-5.6, -6.5] },
   { id: 'westhall', name: 'West Hall', floor: 1, rects: [R(-7.25, -5.5, -3.15, -2.45), R(-7.95, -2.45, -3.15, 2.2), R(-8.65, 2.2, -5.55, 3.75), R(-9.45, 1.1, -8.65, 3.25)], spot: [-5.4, -1.0] },
   { id: 'hallway2', name: 'Upper Hallway', floor: 1, rects: [R(-1.7, -5.5, 4.35, 0.55), R(-3.15, -2.5, -1.7, 0.55), R(-3.15, 0.55, 1.25, 2.2)], spot: [-0.6, -3.2] },
-  { id: 'workshop', name: 'Workshop', floor: 1, rects: [R(4.35, -5.15, 8.3, -0.6)], spot: [6.4, -2.4] },
-  { id: 'master', name: 'Master Bedroom', floor: 1, rects: [R(1.25, 0.55, 9.7, 4.85), R(4.35, -0.6, 9.7, 0.55)], spot: [5.4, 3.0] },
-  { id: 'closet', name: 'Walk-in Closet', floor: 1, rects: [R(-1.8, 2.2, 1.25, 4.85)], spot: [-0.3, 3.6] },
-  { id: 'kids', name: "Kids' Room", floor: 1, rects: [R(-7.25, 3.75, -1.8, 6.6), R(-5.55, 2.2, -1.8, 3.75)], spot: [-4.4, 5.2] },
+  { id: 'workshop', name: 'Workshop', floor: 1, rects: [R(4.35, -5.15, 8.3, -0.6)], spot: [6.4, -3.45] },
+  { id: 'master', name: 'Master Bedroom', floor: 1, rects: [R(1.25, 0.55, 9.7, 4.85), R(4.35, -0.6, 9.7, 0.55)], spot: [3.75, 3.0] },
+  { id: 'closet', name: 'Walk-in Closet', floor: 1, rects: [R(-1.8, 2.2, 1.25, 4.85)], spot: [-0.3, 3.45] },
+  { id: 'kids', name: "Kids' Room", floor: 1, rects: [R(-7.25, 3.75, -1.8, 6.6), R(-5.55, 2.2, -1.8, 3.75)], spot: [-4.4, 4.85] },
 ];
 
 /* ---------------------------------------------------------------- exterior */

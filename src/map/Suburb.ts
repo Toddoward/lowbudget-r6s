@@ -34,7 +34,8 @@ export function buildSuburb(physics: Physics, scene: THREE.Scene): SuburbWorld {
   const holes: Rect[] = [
     { x0: -7.4, z0: -7.55, x1: -1.55, z1: -4.65 }, // storage
     { x0: -8.1, z0: -4.95, x1: 7.35, z1: -0.45 },
-    { x0: -8.8, z0: -0.75, x1: 9.85, z1: 3.85 },
+    { x0: -8.1, z0: -0.75, x1: 9.85, z1: 0.7 },
+    { x0: -8.8, z0: 0.4, x1: 9.85, z1: 3.85 }, // (the B side stairs reach out to x −8.65 only south of z 0.55)
     { x0: -9.6, z0: 1.0, x1: -8.5, z1: 3.4 }, // bay
     { x0: -5.6, z0: 3.55, x1: 9.85, z1: 5.0 },
     { x0: -5.6, z0: 4.7, x1: 2.2, z1: 6.6 }, // back hallway (under the back deck)
