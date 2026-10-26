@@ -26,7 +26,6 @@ export interface Actor {
   damage?(amount: number, attackerId: string, headshot: boolean, dir?: THREE.Vector3): boolean;
   /** ignore for hit tests (e.g. lagging remote while dead) */
   ghost?: boolean;
-  flashlight?: boolean;
 }
 
 export interface Capsule { a: THREE.Vector3; b: THREE.Vector3; r: number }

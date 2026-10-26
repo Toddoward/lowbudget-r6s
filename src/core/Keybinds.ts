@@ -8,7 +8,7 @@ import { getLang, t } from '../ui/i18n.ts';
 export type Action =
   | 'forward' | 'back' | 'left' | 'right' | 'sprint' | 'crouch' | 'prone' | 'leanL' | 'leanR' | 'vault'
   | 'fire' | 'ads' | 'reload' | 'melee' | 'primary' | 'secondary'
-  | 'interact' | 'gadget' | 'gadget2' | 'observe' | 'ping' | 'flashlight'
+  | 'interact' | 'gadget' | 'gadget2' | 'observe' | 'ping'
   | 'score' | 'help' | 'xray' | 'overlay';
 
 export interface ActionDef { id: Action; group: 'move' | 'combat' | 'gear' | 'ui'; qa?: boolean }
@@ -19,7 +19,7 @@ export const ACTIONS: ActionDef[] = [
   { id: 'fire', group: 'combat' }, { id: 'ads', group: 'combat' }, { id: 'reload', group: 'combat' }, { id: 'melee', group: 'combat' },
   { id: 'primary', group: 'combat' }, { id: 'secondary', group: 'combat' },
   { id: 'interact', group: 'gear' }, { id: 'gadget', group: 'gear' }, { id: 'gadget2', group: 'gear' },
-  { id: 'observe', group: 'gear' }, { id: 'ping', group: 'gear' }, { id: 'flashlight', group: 'gear' },
+  { id: 'observe', group: 'gear' }, { id: 'ping', group: 'gear' },
   { id: 'score', group: 'ui' }, { id: 'help', group: 'ui' },
   { id: 'xray', group: 'ui', qa: true }, { id: 'overlay', group: 'ui', qa: true },
 ];
@@ -32,7 +32,7 @@ export const DEFAULT_BINDS: Record<Action, Binding> = {
   fire: ['Mouse0', null], ads: ['Mouse2', null], reload: ['KeyR', null], melee: ['KeyV', null],
   primary: ['Digit1', null], secondary: ['Digit2', null],
   interact: ['KeyF', null], gadget: ['KeyG', null], gadget2: ['KeyX', null],
-  observe: ['Digit3', null], ping: ['KeyB', 'Mouse1'], flashlight: ['KeyT', null],
+  observe: ['Digit3', null], ping: ['KeyB', 'Mouse1'],
   score: ['Tab', null], help: ['F1', null], xray: ['KeyK', null], overlay: ['KeyO', null],
 };
 

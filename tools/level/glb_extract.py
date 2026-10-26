@@ -29,6 +29,12 @@ def walk(i,mat,floor):
     if 'mesh' in n:
         for p in j['meshes'][n['mesh']]['primitives']:
             pos=acc(p['attributes']['POSITION']).astype(float)
+            if n['name']=='1F_0':
+                # Z-fighting rule 1: the 98 west-wall vertices of 1F_0 (390 once glTF splits them per face) rise to z_local +0.0708 and pierce the 2F_0 slab
+                # (z_local -0.0440); the other 1F_0 wall tops sit at +0.0359 — clamp them there
+                hi=pos[:,2]>0.0359
+                if hi.any(): print('1F_0: clamped',int(hi.sum()),'vertices from z_local max',round(float(pos[:,2].max()),4),'to 0.0359',file=sys.stderr)
+                pos[:,2]=np.minimum(pos[:,2],0.0359)
             idx=acc(p['indices']).astype(int).reshape(-1,3)
             P=(m@np.c_[pos,np.ones(len(pos))].T).T[:,:3]
             out[n['name']]={'floor':floor,'mat':j['materials'][p['material']]['name'],'tris':P[idx].tolist()}

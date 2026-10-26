@@ -166,7 +166,7 @@ export class Bot {
       if (a.stance === Stance.Prone) gain *= 0.45;
       if (a.vel.lengthSq() > 1) gain *= 1.35;
       if (this.world.time - (this.lastShotOf(a.id)) < 1.5) gain *= 2.2;
-      if (this.isNight && d > 12 && !a.flashlight) gain *= 0.5;
+      if (this.isNight && d > 12) gain *= 0.5; // night: harder to pick out at range
       if (horiz > THREE.MathUtils.degToRad(35)) gain *= 0.6; // peripheral
       const aw = Math.min(1.5, (this.awareness.get(a.id) ?? 0) + gain * dt * 2.5);
       this.awareness.set(a.id, aw);

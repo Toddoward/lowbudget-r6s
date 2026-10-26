@@ -24,7 +24,6 @@ export class RemoteActor implements Actor {
   weaponId: string | null = null;
   rig: Rig;
   ghost = false;
-  flashlight = false;
   drone: THREE.Vector3 | null = null;
   private buf: (ActorSnapshot & { rt: number })[] = [];
   private collider: RAPIER.Collider;

@@ -38,9 +38,16 @@ class ParticlePool {
       depthWrite: false,
       blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
       uniforms: { scale: { value: 600 } },
-      vertexShader: `attribute vec4 pcolor; attribute float psize; uniform float scale; varying vec4 vC;
-        void main(){ vC = pcolor; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = psize * scale / max(0.1, -mv.z); gl_Position = projectionMatrix * mv; }`,
-      fragmentShader: `varying vec4 vC; void main(){ vec2 d = gl_PointCoord - 0.5; float r = dot(d, d) * 4.0; if (r > 1.0) discard; float a = vC.a * (1.0 - r) * (1.0 - r); gl_FragColor = vec4(vC.rgb, a); }`,
+      vertexShader: `#include <common>
+#include <logdepthbuf_pars_vertex>
+attribute vec4 pcolor; attribute float psize; uniform float scale; varying vec4 vC;
+        void main(){ vC = pcolor; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = psize * scale / max(0.1, -mv.z); gl_Position = projectionMatrix * mv;
+#include <logdepthbuf_vertex>
+}`,
+      fragmentShader: `#include <logdepthbuf_pars_fragment>
+varying vec4 vC; void main(){
+#include <logdepthbuf_fragment>
+  vec2 d = gl_PointCoord - 0.5; float r = dot(d, d) * 4.0; if (r > 1.0) discard; float a = vC.a * (1.0 - r) * (1.0 - r); gl_FragColor = vec4(vC.rgb, a); }`,
     });
     this.points = new THREE.Points(this.geo, mat);
     this.points.frustumCulled = false;

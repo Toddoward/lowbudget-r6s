@@ -189,8 +189,9 @@ export function buildOutdoor(physics: Physics, scene: THREE.Scene, map: HouseDat
       }
     }
     // treads two pixels (0.27 m) deep, risers 0.17 m: h = hs − RISER · ceil(d / 2)
-    while (queue.length) {
-      const { i, hs, d } = queue.pop()!;
+    // breadth-first (FIFO): every pixel is first reached by its shortest path, so steps line up along the edge
+    for (let qi = 0; qi < queue.length; qi++) {
+      const { i, hs, d } = queue[qi];
       const h = hs - RISER * Math.ceil(d / 2);
       if (h <= H[i] + 1e-3 || h <= stair[i] + 1e-3) continue;
       stair[i] = h;

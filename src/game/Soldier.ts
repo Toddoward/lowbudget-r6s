@@ -73,6 +73,15 @@ const VAULT_OVER_DEPTH = 0.85;
 export interface VaultPlan { over: boolean; top: number; mid: THREE.Vector3; land: THREE.Vector3 }
 const WALL_GAP = 0.42;
 
+/**
+ * Rappel controls follow the view: hanging upright, W climbs and D goes right; hanging
+ * inverted (camera rolled 180°) the top of the screen points at the ground, so W
+ * descends, S climbs, and screen-right is the world's left.
+ */
+export function rappelAxes(moveF: number, moveR: number, inverted: boolean): { up: number; side: number } {
+  return inverted ? { up: -moveF, side: -moveR } : { up: moveF, side: moveR };
+}
+
 export class Soldier implements Actor {
   readonly id: string;
   name: string;
@@ -111,7 +120,6 @@ export class Soldier implements Actor {
   /** extra aim error (deg, 1σ) – bots */
   extraSpread = 0;
   spreadModel: 'gaussian' | 'linear' = 'gaussian';
-  flashlight = false;
   /** interaction progress 0..1 for HUD */
   interactProgress = 0;
   interactLabel = '';
@@ -591,11 +599,12 @@ export class Soldier implements Actor {
       const t = this.findTop(wallPt.setY(this.pos.y + 1), R.n);
       if (t !== null) R.topY = t;
     }
-    const upSpd = inp.moveF > 0 ? 1.6 : inp.sprint ? 4.2 : 2.3;
-    let vy = inp.moveF * upSpd;
-    const vx = inp.moveR * 1.3;
+    const { up, side } = rappelAxes(inp.moveF, inp.moveR, this.inverted);
+    const upSpd = up > 0 ? 1.6 : inp.sprint ? 4.2 : 2.3;
+    let vy = up * upSpd;
+    const vx = side * 1.3;
     // climb over the top
-    if (inp.moveF > 0.2 && this.pos.y >= R.topY - 1.9) {
+    if (up > 0.2 && this.pos.y >= R.topY - 1.9) {
       const over = this.pos.clone().addScaledVector(R.n, -WALL_GAP - 0.7).setY(R.topY + 0.05);
       if (!ph.overlapsWorld(over.clone().add(new THREE.Vector3(0, 0.9, 0)), 0.28)) {
         this.anim = { t: 0, dur: 0.75, from: this.pos.clone(), mid: this.pos.clone().setY(R.topY + 0.25), to: over, midDone: false, endStance: Stance.Crouch };

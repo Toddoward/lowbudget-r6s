@@ -92,7 +92,8 @@ const GRADE = {
 export class Game {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
-  readonly camera = new THREE.PerspectiveCamera(75, 1, 0.04, 700);
+  // Z-fighting rule 4: near 0.15 / far 250 with a logarithmic depth buffer (the camera never gets closer than 0.16 m to a wall)
+  readonly camera = new THREE.PerspectiveCamera(75, 1, 0.15, 250);
   private composer!: EffectComposer;
   private bloom!: UnrealBloomPass;
   private grade!: ShaderPass;
@@ -147,7 +148,7 @@ export class Game {
   ready = false;
 
   constructor(canvas: HTMLCanvasElement) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', stencil: true });
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, logarithmicDepthBuffer: true, powerPreference: 'high-performance', stencil: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -218,7 +219,6 @@ export class Game {
   setQuality(q: Quality) {
     this.quality = q;
     this.bloom.enabled = q === 'high';
-    this.lighting.flashlightShadows = q === 'high';
     this.renderer.shadowMap.enabled = q !== 'low';
     this.lighting.key.shadow.mapSize.set(q === 'high' ? 2048 : 1024, q === 'high' ? 2048 : 1024);
     this.lighting.key.shadow.map?.dispose();
@@ -290,11 +290,6 @@ export class Game {
     if (this.mode === 'menu' || this.paused) return;
     if (a === 'xray' && QA) { this.destruction.setXray(!this.destruction.xray); this.onToast(this.destruction.xray ? 'X-ray ON (red soft · yellow semi · white solid)' : 'X-ray off'); }
     if (a === 'overlay' && QA) { const on = this.bridge.toggleOverlay(); this.onToast(on ? 'WebMCP bridge debug overlay ON' : 'WebMCP overlay off'); }
-    if (a === 'flashlight') {
-      this.lighting.flashlightOn = !this.lighting.flashlightOn;
-      if (this.player) this.player.flashlight = this.lighting.flashlightOn;
-      this.onToast(t(this.lighting.flashlightOn ? 'toast.flashOn' : 'toast.flashOff'));
-    }
     if (a === 'help') this.onHelp();
     if (a === 'ping') this.pingReq = true;
     if (a === 'observe') this.toggleObserve();
@@ -492,7 +487,6 @@ export class Game {
     const sp = this.spawnPoint(zone, rand);
     const nick = (localStorage.getItem('r6.nick') ?? 'Recruit');
     this.player = this.makeSoldier('self', nick, 'attack', opts.operator, 'local', sp.p, sp.yaw);
-    this.player.flashlight = this.lighting.flashlightOn;
     w.localId = 'self';
     this.playerCtl = new AgentController(w, this.player);
     this.vm.setCloth(this.player.op.cloth);
@@ -804,7 +798,7 @@ export class Game {
   private applyEvent(from: string, ev: GameEvent) {
     const w = this.world;
     switch (ev.t) {
-      case 'cells': this.destruction.apply({ panel: ev.panel, cells: ev.cells, dmg: ev.dmg }); break;
+      case 'cells': this.destruction.apply({ panel: ev.panel, cells: ev.cells, dmg: ev.dmg, frame: ev.fr === 1 }); break;
       case 'fire': { const a = w.actors.get(ev.actor); if (a) w.combat.remoteFire(a, ev.o, ev.d, ev.w); break; }
       case 'hit': w.applyRemoteHit(ev.target, ev.attacker, ev.dmg, ev.head); break;
       case 'death': {
@@ -1106,11 +1100,8 @@ export class Game {
     this.audio.setListener(this.camera);
     // FX & lighting
     this.lighting.update(dt, this.camera, this.camera.position);
-    // body flashlight, or the drone's own headlight at night so the feed is never black (spec #9/#22)
-    const droneLamp = inDrone && this.lighting.tod === 'night';
-    if ((this.lighting.flashlightOn && camSoldier) || droneLamp) this.lighting.aimFlashlight(this.camera);
-    this.lighting.flashlight.visible = (!!camSoldier && this.lighting.flashlightOn) || droneLamp;
-    if (droneLamp) this.lighting.flashlight.intensity = 6; // a small LED, not the weapon light (and on even if the weapon light is off)
+    // the drone's own headlight at night so the feed is never black (spec #9/#22)
+    this.lighting.setDroneLamp(inDrone && this.lighting.tod === 'night', this.camera);
     this.effects.ambient(this.camera.position, dt);
     this.effects.update(dt);
     // hide own body rig when viewing through someone
@@ -1298,7 +1289,6 @@ export class Game {
     if (p.side === 'attack' && this.drone && !this.drone.data.destroyed && this.drone.state !== 'done') h.push({ cap: cap('observe'), label: t('hint.drone') });
     if (p.side === 'defend' && this.house.cameras.some((c) => c.alive)) h.push({ cap: cap('observe'), label: t('hint.cams') });
     h.push({ cap: cap('ping'), label: t('hint.ping') });
-    if (this.lighting.tod === 'night') h.push({ cap: cap('flashlight'), label: t('key.flashlight') });
     h.push({ cap: cap('help'), label: t('hint.allKeys') });
     return h;
   }

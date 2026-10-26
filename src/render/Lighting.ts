@@ -10,12 +10,14 @@ import type { TimeOfDay } from '../../shared/constants.ts';
  * moon) with real-time shadows, very little fill, interiors exposed darker
  * than the exterior (see palette.patchInterior), volumetric shafts through the
  * key-lit windows, practical lights (street lamps, police bars, interior
- * lamps) and an operator tactical flashlight at night.
+ * lamps) and the drone's headlight at night.
  */
 export class Lighting {
   readonly key = new THREE.DirectionalLight('#ffffff', 3);
   readonly hemi = new THREE.HemisphereLight('#9db7d0', '#3d342a', 0.4);
-  readonly flashlight = new THREE.SpotLight('#e9f1ff', 0, 34, 0.42, 0.45, 1.6);
+  /** the drone's LED headlight at night — always in the scene, only its intensity changes (adding / removing a light, or
+   *  toggling its shadow, recompiles every material: that was the old flashlight's freeze) */
+  readonly droneLamp = new THREE.SpotLight('#e9f1ff', 0, 22, 0.5, 0.5, 1.6);
   private practical: THREE.PointLight[] = [];
   private police: { light: THREE.PointLight; phase: number }[] = [];
   private shafts = new THREE.Group();
@@ -24,8 +26,6 @@ export class Lighting {
   private skyMat: THREE.ShaderMaterial;
   private t = 0;
   tod: TimeOfDay = 'day';
-  flashlightOn = false;
-  flashlightShadows = true;
   private shaftOpenings: { mesh: THREE.Mesh; opening: Opening }[] = [];
 
   constructor(private scene: THREE.Scene, private renderer: THREE.WebGLRenderer, private suburb: OutdoorWorld, private lamps: LampDef[], private openings: Opening[]) {
@@ -36,22 +36,22 @@ export class Lighting {
     this.key.shadow.bias = -0.00035;
     this.key.shadow.normalBias = 0.035;
     scene.add(this.key, this.key.target, this.hemi);
-    this.flashlight.castShadow = true;
-    this.flashlight.shadow.mapSize.set(512, 512);
-    this.flashlight.shadow.bias = -0.0008;
-    this.flashlight.shadow.camera.near = 0.3;
-    scene.add(this.flashlight, this.flashlight.target);
+    this.droneLamp.castShadow = false;
+    scene.add(this.droneLamp, this.droneLamp.target);
 
     this.skyMat = new THREE.ShaderMaterial({
       side: THREE.BackSide, depthWrite: false, fog: false,
       uniforms: { top: { value: new THREE.Color() }, horizon: { value: new THREE.Color() }, bottom: { value: new THREE.Color() }, sunDir: { value: new THREE.Vector3() }, sunCol: { value: new THREE.Color() }, sunSize: { value: 0.9995 } },
-      vertexShader: 'varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); gl_Position.z = gl_Position.w; }',
-      fragmentShader: `uniform vec3 top; uniform vec3 horizon; uniform vec3 bottom; uniform vec3 sunDir; uniform vec3 sunCol; uniform float sunSize; varying vec3 vDir;
-        void main(){ float h = vDir.y; vec3 c = h > 0.0 ? mix(horizon, top, pow(h, 0.55)) : mix(horizon, bottom, pow(-h, 0.4));
+      vertexShader: '#include <common>\n#include <logdepthbuf_pars_vertex>\nvarying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); gl_Position.z = gl_Position.w;\n#include <logdepthbuf_vertex>\n}',
+      fragmentShader: `#include <logdepthbuf_pars_fragment>
+uniform vec3 top; uniform vec3 horizon; uniform vec3 bottom; uniform vec3 sunDir; uniform vec3 sunCol; uniform float sunSize; varying vec3 vDir;
+        void main(){
+#include <logdepthbuf_fragment>
+          float h = vDir.y; vec3 c = h > 0.0 ? mix(horizon, top, pow(h, 0.55)) : mix(horizon, bottom, pow(-h, 0.4));
           float s = dot(normalize(vDir), sunDir); c += sunCol * (smoothstep(sunSize, 1.0, s) * 4.0 + pow(max(s, 0.0), 24.0) * 0.35);
           gl_FragColor = vec4(c, 1.0); }`,
     });
-    this.sky = new THREE.Mesh(new THREE.SphereGeometry(400, 24, 12), this.skyMat);
+    this.sky = new THREE.Mesh(new THREE.SphereGeometry(200, 24, 12), this.skyMat);
     this.sky.renderOrder = -10;
     this.sky.frustumCulled = false;
     scene.add(this.sky);
@@ -59,10 +59,13 @@ export class Lighting {
     this.shaftMat = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false,
       uniforms: { color: { value: new THREE.Color('#ffd9a0') }, strength: { value: 0.12 }, time: { value: 0 } },
-      vertexShader: 'attribute float along; attribute vec2 edge; varying float vAlong; varying vec2 vEdge; varying vec3 vW; void main(){ vAlong = along; vEdge = edge; vec4 w = modelMatrix * vec4(position,1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
-      fragmentShader: `uniform vec3 color; uniform float strength; uniform float time; varying float vAlong; varying vec2 vEdge; varying vec3 vW;
+      vertexShader: '#include <common>\n#include <logdepthbuf_pars_vertex>\nattribute float along; attribute vec2 edge; varying float vAlong; varying vec2 vEdge; varying vec3 vW; void main(){ vAlong = along; vEdge = edge; vec4 w = modelMatrix * vec4(position,1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w;\n#include <logdepthbuf_vertex>\n}',
+      fragmentShader: `#include <logdepthbuf_pars_fragment>
+uniform vec3 color; uniform float strength; uniform float time; varying float vAlong; varying vec2 vEdge; varying vec3 vW;
         float h(vec3 p){ return fract(sin(dot(p, vec3(12.9898,78.233,37.719))) * 43758.5453); }
-        void main(){ float e = (1.0 - abs(vEdge.x)) * (1.0 - abs(vEdge.y)); float a = strength * pow(max(1.0 - vAlong, 0.0), 1.6) * smoothstep(0.0, 0.35, e);
+        void main(){
+#include <logdepthbuf_fragment>
+          float e = (1.0 - abs(vEdge.x)) * (1.0 - abs(vEdge.y)); float a = strength * pow(max(1.0 - vAlong, 0.0), 1.6) * smoothstep(0.0, 0.35, e);
           float n = 0.85 + 0.15 * sin(vW.x * 3.1 + vW.y * 2.3 + time * 0.6) * sin(vW.z * 2.7 - time * 0.4);
           gl_FragColor = vec4(color * a * n, 1.0); }`,
     });
@@ -129,7 +132,6 @@ export class Lighting {
         this.practical.push(pl);
       }
     }
-    this.flashlightOn = !day;
     this.buildShafts(sunDir, day);
   }
 
@@ -206,15 +208,14 @@ export class Lighting {
       p.light.intensity = 10 + Math.abs(k) * 22;
     }
     for (const bar of this.suburb.policeBars) bar.rotation.y = Math.sin(this.t * 9) > 0 ? 0 : Math.PI;
-    this.flashlight.intensity = this.flashlightOn ? 38 : 0;
-    this.flashlight.castShadow = this.flashlightOn && this.flashlightShadows;
   }
 
-  /** Position the weapon flashlight from the camera. */
-  aimFlashlight(camera: THREE.PerspectiveCamera) {
+  /** the drone's headlight: on (6) only while flying the drone at night, aimed along the camera */
+  setDroneLamp(on: boolean, camera: THREE.PerspectiveCamera) {
+    this.droneLamp.intensity = on ? 6 : 0;
+    if (!on) return;
     const f = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-    const r = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
-    this.flashlight.position.copy(camera.position).addScaledVector(r, 0.18).add(new THREE.Vector3(0, -0.12, 0));
-    this.flashlight.target.position.copy(camera.position).addScaledVector(f, 12);
+    this.droneLamp.position.copy(camera.position);
+    this.droneLamp.target.position.copy(camera.position).addScaledVector(f, 12);
   }
 }
