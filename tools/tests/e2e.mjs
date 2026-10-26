@@ -49,8 +49,12 @@ const rap = await A.evaluate(() => {
   // a plain stretch of the north (front) wall, west of the porch and east of the storage well
   const inp0 = { moveF: 0, moveR: 0, sprint: false, fire: false, firePressed: false, ads: false, reload: false, melee: false, stance: null, lean: 0, interact: false, interactPressed: false, slot: null, alt: false, invert: false, jump: false, lookDYaw: 0, lookDPitch: 0, gadget: false, gadgetHeld: false, gadget2: false, gadget2Held: false, ping: false };
   g.bots.forEach((b) => { b.update = () => inp0; b.s.teleport(g.nav.randomNodeIn(['__ext']).pos.clone()); }); // freeze (killing them all would end the hunt)
-  P.teleport(new V3(-5, -0.23, -8.05), Math.PI); P.pitch = 0; P.update(1 / 60, inp0); P.update(1 / 60, inp0);
-  let ok = true;
+  // windows on this wall may or may not be barricaded (TH fortifies at random): scan for a solid stretch
+  let ok = false;
+  for (let x = -6; x <= -1.5 && !ok; x += 0.5) {
+    P.teleport(new V3(x, -0.23, -8.05), Math.PI); P.pitch = 0; P.update(1 / 60, inp0); P.update(1 / 60, inp0);
+    ok = P.startRappel(true);
+  }
   ok = ok && P.startRappel();
   const inp = { moveF: 1, moveR: 0, sprint: false, fire: false, firePressed: false, ads: false, reload: false, melee: false, stance: null, lean: 0, interact: false, interactPressed: false, slot: null, alt: false, invert: false, jump: false, lookDYaw: 0, lookDPitch: 0, gadget: false, gadgetHeld: false, gadget2: false, gadget2Held: false, ping: false };
   for (let i = 0; i < 900 && P.mode !== 'normal'; i++) { P.update(1 / 60, inp); g.physics.step(); }

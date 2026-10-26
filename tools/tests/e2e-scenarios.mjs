@@ -156,6 +156,9 @@ await step('Terrorist Hunt setup groups operators by role; picking one updates t
   assert.match(await A.textContent('#th-op-info'), /Thermite/);
 });
 await step('deploy → HUD, prep phase in the drone view (attacker)', async () => {
+  // headless Chromium grants and then drops pointer lock at random (= an Esc → pause); the
+  // cursor state machine itself is checked through wantsPointer() and the pause/result screens
+  await A.evaluate(() => { window.r6game.input.lock = () => {}; });
   await A.click('#th-start');
   await until(A, () => window.r6game.mode === 'th' && window.r6game.world.phase === 'prep');
   assert.ok(await visible(A, '#hud'));
@@ -407,6 +410,34 @@ await step('host starts: attackers get the drone view in prep, defenders their b
   for (const [side, view] of views) assert.equal(view, side === 'attack' ? 'drone' : 'body');
   assert.ok(!(await visible(A, '#lobby')));
 });
+
+/* ================================================================== S5 · online reconnect (needs the Worker: `npm run dev:worker`) */
+if (process.env.E2E_ONLINE === '1') {
+  console.log('S5 · online room · dropped socket resumes the same seat');
+  await A.close(); await B.close(); // SwiftShader: fewer tabs → timers fire on time
+  const C = await open();
+  current = C;
+  const D = await open();
+  const code2 = `R6-${1000 + Math.floor(Math.random() * 8999)}`;
+  await step('two tabs join an online (Durable Object) room', async () => {
+    await C.evaluate((c) => window.webmcp.join({ nickname: 'Charlie', roomCode: c, mode: 'online' }), code2);
+    await D.evaluate((c) => window.webmcp.join({ nickname: 'Delta', roomCode: c, mode: 'online' }), code2);
+    await until(C, () => window.r6game.room?.state?.members.length >= 2, null, 60000);
+    await C.evaluate(() => window.r6game.room.send({ type: 'start_match' }));
+    await until(C, () => window.r6game.player && window.r6game.world.phase === 'prep', null, 60000);
+    await until(D, () => window.r6game.player && window.r6game.world.phase === 'prep', null, 60000);
+  });
+  await step('socket drops → reconnecting → resumed with the same id; destruction done meanwhile is replayed', async () => {
+    const before = await C.evaluate(() => window.r6game.room.selfId);
+    await C.evaluate(() => { window.r6game.room.t.ws.close(4000, 'test drop'); });
+    await until(D, (id) => window.r6game.room.state.members.find((m) => m.id === id)?.away === true, before, 15000);
+    const pid = await D.evaluate(() => { const g = window.r6game; const p = [...g.destruction.panels.values()].find((x) => x.kind === 'wall_soft' && !x.reinforced); const res = g.destruction.impactAndApply('sledge', p.center, p); g.world.combat.emitCells(res.events); return p.id; });
+    await until(C, () => window.r6game.room.reconnects > 0, null, 45000);
+    assert.equal(await C.evaluate(() => window.r6game.room.selfId), before);
+    assert.ok(await C.evaluate(() => !!window.r6game.player && window.r6game.mode === 'pvp'));
+    await until(C, (id) => window.r6game.destruction.get(id).brokenCount > 0, pid, 20000);
+  });
+}
 
 assert.deepEqual(errors, [], `page errors: ${errors.join(' | ')}`);
 console.log(failures ? `\n${failures} scenario(s) failed` : '\nall scenarios passed');

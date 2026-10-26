@@ -2,6 +2,9 @@ import { PROTOCOL_VERSION } from '../../shared/constants.ts';
 import type { ActorSnapshot, ClientMessage, FastEvent, GameEvent, RoomState, RtcSignal, ServerMessage } from '../../shared/protocol.ts';
 import { LocalTransport, WsTransport, type Transport } from './Transport.ts';
 
+/** retry schedule after a dropped socket — sums to < RESUME_GRACE_MS (20 s) */
+const RECONNECT_DELAYS = [500, 1000, 2000, 4000, 6000];
+
 const ICE: RTCIceServer[] = [{ urls: ['stun:stun.cloudflare.com:3478', 'stun:stun.l.google.com:19302'] }];
 
 interface Peer {
@@ -41,22 +44,59 @@ export class RoomClient {
   private fastSeen = new Map<string, number>();
   onError: (msg: string) => void = () => {};
   onClosed: (msg: string) => void = () => {};
+  /** the socket dropped and we're retrying (attempt n of RECONNECT_DELAYS.length) */
+  onReconnecting: (attempt: number, reason: string) => void = () => {};
+  /** back in the same seat (member id, actor id and agents preserved) */
+  onReconnected: () => void = () => {};
+  /** successful resumes so far (diagnostics / tests) */
+  reconnects = 0;
+  private resumeToken = '';
+  private closedByUser = false;
+  private attempt = 0;
+  private reconnectTimer = 0;
+  private readonly wsUrl: string;
 
   constructor(readonly code: string, private nickname: string, private isAgent: boolean, mode: 'online' | 'local', url?: string) {
-    if (mode === 'local') this.t = new LocalTransport(code);
-    else {
-      const base = url || (import.meta.env.VITE_SIGNAL_URL as string | undefined) || `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`;
-      this.t = new WsTransport(`${base.replace(/\/$/, '')}/api/room/${encodeURIComponent(code)}`);
-    }
-    this.t.onMessage = (m) => this.handle(m);
-    this.t.onClose = (r) => this.onClosed(r);
-    this.t.onOpen = () => this.hello();
+    const base = url || (import.meta.env.VITE_SIGNAL_URL as string | undefined) || `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`;
+    this.wsUrl = `${base.replace(/\/$/, '')}/api/room/${encodeURIComponent(code)}`;
+    this.t = mode === 'local' ? new LocalTransport(code) : new WsTransport(this.wsUrl);
+    this.wire();
+  }
+
+  private wire() {
+    const t = this.t;
+    this.lastHeard = Date.now();
+    // events from a transport we already replaced (half-open socket finally closing) are ignored
+    t.onMessage = (m) => { if (t === this.t) { this.lastHeard = Date.now(); this.handle(m); } };
+    t.onClose = (r) => { if (t === this.t) this.dropped(r); };
+    t.onOpen = () => { if (t === this.t) { this.attempt = 0; this.hello(); } };
+  }
+  private lastHeard = Date.now();
+
+  /** WS dropped: reconnect with the resume token inside the server's grace window */
+  private dropped(reason: string) {
+    if (this.closedByUser) return;
+    const old = this.t;
+    old.onClose = () => {};
+    old.onMessage = () => {};
+    if (this.t.kind !== 'online' || !this.resumeToken || this.attempt >= RECONNECT_DELAYS.length) { this.onClosed(reason); return; }
+    const delay = RECONNECT_DELAYS[this.attempt++];
+    this.welcomed = false;
+    window.clearInterval(this.pingTimer);
+    this.onReconnecting(this.attempt, reason);
+    window.clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = window.setTimeout(() => {
+      if (this.closedByUser) return;
+      this.t = new WsTransport(this.wsUrl);
+      this.wire();
+    }, delay);
   }
 
   get kind() { return this.t.kind; }
 
   private hello() {
-    this.send({ type: 'hello', nickname: this.nickname, isAgent: this.isAgent, version: PROTOCOL_VERSION });
+    const resume = this.resumeToken && this.selfId ? { id: this.selfId, token: this.resumeToken } : undefined;
+    this.send({ type: 'hello', nickname: this.nickname, isAgent: this.isAgent, version: PROTOCOL_VERSION, resume });
     window.clearTimeout(this.helloTimer);
     this.helloTimer = window.setTimeout(() => { if (!this.welcomed) this.hello(); }, 1500);
   }
@@ -72,13 +112,20 @@ export class RoomClient {
     switch (m.type) {
       case 'welcome':
         this.welcomed = true;
+        if (m.resume) this.resumeToken = m.resume;
+        if (m.resumed) { this.reconnects++; this.onReconnected(); }
         this.selfId = m.selfId;
         this.state = m.state;
         this.clockOffset = m.state.serverTime - Date.now();
         this.onWelcome(m.log);
         this.onState(m.state);
         this.syncPeers();
-        this.pingTimer = window.setInterval(() => this.send({ type: 'ping', t: Date.now() }), 3000);
+        window.clearInterval(this.pingTimer);
+        this.pingTimer = window.setInterval(() => {
+          // watchdog: a half-open socket never fires 'close' — 3 missed pongs means it's gone
+          if (this.t.kind === 'online' && Date.now() - this.lastHeard > 9000) { const old = this.t; this.dropped('connection timed out'); old.close(); return; }
+          this.send({ type: 'ping', t: Date.now() });
+        }, 3000);
         break;
       case 'state':
         this.state = m.state;
@@ -220,6 +267,8 @@ export class RoomClient {
   }
 
   close() {
+    this.closedByUser = true;
+    window.clearTimeout(this.reconnectTimer);
     window.clearInterval(this.pingTimer);
     window.clearTimeout(this.helloTimer);
     for (const p of this.peers.values()) p.pc.close();

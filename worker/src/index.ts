@@ -83,7 +83,8 @@ export class RoomDO {
       if (!this.sockets.has(connId)) return;
       this.sockets.delete(connId);
       logic.onDisconnect(connId);
-      if (this.sockets.size === 0) this.logic = null;
+      // keep the room while a dropped client may still resume its seat
+      if (this.sockets.size === 0 && logic.awayCount === 0) this.logic = null;
     };
     server.addEventListener('close', close);
     server.addEventListener('error', close);

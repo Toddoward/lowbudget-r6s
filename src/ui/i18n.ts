@@ -319,6 +319,7 @@ const D: Record<string, Entry> = {
   'lobby.moveTo': { ko: '{0} 분대로', en: 'To squad {0}' },
   'lobby.empty': { ko: '비어 있음', en: 'empty' },
   'lobby.hint': { ko: '코드를 공유하세요. A 분대가 먼저 공격하고 매 라운드 공수가 바뀝니다. 3승 선취. 라운드마다 미션·사이트·시간대가 무작위입니다.', en: 'Share the code. Squad A attacks first; sides swap every round. First to 3. Every round rolls a random mission, site and time of day.' },
+  'lobby.away': { ko: '재연결 중', en: 'reconnecting' },
   'lobby.copy': { ko: '코드 복사', en: 'Copy code' },
   'lobby.copied': { ko: '복사했습니다', en: 'Copied' },
   'lobby.online': { ko: '온라인', en: 'ONLINE' },

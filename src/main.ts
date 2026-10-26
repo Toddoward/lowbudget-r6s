@@ -167,7 +167,7 @@ game.onLobby = (s, selfId) => {
           <button data-k="squad" data-v="${sq === 'A' ? 'B' : 'A'}">${t('lobby.moveTo', sq === 'A' ? 'B' : 'A')}</button>
           <button data-k="ready" data-v="${m.ready ? '0' : '1'}" class="${m.ready ? '' : 'primary-lite'}">${t(m.ready ? 'lobby.unready' : 'lobby.ready')}</button>
           ${m.isAgent ? `<button data-k="remove">✕</button>` : ''}</div>` : '';
-      return `<div class="member ${m.ready ? 'ready' : ''}"><span class="name">${esc(m.nickname)}${m.isAgent ? ' 🤖' : ''}${m.id === s.hostId ? ' ★' : ''}</span><span class="meta">${OPERATORS[m.operator]?.name ?? m.operator} · ${m.kills}/${m.deaths}</span>${ctl}</div>`;
+      return `<div class="member ${m.ready ? 'ready' : ''}"><span class="name">${esc(m.nickname)}${m.isAgent ? ' 🤖' : ''}${m.id === s.hostId ? ' ★' : ''}${m.away ? ` <small class="away">${t('lobby.away')}</small>` : ''}</span><span class="meta">${OPERATORS[m.operator]?.name ?? m.operator} · ${m.kills}/${m.deaths}</span>${ctl}</div>`;
     }).join('') || `<div class="meta">${t('lobby.empty')}</div>`;
   }
   $('#squad-A h3').textContent = `SQUAD A · ${t(s.round ? 'hud.attacking' : 'menu.attackers')}`;

@@ -1,6 +1,8 @@
 // Constants shared by the browser client and the Cloudflare Durable Object.
 
-export const PROTOCOL_VERSION = 5;
+export const PROTOCOL_VERSION = 6;
+/** a dropped connection keeps its seat this long while the client reconnects */
+export const RESUME_GRACE_MS = 20000;
 
 export type Squad = 'A' | 'B';
 export type Team = 'attack' | 'defend';

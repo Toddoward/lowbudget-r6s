@@ -108,6 +108,7 @@ kbd { white-space: nowrap; display: inline-block; min-width: 20px; padding: 0 5p
 .member .meta { color: var(--muted); font-size: 13px; }
 .member .ctl { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; }
 .member .ctl select, .member .ctl button { font-size: 13px; padding: 3px 6px; }
+small.away { color: var(--gold); font-weight: 500; }
 .member.ready .name::after { content: ' ✔'; color: var(--green); }
 .lobby-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 .code { color: var(--gold); font-family: 'JetBrains Mono', monospace; }

@@ -14,6 +14,8 @@ export interface MemberInfo {
   alive: boolean;
   kills: number;
   deaths: number;
+  /** connection dropped; the seat is kept for RESUME_GRACE_MS while the client reconnects */
+  away?: boolean;
 }
 
 export interface RoundInfo {
@@ -111,7 +113,7 @@ export interface ActorSnapshot {
 
 /* ------------------------------------------------------------ client → server */
 export type ClientMessage =
-  | { type: 'hello'; nickname: string; isAgent: boolean; version: number }
+  | { type: 'hello'; nickname: string; isAgent: boolean; version: number; resume?: { id: string; token: string } }
   | { type: 'add_agent'; nickname: string }
   | { type: 'remove_agent'; id: string }
   | { type: 'loadout'; actor: string; squad?: Squad; operator?: OperatorId; spawn?: SpawnId; ready?: boolean }
@@ -137,7 +139,7 @@ export interface RTCIceCandidateLike {
 
 /* ------------------------------------------------------------ server → client */
 export type ServerMessage =
-  | { type: 'welcome'; selfId: string; state: RoomState; log: GameEvent[] }
+  | { type: 'welcome'; selfId: string; state: RoomState; log: GameEvent[]; resume?: string; resumed?: boolean }
   | { type: 'state'; state: RoomState }
   | { type: 'rtc'; from: string; data: RtcSignal }
   | { type: 'relay'; from: string; snaps: ActorSnapshot[]; fast?: FastEvent[] }

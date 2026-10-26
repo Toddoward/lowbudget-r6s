@@ -647,7 +647,10 @@ export class Game {
     // shots go over the low-latency DataChannel path; everything else is reliable & ordered (WS → DO)
     this.world.emit = (ev) => (ev.t === 'fire' ? room.sendFast([], [ev]) : room.sendEvent(ev));
     room.onState = (s) => this.onRoomState(s);
-    room.onWelcome = (log) => { for (const ev of log) this.applyEvent('', ev); };
+    // apply after onRoomState: a (re)join mid-round sets the round up first, which resets the map
+    room.onWelcome = (log) => { this.pendingLog = log; };
+    room.onReconnecting = (n) => this.onToast(t('net.reconnecting', n));
+    room.onReconnected = () => this.onToast(t('net.reconnected'));
     room.onSnapshots = (from, snaps) => this.onSnapshots(from, snaps);
     room.onEvent = (from, ev) => this.applyEvent(from, ev);
     room.onError = (m) => this.onToast(t('net.error', m));
@@ -678,6 +681,14 @@ export class Game {
     this.room?.send({ type: 'add_agent', nickname: `WebMCP-Agent` });
   }
 
+  /** destruction/barricade log from a welcome, applied once the round is set up */
+  private pendingLog: GameEvent[] | null = null;
+  private flushLog() {
+    const log = this.pendingLog;
+    this.pendingLog = null;
+    if (log) for (const ev of log) this.applyEvent('', ev);
+  }
+
   private onRoomState(s: RoomState) {
     const room = this.room!;
     this.syncRemotes(s);
@@ -689,12 +700,14 @@ export class Game {
       }
       this.world.phase = s.phase === 'lobby' ? 'lobby' : 'over';
       if (s.phase === 'lobby') { this.roundKey = ''; this.hud.show(false); this.view = 'body'; this.input.unlock(); }
+      this.pendingLog = null;
       this.onLobby(s, room.selfId);
       return;
     }
     const r = s.round!;
     const key = `${r.index}:${r.seed}`;
     if (key !== this.roundKey) { this.roundKey = key; this.setupPvpRound(s); }
+    this.flushLog();
     const prevPhase = this.world.phase;
     this.world.phase = s.phase === 'prep' ? 'prep' : s.phase === 'action' ? 'action' : 'over';
     if (prevPhase === 'prep' && this.world.phase === 'action') this.endDronePhase();

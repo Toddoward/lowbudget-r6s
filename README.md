@@ -62,7 +62,8 @@ Terrorist Hunt. Room-code PvP. AI agents that join from your laptop or the cloud
 | **Gadgets** | Number keys 3/4 + click | <kbd>G</kbd> operator gadget, <kbd>X</kbd> breach charge. **Hold to place, tap to detonate** (even while you're still looking at the wall). Sparks and hums when Bandit's wire fires |
 | **Operators** | 11 | 16, adding **IQ, Montagne, Blitz, Kapkan and Tachanka** |
 | **Debug tools** | Shipped to everyone | QA-only: local agent slots, same-browser rooms, X-ray, overlay. They're in the `develop` preview, not in production |
-| **Tests** | Smoke test | Plus a **32-scenario UX suite**: menu→play, state handling, and every attack and defense role. It found 7 real bugs on the way |
+| **Network** | A dropped socket meant you were gone | Reconnect with **seat resume**: the server keeps your seat for 20 s, the client retries with a token and gets back the same id, agents and the destruction it missed. A heartbeat catches half-open sockets |
+| **Tests** | Smoke test | Plus a **35-scenario UX suite**: menu→play, state handling, every attack and defense role, and online reconnect. It found 8 real bugs on the way |
 
 ---
 
@@ -219,7 +220,8 @@ URL shortcuts: `?th=1&difficulty=Hard&mission=bomb` · `?room=R6-8492&nick=Bot&a
 npm test                                          # unit: room state machine, destruction, hitboxes, spread
 VITE_QA=1 npx vite build --outDir dist-qa && npx vite preview --outDir dist-qa --port 4173 &
 npm run test:e2e                                  # smoke: boot, WebMCP, destruction, rappel, 2-tab PvP over WebRTC
-npm run test:scenarios                            # 32 UX scenarios (below)
+npm run dev:worker &                              # local Durable Object for S5
+E2E_ONLINE=1 npm run test:scenarios               # 35 UX scenarios (below)
 ```
 
 **`test:scenarios`** plays the game the way a player clicks or an agent acts, and checks game state rather than pixels:
@@ -228,6 +230,7 @@ npm run test:scenarios                            # 32 UX scenarios (below)
 - **S2 attack:** Sledge, Ash and breach charges (hold to place, tap to detonate). Thermite: tap-detonate while still facing the wall, and no re-reinforcing after. Thatcher, Fuze, Montagne (the shield stops rounds), Blitz (flashes a bot), IQ, ping, vault.
 - **S3 defense:** reinforce, barricade, Castle, Kapkan, Tachanka (place, then mount), Mute, Bandit, Pulse, Jäger, Smoke, CCTV.
 - **S4 PvP state:** two tabs, lobby, round start, attackers start in the drone and defenders in their body.
+- **S5 online reconnect** (with the Worker): the socket drops, the seat is marked away, the client reconnects to the same id, and destruction done meanwhile is replayed.
 
 ---
 
