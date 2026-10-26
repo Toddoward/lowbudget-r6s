@@ -448,17 +448,28 @@ if (process.env.E2E_ONLINE === '1') {
   });
   await step('socket drops → reconnecting → resumed with the same id; destruction done meanwhile is replayed', async () => {
     const before = await C.evaluate(() => window.r6game.room.selfId);
-    // C reconnects 0.5 s after the drop, so "away" is brief: D records every state it receives instead of
-    // hoping a (SwiftShader-slow) poll lands inside that window
+    // C reconnects 0.5 s after the drop, so "away" is brief: D acts inside its room-state handler the moment it
+    // sees C away — it breaks a wall right then (destruction done *while* C is away), instead of a slow poll from
+    // here that can land after C is already back
     await D.evaluate((id) => {
-      const room = window.r6game.room;
+      const g = window.r6game;
+      const room = g.room;
       const prev = room.onState;
       window.__sawAway = false;
-      room.onState = (st) => { if (st.members.find((m) => m.id === id)?.away) window.__sawAway = true; prev.call(room, st); };
+      window.__pid = null;
+      room.onState = (st) => {
+        prev.call(room, st);
+        if (window.__sawAway || !st.members.find((m) => m.id === id)?.away) return;
+        window.__sawAway = true;
+        const p = [...g.destruction.panels.values()].find((x) => x.kind === 'wall_soft' && !x.reinforced);
+        const res = g.destruction.impactAndApply('sledge', p.center, p);
+        g.world.combat.emitCells(res.events);
+        window.__pid = p.id;
+      };
     }, before);
     await C.evaluate(() => { window.r6game.room.t.ws.close(4000, 'test drop'); });
     await until(D, () => window.__sawAway === true, null, 15000);
-    const pid = await D.evaluate(() => { const g = window.r6game; const p = [...g.destruction.panels.values()].find((x) => x.kind === 'wall_soft' && !x.reinforced); const res = g.destruction.impactAndApply('sledge', p.center, p); g.world.combat.emitCells(res.events); return p.id; });
+    const pid = await D.evaluate(() => window.__pid);
     await until(C, () => window.r6game.room.reconnects > 0, null, 45000);
     assert.equal(await C.evaluate(() => window.r6game.room.selfId), before);
     assert.ok(await C.evaluate(() => !!window.r6game.player && window.r6game.mode === 'pvp'));
