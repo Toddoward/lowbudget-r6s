@@ -76,8 +76,10 @@ const GRADE = {
       col = mix(col, vec3(0.55,0.0,0.0), hurt * smoothstep(0.25, 0.75, d));
       if (droneFx > 0.0) {
         // drone / camera feed: auto-exposed (brighter, esp. at night), mono-green tint + scanlines
-        float gain = 1.0 + droneFx * (0.9 + night * 1.6);
-        col = col * gain + droneFx * (0.02 + night * 0.035);
+        // auto-exposure: lifts dark interiors without blowing out what the drone's own lamp lights up
+        float gain = 1.0 + droneFx * (0.3 + night * 0.45);
+        col = col * gain + droneFx * (0.012 + night * 0.02);
+        col = col / (1.0 + droneFx * 0.35 * max(col - 0.8, vec3(0.0)));
         float s = sin(vUv.y * 900.0) * 0.03;
         col = mix(col, vec3(dot(col, vec3(0.3,0.6,0.1))) * vec3(0.82,1.0,0.86) + s, droneFx * 0.55);
       }
@@ -1078,6 +1080,7 @@ export class Game {
     const droneLamp = inDrone && this.lighting.tod === 'night';
     if ((this.lighting.flashlightOn && camSoldier) || droneLamp) this.lighting.aimFlashlight(this.camera);
     this.lighting.flashlight.visible = (!!camSoldier && this.lighting.flashlightOn) || droneLamp;
+    if (droneLamp) this.lighting.flashlight.intensity = 6; // a small LED, not the weapon light (and on even if the weapon light is off)
     this.effects.ambient(this.camera.position, dt);
     this.effects.update(dt);
     // hide own body rig when viewing through someone

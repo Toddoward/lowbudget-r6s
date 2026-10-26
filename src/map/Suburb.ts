@@ -272,7 +272,7 @@ export function buildSuburb(physics: Physics, scene: THREE.Scene): SuburbWorld {
     b.geom(new THREE.IcosahedronGeometry(1.6 * s, 0), new THREE.Matrix4().makeTranslation(x, y + 3.3 * s, z), new THREE.Color('#3d5530'));
     physics.addBox(x, y + 1.1 * s, z, 0.2 * s, 1.1 * s, 0.2 * s, { kind: 'static', mat: 'wood', exterior: true });
   };
-  for (const [x, z, s] of [[-12, -11, 1.1], [-12, 16, 1], [-14, 4, 1.2], [5, 18, 1], [-28, -10, 1.3], [-28, 12, 1.1], [-8, 22, 0.9], [16, -20, 1], [26, 18, 1.2], [-44, 4, 1.4], [10, 9.5, 0.9]]) tree(x, z, x > RIVER_X ? LOWER_GROUND_Y : GROUND_Y, s);
+  for (const [x, z, s] of [[-16.5, -10, 1.1], [-12, 16, 1], [-14, 4, 1.2], [5, 18, 1], [-28, -10, 1.3], [-28, 12, 1.1], [-8, 22, 0.9], [16, -20, 1], [26, 18, 1.2], [-44, 4, 1.4], [16, 7, 0.9]]) tree(x, z, x > RIVER_X ? LOWER_GROUND_Y : GROUND_Y, s);
   // parked car on the street + the garden shed in the north yard
   solid([-24.5, GROUND_Y, -6], [-22.7, GROUND_Y + 1.4, -1.6], '#7a2b25', 'vehicle');
   solid([-15.5, GROUND_Y, 0.5], [-13, GROUND_Y + 2.4, 3.5], '#8b7d63', 'wood');

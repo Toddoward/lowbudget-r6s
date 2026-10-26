@@ -3,93 +3,111 @@
 [![English](https://img.shields.io/badge/lang-English-2b6cb0?style=for-the-badge)](README.md)
 [![한국어](https://img.shields.io/badge/lang-%ED%95%9C%EA%B5%AD%EC%96%B4-c53030?style=for-the-badge)](README.kr.md)
 
-# 🛒 R6S: Lowbudget Edition
+# 🛒 R6S: TEMU
 
-### *Rainbow Six Siege (2015), as delivered by Temu.*
+### *Rainbow Six Siege (2015), as delivered by Temu. Now with the parts that fell off in shipping glued back on.*
 
-Original House. Breakable walls. Rappelling. Terrorist Hunt. Room-code PvP.<br>
-AI agents that play by reading the DOM. **No install.** It's a website.
+Original House, rebuilt to scale. Walls that break the way they should. Rappelling, drones, CCTV.<br>
+Terrorist Hunt. Room-code PvP. AI agents that join from your laptop or the cloud. **No install.** It's a website.
 
-![one-shot build](https://img.shields.io/badge/build-one--shot-6b46c1)
+![few-shot build](https://img.shields.io/badge/build-few--shot-2f855a)
 ![three.js](https://img.shields.io/badge/three.js-r186-000000?logo=threedotjs)
 ![Rapier3D](https://img.shields.io/badge/physics-Rapier3D%20WASM-e57f2c)
 ![Cloudflare](https://img.shields.io/badge/Cloudflare-Pages%20%2B%20Durable%20Objects-f38020?logo=cloudflare&logoColor=white)
 ![WebMCP](https://img.shields.io/badge/AI%20agents-WebMCP-2c7a7b)
-![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white)
+![i18n](https://img.shields.io/badge/UI-%ED%95%9C%EA%B5%AD%EC%96%B4%20%2F%20English-805ad5)
 
-<img src="docs/screenshots/hero_day.jpg" alt="The House at sunrise, seen from the river-side driveway" width="900">
+<img src="docs/screenshots/hero_day.jpg" alt="The House at sunrise from the north-east" width="900">
 
 </div>
 
-> **What is this?** A fan-made, non-commercial tribute to launch-era Siege, squeezed into a browser tab:
-> a low-poly reconstruction of the original 2015 **House**, real-time wall destruction, rappelling,
-> Terrorist Hunt bots, PvP rooms you join with a nickname and a code like `R6-8492`, and a WebMCP
-> bridge so LLM agents can join a match and play with the same inputs you have.
-> Same recipe, fewer polygons, suspiciously low price.
+> **What is this?** A fan-made, non-commercial tribute to launch-era Siege in a browser tab. This is the
+> **few-shot** follow-up to [lowbudget-r6s-oneshot](https://github.com/Toddoward/lowbudget-r6s-oneshot),
+> the version built from a single prompt. The one-shot worked, and it also had 27 things wrong with it, plus a
+> few more we found. This repository fixes them. The one-shot's README lists every problem and shows how it
+> was built in one go.
 
 ---
 
 ## 📦 Contents
 
-- [What's in the box](#-whats-in-the-box)
+- [What changed since the one-shot](#-what-changed-since-the-one-shot)
+- [Screenshots](#-screenshots)
 - [Game modes](#-game-modes)
-- [Controls](#-controls)
+- [Controls](#%EF%B8%8F-controls)
 - [Operators](#-operators)
-- [The House](#-the-house-2015)
-- [AI agents (WebMCP)](#-ai-agents-webmcp)
+- [The House](#-the-house)
+- [AI agents (local or cloud)](#-ai-agents-local-or-cloud)
 - [Run it locally](#-run-it-locally)
-- [Deploy to Cloudflare](#-deploy-to-cloudflare)
+- [Branches, QA builds and tests](#-branches-qa-builds-and-tests)
+- [Deploy to Cloudflare](#%EF%B8%8F-deploy-to-cloudflare)
 - [How it works](#-how-it-works)
 - [Known limitations](#-known-limitations)
 
 ---
 
-## 🧰 What's in the box
+## 🔧 What changed since the one-shot
+
+| Area | One-shot | Few-shot |
+|---|---|---|
+| **Browser shortcuts** | Crouch was <kbd>Ctrl</kbd>, so <kbd>Ctrl</kbd>+<kbd>W</kbd> closed the tab mid-fight | No modifier keys anywhere. Fullscreen + Keyboard Lock captures the rest (optional) |
+| **Cursor** | Pointer lock never let go (death, menus, results) | A state machine: <kbd>Esc</kbd> pauses; death, round end, lobby and menus free the cursor; "click to take control" comes back on its own |
+| **Map** | Rebuilt from memory, off-scale | Traced from the actual House model: ×2.85 scale, B −3.5 / 1F 0 / 2F 3.5 / roof 7 m, 3.2 m ceilings, 1.8 m capsule. Hard, soft and semi walls read differently. Door bottom gaps (19 cm), 6 drone vents, ammo crates, 6 CCTVs |
+| **Lean & optics** | Gun rolled with the lean, sights didn't line up. Optics blocked by the receiver | ADS pivots on the sight. Optics are hollow. Red dot / holo / ACOG reticles are **collimated** (drawn at infinity along the bore, the round goes where the dot is). Pistols get a glowing front post and a clear rear notch |
+| **Vaulting** | Windows only | Anything up to 1.3 m: over thin things (sills, rails, breach lips), onto deep ones (counters, crates) |
+| **Reinforcing** | Not on damaged walls | Shot-up or breached soft walls can still be reinforced. Walls Thermite burnt through can't |
+| **Drone** | Weak hop, no vents, can't ping, pitch black at night | Higher hop, drives under door gaps and through vents, pings enemies for the team, auto-exposed feed with a small LED at night |
+| **Bots** | First shot always hit | Acquisition error that decays over about a second, plus wild first shots. First-shot hit rate on Normal went from 70 % to about 0–10 %. Bots can be flashed |
+| **UI** | English only, cramped, unexplained | Korean / English. The main menu is one level deep. Operators are grouped by role, with an info card. The HUD has a team roster, world markers (spots, pings, objective) and context-sensitive key hints. <kbd>F1</kbd> shows the full keymap. Every key can be rebound |
+| **Gadgets** | Number keys 3/4 + click | <kbd>G</kbd> operator gadget, <kbd>X</kbd> breach charge. **Hold to place, tap to detonate** (even while you're still looking at the wall). Sparks and hums when Bandit's wire fires |
+| **Operators** | 11 | 16, adding **IQ, Montagne, Blitz, Kapkan and Tachanka** |
+| **Debug tools** | Shipped to everyone | QA-only: local agent slots, same-browser rooms, X-ray, overlay. They're in the `develop` preview, not in production |
+| **Tests** | Smoke test | Plus a **32-scenario UX suite**: menu→play, state handling, and every attack and defense role. It found 7 real bugs on the way |
+
+---
+
+## 📸 Screenshots
 
 <table>
 <tr>
-<td width="50%"><img src="docs/screenshots/destruction.jpg" alt="Breached and shot-up soft walls"></td>
-<td width="50%"><img src="docs/screenshots/xray_tiers.jpg" alt="Destruction tier X-ray"></td>
+<td width="50%"><img src="docs/screenshots/menu.jpg" alt="Main menu"></td>
+<td width="50%"><img src="docs/screenshots/th_setup.jpg" alt="Terrorist Hunt setup, operators by role"></td>
 </tr>
 <tr>
-<td><b>Real-time destruction.</b> Walls are 0.25 m cell grids. Rounds go through soft walls and leave
-holes, a melee punches a murder hole, and breach charges, Sledge's hammer and Ash's rounds open
-real passages. What you see is exactly what blocks bullets, eyes and bodies.</td>
-<td><b>Three wall tiers</b> (press <kbd>T</kbd>). 🟥 Soft: breakable. 🟨 Semi-breach walls and wooden
-floors: the studs stay, so you can see and shoot through but not walk through. ⬜ Solid: never.
-Defenders reinforce soft walls and hatches with steel (2 each per round); only Thermite gets through.</td>
+<td><b>One-level menu.</b> Quick Play, Terrorist Hunt, Multiplayer, Settings, Controls. Korean or English, picked from your browser.</td>
+<td><b>Operators by role:</b> breacher, hard breacher, shield, support, intel and so on, with armor and speed pips, the gadget's key, and a description.</td>
 </tr>
 <tr>
-<td><img src="docs/screenshots/rappel.jpg" alt="Rappelling up the north facade"></td>
+<td><img src="docs/screenshots/hud_lobby.jpg" alt="In-game HUD"></td>
+<td><img src="docs/screenshots/ads_holo.jpg" alt="Holographic sight, collimated reticle"></td>
+</tr>
+<tr>
+<td><b>HUD:</b> objective and site, timer, compass, spotted-enemy and ping markers, gadget slots with their key caps, context-sensitive hints.</td>
+<td><b>Collimated optics.</b> The reticle sits at infinity along the bore and the glass is clear. Leaning no longer throws off your aim.</td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/drone_day.jpg" alt="Drone feed"></td>
+<td><img src="docs/screenshots/cctv.jpg" alt="CCTV feed"></td>
+</tr>
+<tr>
+<td><b>Drone</b> during prep. It fits under door gaps and through vents. <kbd>B</kbd> pings what you see for the whole team.</td>
+<td><b>Defender CCTV</b> (<kbd>3</kbd>). Click to cycle cameras. Attackers can shoot them out.</td>
+</tr>
+<tr>
 <td><img src="docs/screenshots/night_front.jpg" alt="The House at night"></td>
+<td><img src="docs/screenshots/destruction.jpg" alt="Breached walls"></td>
 </tr>
 <tr>
-<td><b>Rappel anywhere</b> on the exterior. Climb, traverse, flip upside-down to peek, then
-<b>Breach &amp; Swing</b> through a window and smash its barricade. You can also hook on from the roof edge.</td>
-<td><b>E3 2014 mood lighting.</b> Morning or night is picked at random every round: a hard low sun or
-a cold moon, real-time shadows, dark interiors, light shafts through windows, street lamps,
-police lights, and a weapon flashlight at night.</td>
+<td><b>Night</b> that you can actually play: moonlight, street lamps, lit windows.</td>
+<td><b>Destruction:</b> breach charges, Sledge, Ash and plain bullets eat soft walls cell by cell.</td>
 </tr>
 <tr>
-<td><img src="docs/screenshots/day_lobby.jpg" alt="A White Mask on the main stairs"></td>
-<td><img src="docs/screenshots/night_kitchen.jpg" alt="Kitchen at night"></td>
+<td><img src="docs/screenshots/controls.jpg" alt="Rebinding keys"></td>
+<td><img src="docs/screenshots/result.jpg" alt="Result screen"></td>
 </tr>
 <tr>
-<td><b>Terrorist Hunt bots</b> that patrol, hear gunshots and breaches through floors, investigate,
-take cover to reload, lay down suppressive fire through soft walls, and aim with smooth
-interpolation instead of aimbot snaps.</td>
-<td><b>Gunplay basics:</b> Q/E lean, ADS, crouch and prone, recoil you have to pull down,
-wallbangs, and a one-shot kill on every headshot.</td>
-</tr>
-<tr>
-<td><img src="docs/screenshots/drone.jpg" alt="Drone phase"></td>
-<td><img src="docs/screenshots/webmcp_overlay.jpg" alt="WebMCP debug overlay"></td>
-</tr>
-<tr>
-<td><b>Prep phase:</b> attackers drive drones while defenders barricade, reinforce and set up gadgets.
-Then the action phase starts.</td>
-<td><b>WebMCP bridge</b> (press <kbd>B</kbd>): AI agents get only what a first-person player could know.
-That means what's on screen and not behind walls, sounds from the last 3 s, and their own HUD.</td>
+<td><b>Every key is rebindable.</b> Hold or toggle for crouch, lean and aim. Conflicts are resolved for you.</td>
+<td><b>Result screen</b> with kills, time, accuracy and headshots. Redeploy, change operator, or go back to the menu.</td>
 </tr>
 </table>
 
@@ -99,96 +117,81 @@ That means what's on screen and not behind walls, sounds from the last 3 s, and 
 
 | Mode | What happens |
 |---|---|
-| **Terrorist Hunt** (solo) | You, plus optional AI teammates, against 12–16 "White Masks" on Normal / Hard / Realistic. Missions: **Classic** (eliminate), **Disarm Bomb**, **Hostage Rescue**, **Secure Area**. 20 s drone phase, then 6:00. |
-| **PvP** (room code) | Enter a nickname and a code like `R6-8492`. Everyone with the same code lands in the same room. Each round randomly rolls **Hostage / Secure Area / Bomb**, a site, and morning/night. 45 s prep + 3:00 action, sides swap every round, first to 3 wins. |
-| **Local PvP** (no server) | Choose the *Local* transport and the room is shared between tabs of the same browser. Good for testing. |
-| **AI agents** | Add built-in agent slots from the lobby or TH menu (**+ 로컬 WebMCP AI 에이전트 슬롯 추가**), or let an external agent join through `window.webmcp`. |
-
-<div align="center">
-<img src="docs/screenshots/menu.jpg" alt="Main menu" width="49%">
-<img src="docs/screenshots/lobby.jpg" alt="PvP lobby with agent slots" width="49%">
-</div>
+| **Quick Play** | One click: Terrorist Hunt with your last operator, random mission, Normal difficulty. |
+| **Terrorist Hunt** | You against 12–16 White Masks on Normal / Hard / Realistic. Missions: **Classic** (eliminate), **Disarm Bomb**, **Hostage Rescue**, **Secure Area**. A 20 s drone phase (<kbd>Enter</kbd> skips it), then 6:00. |
+| **Multiplayer** | Enter a nickname and a code like `R6-8492`, or **Create room** and share the code. Each round randomly picks Hostage / Secure Area / Bomb, a site, and morning or night. 45 s prep + 3:00 action, sides swap every round, first to 3 wins. Change your operator from the pause menu during prep. |
+| **AI agents** | Any agent that can open a web page can join a room. See [below](#-ai-agents-local-or-cloud). |
 
 ---
 
 ## ⌨️ Controls
 
+The keymap is compact, everything sits around <kbd>WASD</kbd>, and none of it uses <kbd>Ctrl</kbd>/<kbd>Alt</kbd>/<kbd>⌘</kbd>. The bottom of the HUD only shows the keys that matter right now. <kbd>F1</kbd> shows all of them. **Settings → Controls** rebinds anything.
+
 | Key | Action | Key | Action |
 |---|---|---|---|
 | <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> | Move | <kbd>Shift</kbd> | Sprint |
-| <kbd>C</kbd> / <kbd>Z</kbd> | Crouch / Prone | <kbd>Q</kbd> / <kbd>E</kbd> | Lean left / right |
-| <kbd>LMB</kbd> / <kbd>RMB</kbd> | Fire / Aim down sights | <kbd>R</kbd> | Reload |
-| <kbd>V</kbd> | Melee (murder holes!) | <kbd>F</kbd> | Context: barricade, reinforce, vault, hostage, defuser, rappel |
-| <kbd>G</kbd> | Remote detonate | <kbd>1</kbd>–<kbd>4</kbd> | Primary, secondary, operator gadget, breach charge / barricade |
-| <kbd>Space</kbd> | Vault / let go of the rope | <kbd>L</kbd> | Flashlight |
-| <kbd>T</kbd> | Wall-tier X-ray | <kbd>B</kbd> | WebMCP overlay |
-| <kbd>Tab</kbd> | Scoreboard | <kbd>Enter</kbd> | Skip the TH drone phase |
+| <kbd>C</kbd> | Crouch (tap) · prone (hold) | <kbd>Z</kbd> | Prone |
+| <kbd>Q</kbd> / <kbd>E</kbd> | Lean | <kbd>Space</kbd> | Vault / climb · let go of the rope |
+| <kbd>LMB</kbd> / <kbd>RMB</kbd> | Fire / aim | <kbd>R</kbd> · <kbd>V</kbd> | Reload · melee |
+| <kbd>1</kbd> / <kbd>2</kbd> | Primary / secondary | <kbd>F</kbd> | **Context:** barricade, reinforce, rappel, ammo crate, hostage, bomb, mount LMG |
+| <kbd>G</kbd> | **Operator gadget:** tap = equip / throw / toggle / detonate, hold = place | <kbd>X</kbd> | **Breach charge:** hold = place, tap = detonate |
+| <kbd>3</kbd> | Drone (attackers) / CCTV (defenders) | <kbd>B</kbd> / <kbd>MMB</kbd> | Ping / spot |
+| <kbd>T</kbd> | Flashlight | <kbd>Tab</kbd> · <kbd>F1</kbd> | Scoreboard · all controls |
 
-**On the rope:** <kbd>W</kbd>/<kbd>S</kbd> climb · <kbd>A</kbd>/<kbd>D</kbd> traverse · <kbd>Shift</kbd> fast descent · <kbd>C</kbd> invert · <kbd>F</kbd> Breach &amp; Swing · <kbd>Space</kbd> push off.
+**On the rope:** <kbd>W</kbd>/<kbd>S</kbd> climb · <kbd>A</kbd>/<kbd>D</kbd> traverse · <kbd>C</kbd> invert · <kbd>F</kbd> Breach &amp; Swing · <kbd>Space</kbd> let go.
 
 ---
 
 ## 🪖 Operators
 
-The 2015 launch roster, gadgets included, no season pass.
-
-| Attackers | Gadget | | Defenders | Gadget |
-|---|---|---|---|---|
-| **Sledge** | Breaching hammer: soft walls, floors, hatches | | **Smoke** | Remote gas canisters |
-| **Ash** | M120 CREM breaching rounds (ranged) | | **Mute** | Signal jammer (stops drones and breach charges) |
-| **Thermite** | Exothermic charge: opens reinforced walls | | **Castle** | Bullet-proof armor panels |
-| **Thatcher** | EMP grenades (kill enemy electronics) | | **Pulse** | Heartbeat sensor, works through walls |
-| **Fuze** | Cluster charge (mind the hostage 😬) | | **Jäger** | ADS, shoots down grenades and rounds |
-| | | | **Bandit** | Shock wire: fries Thermite charges |
+| Attackers | Role | Gadget | | Defenders | Role | Gadget |
+|---|---|---|---|---|---|---|
+| **Sledge** | Breacher | Breaching hammer | | **Smoke** | Support | Remote gas grenades |
+| **Ash** | Breacher | Breaching rounds | | **Mute** | Anti-gadget | Signal disruptor |
+| **Thermite** | Hard breacher | Exothermic charge (opens reinforced walls) | | **Castle** | Anchor | Armor panels |
+| **Thatcher** | Support | EMP grenades | | **Pulse** | Intel | Cardiac sensor |
+| **Fuze** | Support | Cluster charge | | **Jäger** | Anti-gadget | ADS (shoots down projectiles) |
+| **Montagne** 🆕 | Shield | Le Roc: extends to full-body cover | | **Bandit** | Anti-gadget | Shock wire (sparks, hum, fries Thermite) |
+| **Blitz** 🆕 | Shield | Flash shield (blinds 6 m / 60°) | | **Kapkan** 🆕 | Trapper | Entry Denial Device (door/window laser) |
+| **IQ** 🆕 | Intel | Spectre: sees enemy electronics through walls | | **Tachanka** 🆕 | Anchor | Mounted shielded LMG |
 
 ---
 
-## 🏠 The House (2015)
+## 🏠 The House
 
-A data-driven reconstruction of the launch version: three floors, a roof, and four exterior spawns.
+The layout is traced from a 3D model of the original House. The pipeline is in [`tools/level`](tools/level/README.md). The plan is scaled ×2.85 so a 1.8 m operator, 2.2–2.4 m doors and 3.2 m ceilings come out right. The model's exploded floors are restacked at B −3.5 / 1F 0 / 2F 3.5 / roof 7 m.
 
-| Floor | Rooms |
+| | |
 |---|---|
-| **Basement** | Garage (2 shutters, center pillar, car + boat cover) · Storage (NW exterior door) · Training · Laundry · stairs up to the Living Room and Kitchen · 2 ceiling hatches |
-| **1F** | Lobby (front door) + main stairs · Living Room (4 windows) · Office (porch, 3 windows) · Dining · Kitchen · Pantry · Back Entrance + side stairs |
-| **2F + roof** | Upper Hallway with the famous **open window** · Master Bedroom + bullet-proof walk-in closet · Bathroom (shower cover) · Kids' Room (4 windows, 3 sides) · Workshop · 2 floor hatches · porch roof and roof access |
-| **Outside** | Construction Site (N) · River Docks (E) · APC Area (SW) · Side Street (S) with police cruisers |
-
-<div align="center"><img src="docs/screenshots/day_front.jpg" alt="Front porch and lobby side" width="900"></div>
+| **Walls** | Hard (never breaks) · soft (holes, murder holes, 1.8 × 2.2 m breaches, rounds lose 40 %) · semi (studs and joists every 25 cm stay, so you can see and shoot through but not pass). Baseboards and colors make each kind readable at a glance. |
+| **Openings** | Doors keep an 18–20 cm gap under the barricade for drones. There are 6 drone vents (45 × 25 cm), 4 hatches with frames and handles, the open 2F window over the porch, and garage shutters. |
+| **Rooms** | **B:** Garage, Storage, Training, Laundry, Basement & Side Stairs, Back Hallway · **1F:** Lobby, Living, Office, Dining, Kitchen, Back Entrance · **2F:** Upper Hallway, West Hall, Bathroom, Workshop, Master Bedroom, Walk-in Closet, Kids' Room |
+| **Outside** | Front porch (north), garage driveway (east), back porch & side stairs (south), exterior storage stairwell (north-west). Spawns: Construction Site, River Docks, APC Area, Side Street. |
 
 ---
 
-## 🤖 AI agents (WebMCP)
+## 🤖 AI agents (local or cloud)
 
-Agents are first-class players. They read the `#webmcp-agent-bridge` DOM element (or call
-`window.webmcp`) and act through the **same input pipeline as a human**: same physics, same
-recoil, and a 540°/s turn-rate cap with interpolated aiming. No wallhacks: vision is filtered
-by the camera frustum plus occlusion raycasts.
+Agents are full players. They read the `#webmcp-agent-bridge` DOM element or call `window.webmcp`, and they act through **the same input pipeline as you**: same physics, same recoil, a 540°/s turn cap, and the same <kbd>G</kbd>/<kbd>X</kbd>/<kbd>F</kbd> context keys. They can't see through walls, because vision is filtered by the camera frustum plus occlusion raycasts.
+
+| Where the agent runs | How it joins |
+|---|---|
+| **Cloud** (container, CI, hosted LLM with a browser tool) | Open `https://r6s-temu.pages.dev/?room=R6-8492&nick=MyAgent&agent=1` in headless Chromium, or run `node tools/agents/webmcp-playwright-agent.mjs --url https://r6s-temu.pages.dev --room R6-8492` |
+| **Local** | The same, against `http://localhost:5173`. Or run `await webmcp.join({ nickname: 'MyAgent', roomCode: 'R6-8492' })` in the page |
+| **WebMCP host** | If the browser has `navigator.modelContext`, the `r6_*` tools register themselves |
 
 ```js
-await webmcp.join({ nickname: 'Temu-Thermite', roomCode: 'R6-8492' });
-
 webmcp.subscribe((o) => {
   const enemy = o.vision.find((v) => v.kind === 'enemy');
-  if (enemy) webmcp.act({
-    lookLerp: { yawDelta: enemy.yawDelta, pitchDelta: enemy.pitchDelta, rate: 0.35 },
-    ads: true,
-    fire: Math.abs(enemy.yawDelta) < 2 ? { burst: 3 } : false,
-  });
+  if (enemy) webmcp.act({ lookLerp: { yawDelta: enemy.yawDelta, pitchDelta: enemy.pitchDelta, rate: 0.35 },
+                          ads: true, ping: true, fire: Math.abs(enemy.yawDelta) < 2 ? { burst: 3 } : false });
 });
+webmcp.act({ gadget: 'key_hold', durationMs: 1800 });   // hold [G]: place Thermite on the wall you're looking at
+webmcp.act({ gadget: 'key' });                          // tap  [G]: detonate it
 ```
 
-| DOM attribute | What it holds |
-|---|---|
-| `data-self-state` | Operator, HP, stance, lean, weapon/ammo, gadgets, room name (e.g. `2F Master Bedroom`) |
-| `data-first-person-vision` | Visible enemies, allies, walls, hatches, windows, gadgets and objectives with `yawDelta` / `pitchDelta` / `distance` |
-| `data-acoustic-cues` | Sounds from the last 3 s: direction relative to you (`NNE`, `Below_Floor`, …) and intensity |
-| `data-match-state` | Mode, phase, timer, mission, site, score |
-
-📖 The full contract is in **[AGENT_CONTEXT.md](AGENT_CONTEXT.md)**. It's also in the game under **[AI Agent WebMCP 접속 가이드 & 스키마 보기]**.
-An example of an external agent driving a real browser is in `tools/agents/webmcp-playwright-agent.mjs`.
-
-<div align="center"><img src="docs/screenshots/agent_guide.jpg" alt="In-game agent guide" width="900"></div>
+📖 The full contract is in **[AGENT_CONTEXT.md](AGENT_CONTEXT.md)**. The same text is in the game under **AI agent guide (WebMCP)**.
 
 ---
 
@@ -196,73 +199,90 @@ An example of an external agent driving a real browser is in `tools/agents/webmc
 
 ```bash
 npm install
-npm run dev            # http://localhost:5173 (TH + local multi-tab PvP work without a server)
+npm run dev            # http://localhost:5173 (dev = QA tools on)
 npm run dev:worker     # optional: the Durable Object room server on :8787 (vite proxies /api)
 npm run build          # typecheck (client + worker) + production build → dist/
-npm test               # unit tests: room state machine, destruction, hitboxes, spread
-npm run test:e2e       # browser smoke test against `vite preview`
 ```
 
-URL shortcuts: `?th=1&difficulty=Hard&mission=bomb&agents=2` · `?room=R6-8492&nick=Bot&agent=1`
+URL shortcuts: `?th=1&difficulty=Hard&mission=bomb` · `?room=R6-8492&nick=Bot&agent=1` · `?lang=ko|en`
+
+---
+
+## 🧪 Branches, QA builds and tests
+
+| Branch | Build | Deployed to |
+|---|---|---|
+| `main` | Production: QA tools are compiled out | `r6s-temu.pages.dev` |
+| `develop` | `VITE_QA=1`: local agent slots, same-browser rooms, wall-tier X-ray (<kbd>K</kbd>), WebMCP overlay (<kbd>O</kbd>), QA hooks | `develop.r6s-temu.pages.dev` |
+
+```bash
+npm test                                          # unit: room state machine, destruction, hitboxes, spread
+VITE_QA=1 npx vite build --outDir dist-qa && npx vite preview --outDir dist-qa --port 4173 &
+npm run test:e2e                                  # smoke: boot, WebMCP, destruction, rappel, 2-tab PvP over WebRTC
+npm run test:scenarios                            # 32 UX scenarios (below)
+```
+
+**`test:scenarios`** plays the game the way a player clicks or an agent acts, and checks game state rather than pixels:
+
+- **S1 menu → play:** home, operator by role, deploy, drone prep → action, death frees the cursor without pausing, result screen and stats, redeploy, language switch, key rebinding with conflicts, no <kbd>Ctrl</kbd> bindings.
+- **S2 attack:** Sledge, Ash and breach charges (hold to place, tap to detonate). Thermite: tap-detonate while still facing the wall, and no re-reinforcing after. Thatcher, Fuze, Montagne (the shield stops rounds), Blitz (flashes a bot), IQ, ping, vault.
+- **S3 defense:** reinforce, barricade, Castle, Kapkan, Tachanka (place, then mount), Mute, Bandit, Pulse, Jäger, Smoke, CCTV.
+- **S4 PvP state:** two tabs, lobby, round start, attackers start in the drone and defenders in their body.
 
 ---
 
 ## ☁️ Deploy to Cloudflare
 
-1. Add two repository secrets: `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
-2. Push to `main`. `.github/workflows/deploy.yml` runs typecheck, build, unit tests and the browser
-   e2e test. It then deploys the room Worker + Durable Object (`worker/wrangler.toml`) and then the
-   Pages site (`wrangler.toml`, which binds `ROOMS` to the Worker's Durable Object).
+This deploy is separate from the one-shot. It uses its own names:
+
+| Piece | Name |
+|---|---|
+| Pages project | `r6s-temu` |
+| Worker + Durable Object | `r6s-temu-matchmaker` (`RoomDO`, SQLite-backed, Free plan OK) |
+
+1. Add two repository secrets: `CLOUDFLARE_API_TOKEN` (permissions: *Workers Scripts: Edit* and *Cloudflare Pages: Edit*) and `CLOUDFLARE_ACCOUNT_ID`.
+2. Push to `main`. CI typechecks, builds, runs the unit tests and both browser suites, then deploys the Worker and the Pages site.
+   A push to `develop` deploys the QA preview.
 3. Without the secrets, CI still builds and tests, and skips the deploy.
 
 Manual deploy: `npx wrangler login && npm run deploy`.
 
 ---
 
-## 🔧 How it works
+## 🧠 How it works
 
 ```
  Browser tab (Cloudflare Pages)                               Cloudflare
  ┌─────────────────────────────────────────────┐    WS     ┌──────────────────────────────┐
- │ three.js render · lighting · FX · HUD       │◀─────────▶│ Pages Function /api/room/:id │
+ │ three.js render · HUD · i18n · keymap       │◀─────────▶│ Pages Function /api/room/:id │
  │ 60 Hz sim: soldiers · bots · gadgets        │           │   └─▶ Durable Object         │
  │ Rapier3D WASM: controllers, raycasts        │           │       one per room code      │
- │ Destruction: cell grids → mesh + colliders  │           │       rounds · timers · log  │
+ │ Destruction: 0.25 m cell grids → mesh+coll. │           │       rounds · timers · log  │
  │ WebMCP bridge: DOM + window.webmcp          │           └──────────────────────────────┘
  └──────────────────────┬──────────────────────┘
                         │ WebRTC DataChannel (P2P): snapshots + shots
-                        ▼ other players
+                        ▼ other players (and agents)
 ```
 
-- **Who decides what.** The shooter decides hits and wall damage, each client decides its own
-  death, and the Durable Object decides rounds (random mission, site and time of day), timers and
-  winners.
-- **Two lanes.** Position snapshots and shots go over unreliable WebRTC DataChannels, with a WS
-  relay fallback for peers that can't connect. Everything that must arrive (hits, destruction
-  deltas, gadgets, objectives) goes over the WebSocket.
-- **Destruction sync.** A hit is sent as `(panel, cells, damage)`. Because damage just adds up,
-  every client ends up with the same wall no matter what order the events arrive in. Late joiners
-  get the round's log replayed.
-- **Assets.** Weapons, operators and gadgets are described as specs. Those specs are turned into
-  GLBs through [CLI-Anything](https://github.com/HKUDS/CLI-Anything)'s `cli-anything-blender`
-  (`python3 tools/cli-anything/pipeline.py`), and the game falls back to building the same meshes
-  in the browser.
+- **Who decides what:** the shooter decides hits and wall damage, which includes peers' shields. Each client decides its own death. The Durable Object decides rounds, timers and winners.
+- **Destruction sync:** a hit is sent as `(panel, cells, damage)`. Damage just adds up, so every client ends up with the same wall regardless of arrival order.
+- **Optics:** the viewmodel draws a stencil-masked lens, and the reticle sits at infinity on the bore line. The shooter's ADS ray is fed the same bore offset, so the round lands where the dot is.
 
 <details>
 <summary><b>Repository layout</b></summary>
 
 ```
-src/map/        House layout, furniture/cover, suburb, map builder
+src/map/        House layout (traced), props, suburb, map builder
 src/world/      destruction panels (cells → mesh + colliders)
-src/game/       soldier (movement, lean, rappel), combat, gadgets, objectives
+src/game/       soldier, combat, gadgets, interactions, objectives, operators
 src/ai/         FSM bots, navigation graph
 src/net/        room client (WS + WebRTC), transports, remote players
 src/webmcp/     perception, DOM bridge, agent controller, built-in agent
-src/render/     lighting, effects, viewmodel, rigs
-shared/         protocol + room logic (used by the Durable Object and local rooms)
-worker/         Cloudflare Worker + Durable Object
-functions/      Pages Functions (/api/room/:code)
-tools/          CLI-Anything asset pipeline, tests, agent example
+src/render/     lighting, effects, viewmodel (collimated optics), rigs
+src/ui/         HUD, i18n (KO/EN)          src/core/  input, keybinds, audio, physics
+shared/         protocol + room logic (Durable Object and local rooms)
+worker/         Cloudflare Worker + Durable Object      functions/  Pages Functions
+tools/          level pipeline, CLI-Anything assets, tests, agent example
 ```
 </details>
 
@@ -270,15 +290,14 @@ tools/          CLI-Anything asset pipeline, tests, agent example
 
 ## 🩹 Known limitations
 
-- The House layout was rebuilt from the room list and memory of the original, so proportions are
-  approximate. The reference video and Sketchfab model weren't available while building this.
-- The screenshots come from a software renderer with no GPU, so treat them as a preview.
-  Weaker GPUs automatically drop quality (High → Medium → Low).
-- Mouse and keyboard only. Pointer lock is required, so there's no mobile support.
+- The House is traced from a fan-made tactical model, not from Ubisoft's data, so small details differ.
+- The screenshots come from a software renderer (SwiftShader, no GPU). Real GPUs look better, and weaker ones drop quality automatically.
+- Mouse and keyboard only, so no mobile. Keyboard Lock (which captures <kbd>Ctrl</kbd>+<kbd>W</kbd> and friends) only works in Chromium-based browsers in fullscreen.
 
 ---
 
 <div align="center">
-<sub>Not affiliated with Ubisoft. "Rainbow Six Siege" and the operator names belong to their owners.
+<sub>House model reference: "Rainbow Six Siege - House Map" by crusader1291 (Sketchfab). It isn't redistributed here.<br>
+Not affiliated with Ubisoft. "Rainbow Six Siege" and the operator names belong to their owners.
 This is a non-commercial fan tribute with original low-poly assets. Please don't send us to customs. 📦</sub>
 </div>
