@@ -11,6 +11,9 @@ await p.evaluate(() => { window.r6game.autoQuality = false; window.r6game.setQua
 await p.evaluate(() => window.r6game.startTH({ ...window.r6game.defaultTH(), mission: 'elimination', operator: 'montagne', tod: 'day' }));
 await p.waitForFunction(() => window.r6game.world.phase);
 p.setDefaultTimeout(180000);
+// freeze the simulation for a capture (rendering goes on): slow headless frames would otherwise outlast the agent's input holds
+const freeze = () => p.evaluate(() => { const g = window.r6game; if (!g.__step) { g.__step = g.step; g.step = () => {}; } });
+const thaw = () => p.evaluate(() => { const g = window.r6game; if (g.__step) { g.step = g.__step; delete g.__step; } });
 const frames = async (n = 25) => { for (let i = 0; i < n; i++) await p.evaluate(() => new Promise((r) => requestAnimationFrame(() => r()))); };
 await p.evaluate(() => {
   const g = window.r6game;
@@ -25,37 +28,28 @@ await frames(10);
 await p.evaluate(() => { const g = window.r6game; const P = g.player; P.teleport(g.nav.randomNodeIn(['lobby']).pos.clone(), 0); P.pitch = 0; });
 await frames(40);
 await p.screenshot({ path: `${OUT}/1p_montagne_front.png` });
-await p.evaluate(() => window.webmcp.act({ move: { forward: 1, strafe: 0, sprint: true }, durationMs: 120000 }));
-await frames(20);
+// sprint: step the game synchronously until the pose is on (wall-clock holds outlast slow frames this way)
+await p.evaluate(() => { window.webmcp.act({ move: { forward: 1, strafe: 0, sprint: true }, durationMs: 5000 }); for (let i = 0; i < 30 && window.r6game.player.shieldPose !== 'run'; i++) window.r6game.step(1 / 60); });
+await freeze();
+await frames(4);
+console.log('sprint:', await p.evaluate(() => `${window.r6game.player.shieldPose} vm ${window.r6game.vm.shield.position.toArray().map((v) => v.toFixed(2))}`));
 await p.screenshot({ path: `${OUT}/1p_montagne_sprint.png` });
-await p.evaluate(() => window.webmcp.act({ move: { forward: 0, strafe: 0, sprint: false }, durationMs: 120000 }));
+await thaw();
+await p.evaluate(() => window.webmcp.act({ move: { forward: 0, strafe: 0, sprint: false }, durationMs: 5000 }));
 await frames(10);
-await p.evaluate(() => window.webmcp.act({ ads: true, durationMs: 120000 }));
-await frames(30);
+await p.evaluate(() => { window.webmcp.act({ ads: true, durationMs: 5000 }); for (let i = 0; i < 40; i++) window.r6game.step(1 / 60); });
+await freeze();
+await frames(4);
+console.log('ads:', await p.evaluate(() => `${window.r6game.player.shieldPose} vm ${window.r6game.vm.shield.position.toArray().map((v) => v.toFixed(2))}`));
 await p.screenshot({ path: `${OUT}/1p_montagne_ads.png` });
-// third person: line up White Masks and park them in poses in front of a free camera
+await thaw();
+// third person: a clear spot on the attackers' first spawn zone
 await p.evaluate(() => {
   const g = window.r6game;
-  const P = g.player; P.teleport(g.nav.randomNodeIn(['__ext']).pos.clone(), 0);
-  const zones = window.webmcp.getMapKnowledge().spawnZones ?? window.webmcp.getMapKnowledge().spawns;
-  const zc = zones[0].center ?? zones[0].pos;
-  const base = new (g.player.pos.constructor)(zc[0] ?? zc.x, (zc[1] ?? zc.y) + 0.05, zc[2] ?? zc.z);
-  window.__base = base;
-  const bots = g.bots.slice(0, 5);
-  const poses = [{}, { ads: true }, { stance: 1 }, { stance: 2 }, { moveF: 1, sprint: true }];
-  bots.forEach((b, i) => {
-    const inp = { ...window.__z, ...poses[i] };
-    b.update = () => ({ ...inp });
-    b.s.teleport(base.clone().add({ x: (i - 2) * 1.6, y: 0, z: 0 }), Math.PI * 0.85);
-    b.s.pitch = 0;
-  });
-  g.freeCam = { p: [base.x + 0.5, base.y + 1.7, base.z - 4.2], yaw: Math.PI - 0.1, pitch: -0.15, fov: 60 };
+  const zc = window.webmcp.getMapKnowledge().spawns[0].center;
+  window.__base = new (g.player.pos.constructor)(zc[0], zc[1] + 0.05, zc[2]);
+  g.player.teleport(window.__base.clone().add({ x: 0, y: 0, z: 12 }), 0);
 });
-await frames(40);
-// sprinting bot drifts — put it back each frame for the shot
-await p.evaluate(() => { const g = window.r6game; const b = g.bots[4]; b.s.teleport(window.__base.clone().add({ x: 3.2, y: 0, z: 0 }), Math.PI * 0.85); });
-await frames(3);
-await p.screenshot({ path: `${OUT}/3p_terrorists.png` });
 // operators posed by hand: rigs built with the game's own Rig class (same as bots / peers)
 await p.evaluate(() => {
   const g = window.r6game;
@@ -68,7 +62,7 @@ await p.evaluate(() => {
   window.__rigs = list.map(([op, w, st, pitch, act, shield], i) => {
     const r = new R(op, w);
     r.root.position.copy(base).add({ x: (i % 4 - 1.5) * 1.5, y: 0, z: Math.floor(i / 4) * 2.2 });
-    r.root.rotation.y = Math.PI * 0.82;
+    r.root.rotation.y = 0.35; // turned toward the camera (it looks north from the south)
     if (shield) r.setShieldPose(shield);
     g.scene.add(r.root);
     return { r, st, pitch, act };
@@ -77,13 +71,12 @@ await p.evaluate(() => {
   loop();
   g.freeCam = { p: [base.x + 0.4, base.y + 1.7, base.z - 3.6], yaw: Math.PI - 0.08, pitch: -0.2, fov: 62 };
 });
-await frames(30);
-await p.screenshot({ path: `${OUT}/3p_operators.png` });
+await frames(10);
 for (const [row, name] of [[0, 'rifles'], [1, 'shields']]) {
   await p.evaluate((row) => {
     const g = window.r6game;
     const c = window.__rigs[row * 4].r.root.position.clone().add(window.__rigs[row * 4 + 3].r.root.position).multiplyScalar(0.5);
-    g.freeCam = { p: [c.x - 1.2, c.y + 1.5, c.z - 5.2], yaw: Math.PI - 0.2, pitch: -0.08, fov: 36 };
+    g.freeCam = { p: [c.x - 1.4, c.y + 1.45, c.z - 5.4], yaw: Math.PI + 0.25, pitch: -0.06, fov: 34 };
     for (const [i, x] of window.__rigs.entries()) x.r.root.visible = Math.floor(i / 4) === row;
   }, row);
   await frames(15);

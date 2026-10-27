@@ -54,7 +54,7 @@ Original message was in Korean; this is a faithful itemisation. Status: ✅ done
 | R10 | Corners look "worm-eaten" (the overlap trimming for Z-fighting) and Z-fighting is still there — fix both | ⬜ §5.7 |
 | R11 | Model the level terrain from the high-res top view (depth model or anything that works) | ⬜ §6 |
 | R12 | Movement on slopes/stairs: walking lifts the body; speed barely changes on stairs; crouch must climb stairs/slopes | ✅ `1439fe7` |
-| R13 | Shield in **front** (viewport for sight), not off to the left while still stopping rounds; sprinting moves it to the **left**, and only that side blocks | ✅ (1P front verified in the browser; 🟡 sprint pose in the live game, §4) |
+| R13 | Shield in **front** (viewport for sight), not off to the left while still stopping rounds; sprinting moves it to the **left**, and only that side blocks | ✅ `7c9acb4` + browser scenario (S2 shield step) and screenshots of front / sprint / ADS |
 | R14 | 3P arms pulled back while the gun points forward (grotesque); 1P and 3P out of sync | ✅ `7c9acb4` (🟡 front close-up screenshot, §4) |
 | R15 | Process: analyse → goals → stepwise plan → apply → verify each step and each cycle → E2E per user/debug scenario; game state cycles must work | ongoing — §7 |
 | R16 | TH attack (bomb / hostage): every enemy dead **before** a defuser is planted ends the game | ✅ `1439fe7` |
@@ -99,7 +99,7 @@ Earlier standing instructions still in force: verify with graph search / unit te
 
 ## 4. Open checks on the done work (do these first next time)
 
-1. **Sprint shield pose in the live game.** `tools/tests/shots-rig.mjs` sprinted Montagne via `webmcp.act({ move: { forward: 1, sprint: true } })`: the player moved but the first-person shield stayed in front. The unit test (Soldier driven directly) passes, so check whether the agent/`mergeInput` path drops `sprint`, or whether a wall-clock hold ran out. Add an assertion to `e2e-scenarios.mjs` S2 (Montagne): hold W + sprint → `player.shieldPose === 'run'` and the 1P plate is at the left.
+1. ~~Sprint shield pose in the live game~~ — resolved: it was the screenshot script (agent holds are clamped to 5 s of wall-clock time and the `ads` flag only merges within 2 s of the last action; slow headless frames outlasted both). `shots-rig.mjs` now steps synchronously and freezes the simulation for each capture; `e2e-scenarios.mjs` S2 asserts the slit on the crosshair in front, the plate at the left and the rounds while sprinting.
 2. **3P close-ups from the front** (`shots-rig.mjs` writes `3p_rifles.png`, `3p_shields.png`): the camera currently looks at the rigs from behind; turn the rigs toward the camera (`root.rotation.y ≈ 0.18`) and review elbows, hand placement and the shield handle.
 3. **TH state-cycle E2E** (R15/R19) in `e2e-scenarios.mjs`: (a) bomb: plant → kill every White Mask → round still on → defuser completes → win; (b) plant → player dies → round still on, camera on the defuser → a White Mask cuts it → loss; (c) hostage rescue: kill all → win; (d) no plant, player dies → loss. Use `sim()` stepping and `window.qa` helpers.
 4. Run `npm run test:e2e` and the full `test:scenarios` (with `E2E_ONLINE=1`) on the new build — not yet run after `7c9acb4`.

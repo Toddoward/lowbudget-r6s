@@ -273,6 +273,36 @@ await step('support · Fuze: hold [G] on a soft wall plants a cluster charge', a
   await A.evaluate(() => window.qa.act({ gadget: 'key_hold', durationMs: 6000 }));
   await sim(A, () => window.qa.count('cluster') > 0 || window.r6game.player.gadgetLeft < 3);
 });
+await step('shield · Montagne: held in front the viewport slit is on the crosshair; sprinting it moves to the left and only the left is covered', async () => {
+  await A.evaluate(() => { window.qa.swap('montagne'); window.qa.openFacing(5); window.r6game.player.pitch = 0; });
+  await sim(A, () => window.r6game.player.equipT <= 0 && window.r6game.player.shieldPose === 'front');
+  /** the first-person plate as drawn (the view model, updated as the render loop does) and the collider vs rays */
+  const look = () => A.evaluate(() => {
+    const g = window.r6game; const P = g.player; const V = P.pos.constructor;
+    g.vm.worldFov = g.camera.fov;
+    for (let i = 0; i < 40; i++) g.vm.update(1 / 60, P, { x: 0, y: 0 }, false, P.sprinting, g.camera.aspect, 1);
+    const plate = g.vm.shield; plate.updateMatrixWorld(true); g.vm.camera.updateMatrixWorld(true);
+    const blitz = P.op.gadget === 'flash_shield';
+    const slit = plate.localToWorld(new V(blitz ? 0.07 : 0.08, blitz ? 0.2 : 0.25, 0)).project(g.vm.camera);
+    const centre = plate.getWorldPosition(new V()).applyMatrix4(g.vm.camera.matrixWorldInverse);
+    g.physics.step();
+    const fwd = P.aimDir().setY(0).normalize(); const right = new V(-fwd.z, 0, fwd.x);
+    const chest = P.pos.clone().setY(P.pos.y + 1.2);
+    const stops = (from) => { const d = chest.clone().sub(from); const h = g.physics.raycast(from, d.clone().normalize(), d.length()); return !!h && String(h.tag?.gadgetId).startsWith('shield:'); };
+    return { pose: P.shieldPose, slit: [slit.x, slit.y], centre: [centre.x, centre.z], front: stops(chest.clone().addScaledVector(fwd, 3)), left: stops(chest.clone().addScaledVector(right, -3)), rightSide: stops(chest.clone().addScaledVector(right, 3)) };
+  });
+  const front = await look();
+  assert.equal(front.pose, 'front');
+  assert.ok(Math.abs(front.slit[0]) < 0.1 && Math.abs(front.slit[1]) < 0.1, `viewport slit on the crosshair: NDC ${front.slit.map((v) => v.toFixed(2))}`);
+  assert.ok(front.front, 'in front: a round from ahead stops on the shield');
+  await A.evaluate(() => window.qa.act({ move: { forward: 1, strafe: 0, sprint: true }, durationMs: 60000 }));
+  await sim(A, () => window.r6game.player.shieldPose === 'run');
+  const run = await look();
+  await A.evaluate(() => window.qa.act({ move: { forward: 0, strafe: 0, sprint: false }, durationMs: 50 }));
+  assert.ok(run.centre[0] < -0.2, `sprinting: the plate is at the left of the view (x ${run.centre[0].toFixed(2)})`);
+  assert.ok(!run.front && run.left && !run.rightSide, `sprinting: front ${run.front} · left ${run.left} · right ${run.rightSide}`);
+  await sim(A, () => window.r6game.player.shieldPose === 'front', null, 3);
+});
 await step('shield · Montagne: [G] extends Le Roc; the shield collider stops a ray from the front', async () => {
   await A.evaluate(() => { window.qa.swap('montagne'); window.qa.openFacing(2); });
   await A.evaluate(() => window.qa.act({ gadget: 'key' }));
