@@ -1,6 +1,6 @@
 {
  "generator": "cli-anything-blender (HKUDS/CLI-Anything) + Blender glTF exporter",
- "generatedAt": "2026-10-25T16:38:09Z",
+ "generatedAt": "2026-10-27T00:45:52Z",
  "assets": {
   "ash_m120": {
    "file": "ash_m120.glb",
@@ -120,85 +120,85 @@
    "file": "operator_ash.glb",
    "category": "operator",
    "parts": 31,
-   "bytes": 51636
+   "bytes": 52924
   },
   "operator_bandit": {
    "file": "operator_bandit.glb",
    "category": "operator",
    "parts": 31,
-   "bytes": 49732
+   "bytes": 51020
   },
   "operator_castle": {
    "file": "operator_castle.glb",
    "category": "operator",
    "parts": 31,
-   "bytes": 49716
+   "bytes": 51004
   },
   "operator_fuze": {
    "file": "operator_fuze.glb",
    "category": "operator",
    "parts": 32,
-   "bytes": 53064
+   "bytes": 54352
   },
   "operator_hostage": {
    "file": "operator_hostage.glb",
    "category": "operator",
    "parts": 23,
-   "bytes": 37952
+   "bytes": 39240
   },
   "operator_jager": {
    "file": "operator_jager.glb",
    "category": "operator",
    "parts": 32,
-   "bytes": 61252
+   "bytes": 62540
   },
   "operator_mute": {
    "file": "operator_mute.glb",
    "category": "operator",
    "parts": 32,
-   "bytes": 55000
+   "bytes": 56288
   },
   "operator_pulse": {
    "file": "operator_pulse.glb",
    "category": "operator",
    "parts": 32,
-   "bytes": 51820
+   "bytes": 53108
   },
   "operator_recruit": {
    "file": "operator_recruit.glb",
    "category": "operator",
    "parts": 30,
-   "bytes": 48292
+   "bytes": 49580
   },
   "operator_sledge": {
    "file": "operator_sledge.glb",
    "category": "operator",
    "parts": 31,
-   "bytes": 51652
+   "bytes": 52940
   },
   "operator_smoke": {
    "file": "operator_smoke.glb",
    "category": "operator",
    "parts": 32,
-   "bytes": 56916
+   "bytes": 58204
   },
   "operator_terrorist": {
    "file": "operator_terrorist.glb",
    "category": "operator",
    "parts": 29,
-   "bytes": 46596
+   "bytes": 47884
   },
   "operator_thatcher": {
    "file": "operator_thatcher.glb",
    "category": "operator",
    "parts": 33,
-   "bytes": 60292
+   "bytes": 61580
   },
   "operator_thermite": {
    "file": "operator_thermite.glb",
    "category": "operator",
    "parts": 32,
-   "bytes": 51832
+   "bytes": 53120
   },
   "prop_armchair": {
    "file": "prop_armchair.glb",
@@ -619,6 +619,36 @@
    "category": "weapon",
    "parts": 8,
    "bytes": 15104
+  },
+  "operator_blitz": {
+   "file": "operator_blitz.glb",
+   "category": "operator",
+   "parts": 30,
+   "bytes": 49580
+  },
+  "operator_iq": {
+   "file": "operator_iq.glb",
+   "category": "operator",
+   "parts": 32,
+   "bytes": 53112
+  },
+  "operator_kapkan": {
+   "file": "operator_kapkan.glb",
+   "category": "operator",
+   "parts": 34,
+   "bytes": 56004
+  },
+  "operator_montagne": {
+   "file": "operator_montagne.glb",
+   "category": "operator",
+   "parts": 29,
+   "bytes": 48140
+  },
+  "operator_tachanka": {
+   "file": "operator_tachanka.glb",
+   "category": "operator",
+   "parts": 31,
+   "bytes": 52896
   }
  }
 }

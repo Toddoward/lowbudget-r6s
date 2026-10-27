@@ -109,6 +109,8 @@ export interface ActorSnapshot {
   sx?: boolean;
   /** shield slung on the back */
   sb?: boolean;
+  /** sprinting (a shield is carried at the side) */
+  sr?: boolean;
   /** Tachanka: mounted on the LMG */
   mt?: boolean;
 }

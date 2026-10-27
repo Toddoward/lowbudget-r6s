@@ -7,6 +7,7 @@ import { WEAPONS, type WeaponDef } from './weapons.ts';
 import { Stance, type ActorKind, type Side } from './types.ts';
 import type { World } from './World.ts';
 import { gaussian } from '../../shared/rng.ts';
+import { SHIELD_PLATES, type ShieldPlate } from '../assets/gadgetModels.ts';
 
 /** Per-frame intent. Produced by keyboard/mouse, by the WebMCP action API or by the bot FSM. */
 export interface SoldierInput {
@@ -202,7 +203,7 @@ export class Soldier implements Actor {
 
   /** shield follows the body: left-of-centre at the hip, or the whole body when extended */
   private updateShield() {
-    if (this.shieldCollider) placeShield(this.shieldCollider, this.pos, this.yaw, this.stance, this.shieldPose!, this.alive);
+    if (this.shieldCollider) placeShield(this.shieldCollider, this.pos, this.yaw, this.stance, this.shieldPose!, this.alive, shieldPlateOf(this.op));
   }
 
   mountTurret(turretId: string, at: THREE.Vector3, yaw: number) {
@@ -271,7 +272,9 @@ export class Soldier implements Actor {
   get speedMul() { return SPEED_MUL[this.op.speed]; }
   get armorMul() { return ARMOR_MUL[this.op.armor]; }
   /** where the shield is right now (null: no shield) */
-  get shieldPose(): ShieldPose | null { return this.op.shield ? shieldPoseOf(this.shieldExtended, this.shieldBack, this.ads > 0.5) : null; }
+  get shieldPose(): ShieldPose | null { return this.op.shield ? shieldPoseOf(this.shieldExtended, this.shieldBack, this.ads > 0.5, this.sprinting) : null; }
+  /** sprinting on this frame (the shield is carried at the side) */
+  sprinting = false;
   get reloading() { return this.reloadT > 0; }
 
   eye(out = new THREE.Vector3()): THREE.Vector3 {
@@ -372,6 +375,7 @@ export class Soldier implements Actor {
     this.updateWeapon(dt, inp);
     this.world.interactions.update(this, dt, inp);
     this.world.gadgets.handleInput(this, dt, inp);
+    this.updateShield(); // where the body is now (it was placed before the move)
   }
 
   /* ------------------------------------------------------------ on foot */
@@ -390,7 +394,8 @@ export class Soldier implements Actor {
     const wish = new THREE.Vector3().addScaledVector(fwd, inp.moveF).addScaledVector(right, inp.moveR);
     if (wish.lengthSq() > 1) wish.normalize();
     let speed = 3.3 * this.speedMul;
-    const sprinting = inp.sprint && inp.moveF > 0.3 && this.stance === Stance.Stand && this.ads < 0.3 && !this.reloading;
+    const sprinting = inp.sprint && inp.moveF > 0.3 && this.stance === Stance.Stand && this.ads < 0.3 && !this.reloading && !this.shieldExtended;
+    this.sprinting = sprinting;
     if (sprinting) speed *= 1.6;
     if (this.stance === Stance.Crouch) speed *= 0.55;
     if (this.stance === Stance.Prone) speed *= 0.24;
@@ -466,6 +471,8 @@ export class Soldier implements Actor {
 
   trySetStance(s: Stance): boolean {
     if (s === this.stance) return true;
+    // no going prone behind a raised shield (sling it on the back first)
+    if (s === Stance.Prone && this.op.shield && !this.shieldBack) return false;
     const cur = HALF[this.stance] * 2 + RADIUS * 2;
     const nxt = HALF[s] * 2 + RADIUS * 2;
     if (nxt > cur) {
@@ -852,33 +859,57 @@ export class Soldier implements Actor {
 }
 
 /** Rotate `dir` by a random cone. gaussian: σ = spread/2 per axis ; linear: uniform disc of radius spread. */
-export type ShieldPose = 'front' | 'ads' | 'back' | 'ext';
-export const shieldPoseOf = (ext: boolean, back: boolean, ads: boolean): ShieldPose => (back ? 'back' : ext ? 'ext' : ads ? 'ads' : 'front');
-/** movement speed with the shield: extended walks, ADS beside it is slow, on the back is free */
-export const SHIELD_SPEED: Record<ShieldPose, number> = { front: 0.9, ads: 0.85, back: 1, ext: 0.6 };
+export type ShieldPose = 'front' | 'ads' | 'run' | 'back' | 'ext';
+export const shieldPoseOf = (ext: boolean, back: boolean, ads: boolean, run = false): ShieldPose => (back ? 'back' : ext ? 'ext' : ads ? 'ads' : run ? 'run' : 'front');
+/** movement speed with the shield: extended walks, ADS beside it is slow, carried at the side / on the back is free */
+export const SHIELD_SPEED: Record<ShieldPose, number> = { front: 0.9, ads: 0.85, run: 1, back: 1, ext: 0.6 };
+export const shieldPlateOf = (op: OperatorDef): ShieldPlate => (op.gadget === 'flash_shield' ? SHIELD_PLATES.flash_shield : SHIELD_PLATES.shield);
+
+/** where the shield plate is, relative to the body: right / up (from the feet) / forward, turned `turn` toward the left, tilted `tilt` about its own x */
+export interface ShieldPlacement { right: number; up: number; fwd: number; turn: number; tilt: number; sx: number; sy: number }
 
 /**
- * Ballistic shield collider pose (local soldiers and remote peers share it).
- *  front: left of centre at chest height · ads: swung out to the left, turned 65° (covers the left flank, the
- *  pistol aims past its edge) · back: slung over the back · ext: Montagne's full-body extension.
+ * The one description of the shield's place, used by the collider, the third-person rig and the first-person view
+ * (so a round stops exactly where the plate is drawn).
+ *  front: square in front of the body, the viewport slit on the eye line — the crosshair sits in it
+ *  run:   swung to the left side along the body while sprinting — only the left flank is covered
+ *  ads:   swung out to the left and turned 60° — the pistol aims past its right edge
+ *  back:  slung over the back (lying on it when prone) · ext: Montagne's extension, from the ground to above the eyes
  */
-export function placeShield(c: RAPIER.Collider, pos: THREE.Vector3, yaw: number, stance: Stance, pose: ShieldPose, alive: boolean) {
+export function shieldPlace(pose: ShieldPose, stance: Stance, P: ShieldPlate): ShieldPlacement {
+  const eye = EYE[stance === Stance.Prone || stance === Stance.Crouch ? Stance.Crouch : Stance.Stand];
+  const base = { turn: 0, tilt: 0, sx: 1, sy: 1 };
+  switch (pose) {
+    case 'front': return { ...base, right: -P.sx, up: eye - P.sy, fwd: 0.45 };
+    case 'run': return { ...base, right: -0.42, up: eye - (stance === Stance.Stand ? 0.62 : 0.42), fwd: 0.06, turn: THREE.MathUtils.degToRad(80) };
+    case 'ads': return { ...base, right: -0.36, up: eye - 0.5, fwd: 0.32, turn: THREE.MathUtils.degToRad(60) };
+    case 'back':
+      if (stance === Stance.Prone) return { ...base, right: 0, up: 0.42, fwd: 0.05, turn: Math.PI, tilt: -Math.PI / 2 };
+      return { ...base, right: 0, up: eye - 0.55, fwd: -0.28, turn: Math.PI };
+    case 'ext': {
+      const h = eye + 0.28;
+      return { ...base, right: 0, up: 0.02 + h / 2, fwd: 0.45, sx: 1.35, sy: h / P.h };
+    }
+  }
+}
+
+/** a placement in a yaw-0 body's local frame (three.js: x right, y up, −z forward) */
+export function shieldLocal(pl: ShieldPlacement): { p: THREE.Vector3; q: THREE.Quaternion } {
+  const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(pl.tilt, pl.turn, 0, 'YXZ'));
+  return { p: new THREE.Vector3(pl.right, pl.up, -pl.fwd), q };
+}
+
+/** Ballistic shield collider (local soldiers and remote peers share it), exactly the plate */
+export function placeShield(c: RAPIER.Collider, pos: THREE.Vector3, yaw: number, stance: Stance, pose: ShieldPose, alive: boolean, plate: ShieldPlate) {
   if (!alive) { c.setTranslation({ x: pos.x, y: -600, z: pos.z }); return; }
-  const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
-  const right = new THREE.Vector3().crossVectors(fwd, UP);
-  const crouch = stance === Stance.Crouch;
-  const ext = pose === 'ext';
-  const h = ext ? (crouch ? 0.62 : 0.9) : crouch ? 0.42 : 0.5;
-  const cy = ext ? h + 0.02 : pose === 'back' ? (crouch ? 0.8 : 1.15) : crouch ? 0.62 : 1.0;
-  const p = pos.clone().add(new THREE.Vector3(0, cy, 0));
-  let turn = 0;
-  if (pose === 'back') p.addScaledVector(fwd, -0.26);
-  else if (pose === 'ads') { p.addScaledVector(fwd, 0.32).addScaledVector(right, -0.34); turn = THREE.MathUtils.degToRad(65); }
-  else p.addScaledVector(fwd, 0.5).addScaledVector(right, ext ? 0 : -0.1);
+  const pl = shieldPlace(pose, stance, plate);
+  const { p, q } = shieldLocal(pl);
+  const body = new THREE.Quaternion().setFromAxisAngle(UP, yaw);
+  p.applyQuaternion(body).add(pos);
+  q.premultiply(body);
   c.setTranslation({ x: p.x, y: p.y, z: p.z });
-  const q = new THREE.Quaternion().setFromAxisAngle(UP, yaw + turn);
   c.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w });
-  (c as unknown as { setHalfExtents?: (v: { x: number; y: number; z: number }) => void }).setHalfExtents?.({ x: ext ? 0.38 : 0.28, y: h, z: 0.03 });
+  c.setHalfExtents({ x: (plate.w / 2) * pl.sx, y: (plate.h / 2) * pl.sy, z: 0.03 });
 }
 
 export function applySpread(dir: THREE.Vector3, spreadDeg: number, extraDeg: number, model: 'gaussian' | 'linear'): THREE.Vector3 {
