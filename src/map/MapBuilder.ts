@@ -8,6 +8,7 @@ import {
   CCTVS, DIAG_WALLS, FLOORS, HOUSE_RECT, NW_STAIRWELL_PIT, FLOOR_LABEL, FLOOR_Y, GROUND_Y, HATCHES, LANDINGS, OPENING_DIMS, PANEL_MAX_W, ROOF_Y, ROOMS, SLAB_T, STAIRS, WALLS, WALL_H,
   exteriorZoneName, type FloorId, type OpeningKind, type RoomDef, type StairDef, type SurfaceTier, type WallDef,
 } from './houseLayout.ts';
+import { P } from './plan.ts';
 import { PROPS, type PropDef } from './houseProps.ts';
 import { subtractRects, inRect } from './geometry.ts';
 
@@ -321,18 +322,21 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
     if (!w.ext || w.floor !== 0) continue;
   }
   // chimney + AC unit on the roof (cover)
-  addStatic([-6.9, ROOF_Y, -7.2], [-5.9, ROOF_Y + 1.6, -6.3], new THREE.Color('#7a5446'), 'concrete', true);
-  addStatic([2.6, ROOF_Y, -1.6], [4.0, ROOF_Y + 0.9, -0.4], new THREE.Color('#9a9b98'), 'metal', true);
-  addStatic([-4.6, ROOF_Y, 3.0], [-3.6, ROOF_Y + 0.7, 4.0], new THREE.Color('#9a9b98'), 'metal', true);
+  // (positions in traced plan units → P(); sizes in metres)
+  const at = (x: number, z: number, hx: number, hz: number, y0: number, y1: number): [number[], number[]] => [[P(x) - hx, y0, P(z) - hz], [P(x) + hx, y1, P(z) + hz]];
+  addStatic(...at(-6.4, -6.75, 0.5, 0.45, ROOF_Y, ROOF_Y + 1.6), new THREE.Color('#7a5446'), 'concrete', true);
+  addStatic(...at(3.3, -1.0, 0.7, 0.6, ROOF_Y, ROOF_Y + 0.9), new THREE.Color('#9a9b98'), 'metal', true);
+  addStatic(...at(-4.1, 3.5, 0.5, 0.5, ROOF_Y, ROOF_Y + 0.7), new THREE.Color('#9a9b98'), 'metal', true);
   // porch: posts, rail, steps (front = north)
-  for (const x of [-1.55, 1.3, 4.2]) addStatic([x - 0.1, 0, -6.95], [x + 0.1, 3.2, -6.75], PAL.solidExt, 'wood', true);
+  const porchZ = P(-6.85);
+  for (const x of [-1.55, 1.3, 4.2]) addStatic([P(x) - 0.1, 0, porchZ - 0.1], [P(x) + 0.1, 3.2, porchZ + 0.1], PAL.solidExt, 'wood', true);
   for (const [x0, x1] of [[-1.6, -1.0], [1.2, 4.3]]) {
-    trim.box([x0, 0.85, -6.92], [x1, 0.95, -6.78], PAL.solidExt);
-    clip([x0, 0, -6.92], [x1, 0.95, -6.78]);
+    trim.box([P(x0), 0.85, porchZ - 0.07], [P(x1), 0.95, porchZ + 0.07], PAL.solidExt);
+    clip([P(x0), 0, porchZ - 0.07], [P(x1), 0.95, porchZ + 0.07]);
   }
-  addStatic([-1.6, -0.3, -7.0], [4.3, 0.0, -6.75], PAL.woodFloor, 'wood', true);
+  addStatic([P(-1.6), -0.3, P(-7.0)], [P(4.3), 0.0, porchZ + 0.1], PAL.woodFloor, 'wood', true);
   // back porch posts under the kids' room overhang
-  for (const x of [-7.1, -4.3, -1.95]) addStatic([x - 0.1, 0, 6.35], [x + 0.1, 3.2, 6.55], PAL.solidExt, 'wood', true);
+  for (const x of [-7.1, -4.3, -1.95]) addStatic([P(x) - 0.1, 0, P(6.45) - 0.1], [P(x) + 0.1, 3.2, P(6.45) + 0.1], PAL.solidExt, 'wood', true);
   // NW basement stairs: guard rails around the stairwell at yard level (its walls are the cut in the terrain);
   // open at the top of the flight (north) and against the House (storage W wall)
   {
@@ -402,16 +406,19 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
     clip([x0 - 0.03, y, z0 - 0.03], [x1 + 0.03, y + h, z1 + 0.03]);
   };
   // main stairs (2F gallery around the well)
-  rail(1.4, -4.9, 4.2, -4.88, 3.5);
-  rail(1.4, -4.9, 1.42, -1.2, 3.5);
-  rail(2.8, -3.02, 4.2, -3.0, 3.5); // edge of flight a's headroom cut-out
-  rail(2.79, -3.0, 2.81, -1.2, 3.5); // flight b's east side
-  rail(2.79, -3.95, 2.81, -1.2, 0); // between the two flights (1F)
-  clip([1.42, 0, -3.95], [2.78, 1.6, -1.2]); // nobody walks under the upper flight
-  rail(1.4, -4.85, 1.42, -1.2, 0, 1.0); // lobby side
+  // (rail lines in traced plan units → P(), 2 cm thick)
+  const railX = (x0: number, x1: number, z: number, y: number, h?: number) => rail(P(x0), P(z) - 0.01, P(x1), P(z) + 0.01, y, h);
+  const railZ = (x: number, z0: number, z1: number, y: number, h?: number) => rail(P(x) - 0.01, P(z0), P(x) + 0.01, P(z1), y, h);
+  railX(1.4, 4.2, -4.89, 3.5);
+  railZ(1.41, -4.9, -1.2, 3.5);
+  railX(2.8, 4.2, -3.01, 3.5); // edge of flight a's headroom cut-out
+  railZ(2.8, -3.0, -1.2, 3.5); // flight b's east side
+  railZ(2.8, -3.95, -1.2, 0); // between the two flights (1F)
+  clip([P(1.42), 0, P(-3.95)], [P(2.78), 1.6, P(-1.2)]); // nobody walks under the upper flight
+  railZ(1.41, -4.85, -1.2, 0, 1.0); // lobby side
   // side stairs well (1F)
-  rail(-8.4, 2.05, -3.75, 2.07, 0);
-  rail(-8.42, 0.85, -8.4, 2.05, 0);
+  railX(-8.4, -3.75, 2.06, 0);
+  railZ(-8.41, 0.85, 2.05, 0);
 
   /* ------------------------------------------------------------- props */
   const propBatch = new BoxBatch();

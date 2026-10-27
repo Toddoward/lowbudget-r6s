@@ -1,3 +1,5 @@
+import { PLAN } from './plan.ts';
+
 /**
  * House outdoor datamap — the pre-baked 512×512 RGBA top view of the original
  * House (1 px = 0.133333 m, 68.27 m square, registered 1:1 to the official top
@@ -107,7 +109,8 @@ export const HOUSE_POLICE_CRUISERS = [
 export interface DatamapSample { x: number; z: number; hGround: number; hUpper: number; zoneId: number; formId: number }
 export interface HouseDatamap { sample(u: number, v: number): DatamapSample }
 
-export const DATAMAP_PX = 0.133333;
+/** world metres per datamap pixel: the datamap's 0.133333 m at the House's plan scale (plan.ts) */
+export const DATAMAP_PX = 0.133333 * PLAN;
 export const DATAMAP_U0 = 243.0;
 export const DATAMAP_V0 = 292.8;
 export const uToX = (u: number) => (u - DATAMAP_U0) * DATAMAP_PX;

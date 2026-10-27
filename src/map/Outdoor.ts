@@ -5,7 +5,8 @@ import { greedy } from '../world/Destruction.ts';
 import { vcMaterial } from '../render/palette.ts';
 import { DRIVEWAY, FLOORS, GARAGE_RAMP, GARAGE_VENT_WELL, LOWER_GROUND_Y, MAP_BOUNDS, NW_STAIRWELL_PIT, ROOF_Y, STAIRS, VENT_SHAFT, type Rect } from './houseLayout.ts';
 import { subtractRects } from './geometry.ts';
-import { FORM, HOUSE_POLICE_CRUISERS, setActiveDatamap, uToX, vToZ, xToU, zToV, ZONE, type HouseDatamap } from './houseDatamap.ts';
+import { P } from './plan.ts';
+import { DATAMAP_PX, FORM, HOUSE_POLICE_CRUISERS, setActiveDatamap, uToX, vToZ, xToU, zToV, ZONE, type HouseDatamap } from './houseDatamap.ts';
 
 /**
  * Everything outside the House, built from the House datamap (houseDatamap.ts):
@@ -34,15 +35,17 @@ const RISER = 0.17;
 const UP = new THREE.Vector3(0, 1, 0);
 
 /** the House's below-grade volumes and pits: no terrain there */
+/** an edge of a hole: a wall centreline (traced plan units) and the side of it, out by half an exterior wall (0.15 m) */
+const Hc = (c: number, side: -1 | 1, m = 0.15) => P(c) + side * m;
 export const HOUSE_HOLES: Rect[] = [
-  { x0: -7.4, z0: -7.55, x1: -1.55, z1: -4.65 }, // storage
-  { x0: -7.4, z0: -4.95, x1: 7.35, z1: -2.45 }, // (west of the living room the basement wall is at x −7.25: the yard runs up to the House)
-  { x0: -8.1, z0: -2.6, x1: 7.35, z1: -0.45 },
-  { x0: -8.1, z0: -0.75, x1: 9.85, z1: 0.7 },
-  { x0: -8.8, z0: 0.4, x1: 9.85, z1: 3.85 }, // (the B side stairs reach out to x −8.65 only south of z 0.55)
-  { x0: -9.6, z0: 1.0, x1: -8.5, z1: 3.4 }, // bay
-  { x0: -5.6, z0: 3.55, x1: 9.85, z1: 5.0 },
-  { x0: -5.6, z0: 4.7, x1: 2.2, z1: 6.6 }, // back hallway (under the back deck)
+  { x0: Hc(-7.25, -1), z0: Hc(-7.4, -1), x1: Hc(-1.7, 1), z1: Hc(-4.8, 1) }, // storage
+  { x0: Hc(-7.25, -1), z0: Hc(-4.8, -1), x1: Hc(7.2, 1), z1: P(-2.45) }, // (west of the living room the basement wall is at x −7.25: the yard runs up to the House)
+  { x0: Hc(-7.95, -1), z0: Hc(-2.45, -1), x1: Hc(7.2, 1), z1: Hc(-0.6, 1) },
+  { x0: Hc(-7.95, -1), z0: Hc(-0.6, -1), x1: Hc(9.7, 1), z1: Hc(0.55, 1) },
+  { x0: Hc(-8.65, -1), z0: Hc(0.55, -1), x1: Hc(9.7, 1), z1: Hc(3.7, 1) }, // (the B side stairs reach out to x −8.65 only south of z 0.55)
+  { x0: Hc(-9.45, -1), z0: Hc(1.1, -1, 0.1), x1: Hc(-8.65, 1), z1: Hc(3.25, 1) }, // bay
+  { x0: Hc(-5.45, -1), z0: Hc(3.7, -1), x1: Hc(9.7, 1), z1: Hc(4.85, 1) },
+  { x0: Hc(-5.45, -1), z0: Hc(4.85, -1), x1: Hc(2.05, 1), z1: Hc(6.45, 1) }, // back hallway (under the back deck)
   NW_STAIRWELL_PIT,
   STAIRS.find((s) => s.id === 'stairs_storage_ext')!.rect,
   DRIVEWAY,
@@ -297,11 +300,13 @@ export function buildOutdoor(physics: Physics, scene: THREE.Scene, map: HouseDat
   }
   // the House's outdoor pits: driveway (bay + apron) and vent shaft floors
   solid([DRIVEWAY.x0, BASE_Y, DRIVEWAY.z0], [9.7, LOWER_GROUND_Y, -0.6], '#55575a');
-  solid([9.7, BASE_Y, DRIVEWAY.z0], [DRIVEWAY.x1, LOWER_GROUND_Y, DRIVEWAY.z1], '#55575a');
+  solid([P(9.7), BASE_Y, DRIVEWAY.z0], [DRIVEWAY.x1, LOWER_GROUND_Y, DRIVEWAY.z1], '#55575a');
   solid([VENT_SHAFT.x0, BASE_Y, VENT_SHAFT.z0], [VENT_SHAFT.x1, LOWER_GROUND_Y, VENT_SHAFT.z1], '#4a4a48');
   solid([GARAGE_VENT_WELL.x0, BASE_Y, GARAGE_VENT_WELL.z0], [GARAGE_VENT_WELL.x1, LOWER_GROUND_Y, GARAGE_VENT_WELL.z1], '#55575a');
-  // a foundation under every cut-out: whatever slips past a wall into a cut-out lands, it never falls out of the world
-  for (const r of HOUSE_HOLES) physics.addBox((r.x0 + r.x1) / 2, (BASE_Y + LOWER_GROUND_Y - 0.05) / 2, (r.z0 + r.z1) / 2, (r.x1 - r.x0) / 2, (LOWER_GROUND_Y - 0.05 - BASE_Y) / 2, (r.z1 - r.z0) / 2, { kind: 'static', mat: 'concrete', exterior: true });
+  // a foundation under every cut-out, a terrain cell wider all round (cells are cut by their centre, so the terrain can stop
+  // up to half a cell short of a cut-out's edge): whatever slips past a wall or a cut edge lands, it never falls out of the world
+  const fm = DATAMAP_PX;
+  for (const r of HOUSE_HOLES) physics.addBox((r.x0 + r.x1) / 2, (BASE_Y + LOWER_GROUND_Y - 0.05) / 2, (r.z0 + r.z1) / 2, (r.x1 - r.x0) / 2 + fm, (LOWER_GROUND_Y - 0.05 - BASE_Y) / 2, (r.z1 - r.z0) / 2 + fm, { kind: 'static', mat: 'concrete', exterior: true });
   // vent shaft grille at grade (drones drop through, boots don't)
   for (let k = 0; k <= 5; k++) {
     const x = VENT_SHAFT.x0 + ((VENT_SHAFT.x1 - VENT_SHAFT.x0) * k) / 5;
@@ -343,7 +348,7 @@ export function buildOutdoor(physics: Physics, scene: THREE.Scene, map: HouseDat
   scene.add(water);
   clip([waterX0, RIVER_BED, MAP_BOUNDS.z0 - 1], [waterX0 + 0.4, 12, MAP_BOUNDS.z1 + 1]);
   // mooring bollards along the dock edge
-  for (let z = 4; z < 28; z += 4.5) { const k = new Kit('metal'); k.cyl(0, 0, 0, 0.55, 0.14, '#2b2e33'); k.place(b, physics, waterX0 - 0.35, -3.0, z); }
+  for (let z = P(4); z < P(28); z += 4.5) { const k = new Kit('metal'); k.cyl(0, 0, 0, 0.55, 0.14, '#2b2e33'); k.place(b, physics, waterX0 - 0.35, -3.0, z); }
 
   /* ------------------------------------------------------------- map edges (player clip) + backdrop */
   const B = MAP_BOUNDS;
@@ -426,7 +431,7 @@ export function buildOutdoor(physics: Physics, scene: THREE.Scene, map: HouseDat
     glow.box([x + dx * 0.8, y + 4.95, z - 0.18], [x + dx * 1.25, y + 5.08, z + 0.18], new THREE.Color('#ffd28a'));
     lights.push({ pos: new THREE.Vector3(x + dx * 1.0, y + 4.9, z), color: '#ffc27a', kind: 'lamp' });
   };
-  lamp(-8, -18.0, 1); lamp(8, -18.0, -1); lamp(-15.2, 9.5, 1); lamp(-1, 22.4, 1); lamp(17, 21.5, -1); lamp(19.6, -12, -1); lamp(22.5, 14, 1);
+  for (const [x, z, dx] of [[-8, -18.0, 1], [8, -18.0, -1], [-15.2, 9.5, 1], [-1, 22.4, 1], [17, 21.5, -1], [19.6, -12, -1], [22.5, 14, 1]]) lamp(P(x), P(z), dx);
   const tree = (x: number, z: number, s = 1) => {
     const y = groundAt(x, z);
     const k = new Kit('wood');
@@ -435,39 +440,39 @@ export function buildOutdoor(physics: Physics, scene: THREE.Scene, map: HouseDat
     // foliage: no collider (leaves neither stop a body nor a bullet)
     b.geom(new THREE.IcosahedronGeometry(1.7 * s, 0), new THREE.Matrix4().makeTranslation(x, y + 3.4 * s, z), new THREE.Color('#3d5530'));
   };
-  for (const [x, z, s] of [[-20, -12, 1.2], [-19, 2, 1.1], [-22, 6, 1.0], [-12.5, -10.5, 0.9], [10.8, -12, 1.0], [-12.8, 14.5, 1.0], [8.5, 15, 1.1], [-27, -4, 1.3]]) tree(x, z, s);
+  for (const [x, z, s] of [[-20, -12, 1.2], [-19, 2, 1.1], [-22, 6, 1.0], [-12.5, -10.5, 0.9], [10.8, -12, 1.0], [-12.8, 14.5, 1.0], [8.5, 15, 1.1], [-27, -4, 1.3]]) tree(P(x), P(z), s);
   // white picket fence along the sidewalk edge of the front yard (gap at the front walk)
-  for (const [x0, x1] of [[-13.0, -1.1], [1.3, 11.2]]) {
+  for (const [x0, x1] of [[P(-13.0), P(-1.1)], [P(1.3), P(11.2)]]) {
     const k = new Kit('wood');
     k.box([0, 0, -0.04], [x1 - x0, 0.08, 0.04], '#e9e6dc').box([0, 0.75, -0.04], [x1 - x0, 0.83, 0.04], '#e9e6dc');
     for (let x = 0; x <= x1 - x0; x += 0.6) k.box([x - 0.03, 0, -0.02], [x + 0.03, 0.95, 0.02], '#e9e6dc');
-    k.place(b, physics, x0, 0, -15.0);
+    k.place(b, physics, x0, 0, P(-15.0));
   }
-  deco([-0.9, 0, -15.31], [1.1, 0.02, -7.0], '#a29d92'); // front walk
-  deco([-4.9, -0.36, 6.83], [-3.7, -0.34, 11.8], '#a29d92'); // back walk
+  deco([P(-0.9), 0, P(-15.0) - 0.31], [P(1.1), 0.02, P(-7.0)], '#a29d92'); // front walk
+  deco([P(-4.9), -0.36, P(6.45) + 0.38], [P(-3.7), -0.34, P(11.8)], '#a29d92'); // back walk
   // road markings
-  for (let x = B.x0 + 2; x < 19; x += 6) deco([x, -1.5, -21.1], [x + 3, -1.49, -20.9], '#d8c65a');
-  for (let x = -14; x < 19; x += 6) deco([x, -1.5, 25.4], [x + 3, -1.49, 25.6], '#e8e4d6');
+  for (let x = B.x0 + 2; x < P(19); x += 6) deco([x, -1.5, P(-21.0) - 0.1], [x + 3, -1.49, P(-21.0) + 0.1], '#d8c65a');
+  for (let x = P(-14); x < P(19); x += 6) deco([x, -1.5, P(25.5) - 0.1], [x + 3, -1.49, P(25.5) + 0.1], '#e8e4d6');
   // construction site: barrier fence, pipes, sand pile, site lights
   {
     // site fence panels, with a 2.4 m gate in line with the House's front walk
-    for (let x = -14; x < 13; x += 3) { if (x > -2 && x < 2) continue; const k = new Kit('metal'); k.box([0, 0, -0.03], [2.6, 1.9, 0.03], '#9aa0a2'); k.place(b, physics, x, -1.29, -24.7); }
-    for (const [x, z] of [[-9, -33], [-9, -34.6]]) {
+    for (let x = P(-14); x < P(13); x += 3) { if (x > -2 && x < 2) continue; const k = new Kit('metal'); k.box([0, 0, -0.03], [2.6, 1.9, 0.03], '#9aa0a2'); k.place(b, physics, x, -1.29, P(-24.7)); }
+    for (const [x, z] of [[P(-9), P(-33)], [P(-9), P(-33) - 1.6]]) {
       // concrete pipes lying along X: a horizontal cylinder
       b.geom(new THREE.CylinderGeometry(0.75, 0.75, 2.2, 10, 1, true), new THREE.Matrix4().compose(new THREE.Vector3(x, -1.29 + 0.75, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2), new THREE.Vector3(1, 1, 1)), new THREE.Color('#9a968c'));
       physics.addCylinder(x, -1.29 + 0.75, z, 1.1, 0.75, { kind: 'static', mat: 'concrete', exterior: true }, undefined, new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2));
     }
-    lights.push({ pos: new THREE.Vector3(1, 6.5, -24), dir: new THREE.Vector3(0, -0.6, -1).normalize(), color: '#fff0c8', kind: 'flood' });
+    lights.push({ pos: new THREE.Vector3(P(1), 6.5, P(-24)), dir: new THREE.Vector3(0, -0.6, -1).normalize(), color: '#fff0c8', kind: 'flood' });
     // the skeleton of the building going up beyond the fence line (backdrop: past the map edge)
-    for (const x of [-12, -6, 0, 6, 12]) for (const z of [-46, -41]) deco([x - 0.25, -1.29, z - 0.25], [x + 0.25, 6.8, z + 0.25], '#8b8983');
-    deco([-12.4, 2.6, -46.4], [12.4, 2.9, -40.6], '#8b8983');
-    deco([-12.4, 6.6, -46.4], [12.4, 6.9, -40.6], '#8b8983');
+    for (const x of [-12, -6, 0, 6, 12].map(P)) for (const z of [-46, -41].map(P)) deco([x - 0.25, -1.29, z - 0.25], [x + 0.25, 6.8, z + 0.25], '#8b8983');
+    deco([P(-12) - 0.4, 2.6, P(-46) - 0.4], [P(12) + 0.4, 2.9, P(-41) + 0.4], '#8b8983');
+    deco([P(-12) - 0.4, 6.6, P(-46) - 0.4], [P(12) + 0.4, 6.9, P(-41) + 0.4], '#8b8983');
   }
   // docks: crates and barrels
-  for (const [x, z, s] of [[21.5, 14, 1.1], [22.6, 14, 1.1], [21.9, 15.2, 1.0], [23.8, 22, 1.2]]) solid([x - s / 2, -3.0, z - s / 2], [x + s / 2, -3.0 + s, z + s / 2], '#8a6b42', 'wood');
-  for (const [x, z] of [[23.6, 17.5], [24.2, 17.9]]) { const k = new Kit('metal'); k.cyl(0, 0, 0, 0.9, 0.3, '#3b5f8a'); k.place(b, physics, x, -3.0, z); }
+  for (const [x, z, s] of [[21.5, 14, 1.1], [22.6, 14, 1.1], [21.9, 15.2, 1.0], [23.8, 22, 1.2]].map(([x, z, s]) => [P(x), P(z), s])) solid([x - s / 2, -3.0, z - s / 2], [x + s / 2, -3.0 + s, z + s / 2], '#8a6b42', 'wood');
+  for (const [x, z] of [[23.6, 17.5], [24.2, 17.9]].map(([x, z]) => [P(x), P(z)])) { const k = new Kit('metal'); k.cyl(0, 0, 0, 0.9, 0.3, '#3b5f8a'); k.place(b, physics, x, -3.0, z); }
   // APC area sandbags + barriers
-  for (const [x, z, w, dd] of [[-10.5, 21.5, 0.6, 3], [-3.0, 19.8, 3, 0.6]]) solid([x - w / 2, -1.51, z - dd / 2], [x + w / 2, -0.61, z + dd / 2], '#8a7c5c', 'dirt');
+  for (const [x, z, w, dd] of [[-10.5, 21.5, 0.6, 3], [-3.0, 19.8, 3, 0.6]].map(([x, z, w, dd]) => [P(x), P(z), w, dd])) solid([x - w / 2, -1.51, z - dd / 2], [x + w / 2, -0.61, z + dd / 2], '#8a7c5c', 'dirt');
 
   const mesh = new THREE.Mesh(b.build(), vcMaterial());
   mesh.receiveShadow = true;
