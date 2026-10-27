@@ -1,15 +1,11 @@
 # Handoff — R6S: TEMU rework (state on 2026-10-27)
 
-> **한국어 요약** — 사용자가 2026-10-27에 요청한 전체 수정 목록(아래 §2)을 기준으로, 이번 세션에서
-> ① 테러리스트 헌트 라운드 종료 규칙(해체기 설치 전/후, 플레이어 사망과 무관한 매치 상태),
-> ② 레펠 거꾸로 매달림 시 마우스 반전 제거(키·마우스 모두 화면 기준),
-> ③ 경사로·계단에서 모든 자세(서기/앉기/엎드리기) 이동 속도 유지,
-> ④ 방패(정면 중앙 + 총안구에 크로스헤어, 달리기 시 왼쪽으로, 충돌체 = 그려진 위치),
-> ⑤ 3인칭 팔(뒤로 꺾인 팔 버그 수정, 2관절 IK로 손이 총/방패 손잡이에 붙음, Blender로 GLB 재생성)
-> 을 끝내고 커밋·푸시했습니다(`1439fe7`, `7c9acb4`). **남은 일**: 집 전체 재구성(청사진 기반, 평면 확대,
-> 뒷문 1F→2F 계단, 남쪽 데크+지붕 동선, 차고 차량 주변 통로, 소품 크기, 문↔문 연결, 경사 지붕, 모서리/Z-fight),
-> 야외 지형(탑뷰 이미지 기반 매끄러운 하이트필드, 스폰 구역 소품 제거), 그리고 전체 검증·배포(§5–§7).
-> 다음 입력에서는 §1 순서대로 환경을 다시 띄우고 §5부터 이어서 진행하면 됩니다.
+> **한국어 요약** — 2026-10-27 요청 목록(§2의 R1–R20, 후속 N1–N3)을 모두 처리했습니다. 테러리스트 헌트 라운드 규칙,
+> 레펠 시점, 경사·계단 이동, 방패, 3인칭 팔, 집 재구성(평면 ×1.3, 뒷계단·베이 창, 남쪽 데크·지붕, 경사 지붕, 모서리·Z-fight,
+> 로비 L자 계단, 문↔문 연결, 차고 차량 통로), 야외 지형(합의한 높이로 만든 매끄러운 지면 — 박스 없음, 차고 진입로는 도로와
+> 같은 높이, 앞마당 2단 테라스와 현관 7계단, 스폰 주변 장애물 제거)입니다. 단위·그래프 테스트, 브라우저 e2e·시나리오
+> (온라인 재접속 포함)가 모두 통과하며, 작업은 PR #10(→ `develop`)으로 올렸습니다. 이미지→깊이 모델은 이 환경의 네트워크
+> 정책이 huggingface.co를 막고 있어(403) 쓰지 못했습니다(§6.5). 남은 것: PR #10 CI 통과 후 병합 → `develop` → `main` 릴리스.
 
 ---
 
@@ -18,13 +14,14 @@
 | What | Command / place |
 |---|---|
 | Repo (worktree) | `/home/user/r6s-fewshot`, branch **`claude/adoring-bohr-esh1fj`** (pushed; based on `develop` @ `2aa762c`) |
-| Last commits | `7c9acb4` shields + 3P rig · `1439fe7` TH rules, rappel look, slopes · (this file) |
-| Release flow | PR `claude/adoring-bohr-esh1fj` → `develop` (CI: typecheck, unit, build, browser e2e + scenarios; deploys `develop.r6s-temu.pages.dev`), then release PR `develop` → `main` (deploys `r6s-temu.pages.dev`). **No PR is open for this work yet.** |
-| Unit / graph tests | `npm test` (all `tools/tests/*.test.ts`; 81 pass at `7c9acb4`) · single file: `npx tsx --test tools/tests/<name>.test.ts` |
+| Last commits | `0dac658` S6 round-state scenarios · `664dced` terrain · `27048e1` walk tests · `cd3e686` lobby L-stairs · `15731df` corners / Z-fighting · `41835fe` roof · `932b666` south deck · `7a23245` back stairs · `66f0843` plan ×1.3 · `7c9acb4` shields + 3P rig · `1439fe7` TH rules, rappel look, slopes |
+| Release flow | PR `claude/adoring-bohr-esh1fj` → `develop` (CI: typecheck, unit, build, browser e2e + scenarios; deploys `develop.r6s-temu.pages.dev`), then release PR `develop` → `main` (deploys `r6s-temu.pages.dev`). **PR #10** (`claude/adoring-bohr-esh1fj` → `develop`) is open for this work. |
+| Unit / graph tests | `npm test` (all `tools/tests/*.test.ts`; 105 pass at `0dac658`) · single file: `npx tsx --test tools/tests/<name>.test.ts` |
 | Typecheck | `npx tsc --noEmit -p .` |
 | QA build + preview | `VITE_QA=1 npx vite build --outDir dist-qa` then `npx vite preview --outDir dist-qa --port 4173 --strictPort` (run in background) |
 | Browser suites | `npm run test:e2e`, `npm run test:scenarios` (`E2E_ONLINE=1` also needs `npx wrangler dev` on 8787 for S5) |
 | Screenshots | `node tools/tests/shots-rig.mjs <outdir>` (1P Montagne front / sprint / ADS, 3P posed rigs) — preview must be running |
+| Ground | `src/map/terrain.ts` (levels `YARD` in houseLayout.ts); `npx tsx --test tools/tests/terrain.test.ts` |
 | Asset rebake (Blender) | `npm run assets:spec && python3 tools/cli-anything/pipeline.py --only operator_ --jobs 4` (Blender 4 is at `/usr/bin/blender`; the pipeline clones CLI-Anything into `tools/cli-anything/.cache`) |
 | Reference images (this session only) | `/tmp/claude-0/-home-user/c99bd3f1-f9dd-51e9-b22c-c19f7829a53d/scratchpad/reference/` — `3.webp` 1F blueprint, `4.webp` 2F, `5.webp` basement, `6.webp` roof, `7.webp` (= `2.webp`) high-res top view with outdoors, `1.webp` labelled outdoor overview (Korean labels). Not committed (third-party imagery). |
 | Source model | `/root/.claude/uploads/c99bd3f1-f9dd-51e9-b22c-c19f7829a53d/52f1d496-rainbow_six_siege_-_house_map.glb` and `…/335b083b-house_map.blend` (see `tools/level/README.md` for the GLB → plan pipeline) |
