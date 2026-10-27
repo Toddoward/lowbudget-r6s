@@ -104,7 +104,7 @@ Earlier standing instructions still in force: verify with graph search / unit te
 
 1. ~~Sprint shield pose in the live game~~ — resolved: it was the screenshot script (agent holds are clamped to 5 s of wall-clock time and the `ads` flag only merges within 2 s of the last action; slow headless frames outlasted both). `shots-rig.mjs` now steps synchronously and freezes the simulation for each capture; `e2e-scenarios.mjs` S2 asserts the slit on the crosshair in front, the plate at the left and the rounds while sprinting.
 2. **3P close-ups from the front** (`shots-rig.mjs` writes `3p_rifles.png`, `3p_shields.png`): the camera currently looks at the rigs from behind; turn the rigs toward the camera (`root.rotation.y ≈ 0.18`) and review elbows, hand placement and the shield handle.
-3. **TH state-cycle E2E** (R15/R19) in `e2e-scenarios.mjs`: (a) bomb: plant → kill every White Mask → round still on → defuser completes → win; (b) plant → player dies → round still on, camera on the defuser → a White Mask cuts it → loss; (c) hostage rescue: kill all → win; (d) no plant, player dies → loss. Use `sim()` stepping and `window.qa` helpers.
+3. ~~**TH state-cycle E2E**~~ — done: `e2e-scenarios.mjs` S6 drives the live game loop through (a) plant → every White Mask down → round on → defuser completes → win; (b) plant → the operators down → round on, `#spectating` on the defuser → a White Mask cuts it → loss; (c) hostage rescue cleared → win; (d) no plant, operators down → loss + result screen.
 4. Run `npm run test:e2e` and the full `test:scenarios` (with `E2E_ONLINE=1`) on the new build — not yet run after `7c9acb4`.
 
 ---
