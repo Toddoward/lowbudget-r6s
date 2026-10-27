@@ -65,6 +65,15 @@ export class Physics {
     return c;
   }
 
+  /** static convex hull of the given points (roof solids) — null if the points are degenerate */
+  addConvexHull(points: Float32Array, tag: ColliderTag, group = G_WORLD): RAPIER.Collider | null {
+    const desc = RAPIER.ColliderDesc.convexHull(points);
+    if (!desc) return null;
+    const c = this.world.createCollider(desc.setCollisionGroups(groups(group, 0xffff)));
+    this.tags.set(c.handle, tag);
+    return c;
+  }
+
   addCapsule(cx: number, cy: number, cz: number, halfHeight: number, radius: number, tag: ColliderTag, group = G_CHAR, filter = G_WORLD | G_CHAR | G_CLIP): RAPIER.Collider {
     const desc = RAPIER.ColliderDesc.capsule(halfHeight, radius).setTranslation(cx, cy, cz).setCollisionGroups(groups(group, filter));
     const c = this.world.createCollider(desc);

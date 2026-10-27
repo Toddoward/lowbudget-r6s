@@ -656,6 +656,9 @@ export class Soldier implements Actor {
     // climb over the top
     if (up > 0.2 && this.pos.y >= R.topY - 1.9) {
       const over = this.pos.clone().addScaledVector(R.n, -WALL_GAP - 0.7).setY(R.topY + 0.05);
+      // over a pitched roof the surface 0.7 m in is higher than the eave: stand on it
+      const surf = ph.raycast(over.clone().setY(R.topY + 2), new THREE.Vector3(0, -1, 0), 2.3, G_WORLD);
+      if (surf && surf.normal.y > 0.6) over.setY(surf.point.y + 0.05);
       if (!ph.overlapsWorld(over.clone().add(new THREE.Vector3(0, 0.9, 0)), 0.28)) {
         this.anim = { t: 0, dur: 0.75, from: this.pos.clone(), mid: this.pos.clone().setY(R.topY + 0.25), to: over, midDone: false, endStance: Stance.Crouch };
         this.mode = 'vault';

@@ -361,6 +361,51 @@ export const FLOORS: FloorDef[] = [
   { id: 'roof_bay', y: ROOF_Y, rect: R(-9.45, 1.1, -8.65, 3.25), tier: 'solid', kind: 'roof', label: 'Roof' },
 ];
 
+/* ------------------------------------------------------------------- roof */
+/**
+ * The pitched roof (blueprint roof plan): a hipped main block with a flat walkable top, hips over the north-west wing,
+ * the Kids' Room wing, the east strip and the west bay. Every part is a convex solid on the 2F walls (eaves at ROOF_Y,
+ * overhang ROOF_OVERHANG), its collider the same hull. Wings reach into the main block so their inner hip ends sink into
+ * its slope.
+ */
+export interface RoofDef { id: string; rect: Rect; /** 'flat' = hip up to a flat top `rise` above the eaves; 'hip' = a ridge along the longer side */ ridge: 'flat' | 'hip'; rise?: number }
+export const ROOF_PITCH = (30 * Math.PI) / 180;
+export const ROOF_OVERHANG = 0.35;
+export const ROOFS: RoofDef[] = [
+  { id: 'roof_main', rect: R(-7.95, -5.5, 8.3, 4.85), ridge: 'flat', rise: 2.3 },
+  { id: 'roof_nw', rect: R(-7.25, -7.4, -1.7, -3.0), ridge: 'hip' },
+  { id: 'roof_kids', rect: R(-7.25, 2.35, -1.8, 6.6), ridge: 'hip' },
+  { id: 'roof_east', rect: R(6.0, -0.6, 9.7, 4.85), ridge: 'hip' },
+  { id: 'roof_bay', rect: R(-9.45, 1.1, -6.5, 3.25), ridge: 'hip' },
+];
+
+/** the corner points of a roof part (world), for its hull */
+export function roofPoints(r: RoofDef): [number, number, number][] {
+  const o = ROOF_OVERHANG;
+  const x0 = r.rect.x0 - o, x1 = r.rect.x1 + o, z0 = r.rect.z0 - o, z1 = r.rect.z1 + o;
+  const y0 = ROOF_Y - 0.02;
+  const t = Math.tan(ROOF_PITCH);
+  const base: [number, number, number][] = [[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]];
+  if (r.ridge === 'flat') {
+    const d = (r.rise ?? 2) / t;
+    const y1 = y0 + (r.rise ?? 2);
+    return [...base, [x0 + d, y1, z0 + d], [x1 - d, y1, z0 + d], [x1 - d, y1, z1 - d], [x0 + d, y1, z1 - d]];
+  }
+  // a hip: the ridge runs along the long side, half the short side in from each end (a pyramid if square) — every face at the pitch
+  const alongX = x1 - x0 >= z1 - z0;
+  const half = (alongX ? z1 - z0 : x1 - x0) / 2;
+  const h = half * t;
+  const yR = y0 + h;
+  if (alongX) {
+    const cz = (z0 + z1) / 2;
+    const a = Math.min(x0 + half, (x0 + x1) / 2), b = Math.max(x1 - half, (x0 + x1) / 2);
+    return [...base, [a, yR, cz], [b, yR, cz]];
+  }
+  const cx = (x0 + x1) / 2;
+  const a = Math.min(z0 + half, (z0 + z1) / 2), b = Math.max(z1 - half, (z0 + z1) / 2);
+  return [...base, [cx, yR, a], [cx, yR, b]];
+}
+
 /* ------------------------------------------------------------------- rooms */
 export interface RoomDef {
   id: string;

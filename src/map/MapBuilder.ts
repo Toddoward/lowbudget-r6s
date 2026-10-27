@@ -4,8 +4,9 @@ import { G_CLIP } from '../core/Physics.ts';
 import { BoxBatch } from '../world/BoxBatch.ts';
 import { DestructionSystem, type Panel, type PanelKind } from '../world/Destruction.ts';
 import { PAL, vcMaterial } from '../render/palette.ts';
+import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
 import {
-  CCTVS, DIAG_WALLS, FLOORS, HOUSE_RECT, NW_STAIRWELL_PIT, FLOOR_LABEL, FLOOR_Y, GROUND_Y, HATCHES, LANDINGS, OPENING_DIMS, PANEL_MAX_W, ROOF_Y, ROOMS, SLAB_T, STAIRS, WALLS, WALL_H,
+  CCTVS, DIAG_WALLS, FLOORS, HOUSE_RECT, NW_STAIRWELL_PIT, FLOOR_LABEL, FLOOR_Y, GROUND_Y, HATCHES, LANDINGS, OPENING_DIMS, PANEL_MAX_W, ROOF_Y, ROOFS, ROOMS, SLAB_T, STAIRS, WALLS, WALL_H, roofPoints,
   exteriorZoneName, type FloorId, type OpeningKind, type RoomDef, type StairDef, type SurfaceTier, type WallDef,
   DECK_STEPS,
 } from './houseLayout.ts';
@@ -94,6 +95,8 @@ const KIND_LABEL: Record<OpeningKind, string> = {
 export function buildHouse(physics: Physics, destruction: DestructionSystem, scene: THREE.Scene): HouseWorld {
   const stat = new BoxBatch();
   const trim = new BoxBatch();
+  /** roof solids (convex hulls, flat-shaded) */
+  const roof = new BoxBatch();
   const openings: Opening[] = [];
   const wallPanels: Panel[] = [];
   const lamps: LampDef[] = [];
@@ -312,22 +315,24 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
     destruction.group.add(hm);
   }
 
-  /* ------------------------------------------------------------- roof parapet, porch, decks */
+  /* ------------------------------------------------------------- roof, porch, decks */
+  // a frieze along the top of every 2F outer wall, up to the eaves (closes the strip between the wall top and the roof)
   for (const w of WALLS) {
     if (!w.ext || w.floor !== 1) continue;
-    const [mn, mx] = box(w.run, w.c, 0.32, w.from - 0.16, w.to + 0.16, ROOF_Y, ROOF_Y + 0.35);
-    addStatic(mn, mx, PAL.concreteDark, 'concrete', true);
+    const [mn, mx] = box(w.run, w.c, 0.3, w.from - 0.15, w.to + 0.15, FLOOR_Y[1] + WALL_H, ROOF_Y);
+    addStatic(mn, mx, PAL.solidExt, 'concrete', true);
   }
-  for (const w of WALLS) {
-    // porch-roof lip at the 2F floor line where the 1F façade steps back
-    if (!w.ext || w.floor !== 0) continue;
+  // the pitched roof: one convex solid per part, the hull is both the mesh and the collider
+  for (const r of ROOFS) {
+    const pts = roofPoints(r);
+    roof.geom(new ConvexGeometry(pts.map((p) => new THREE.Vector3(...p))), new THREE.Matrix4(), PAL.roof);
+    physics.addConvexHull(new Float32Array(pts.flat()), { kind: 'static', mat: 'concrete', exterior: true });
   }
-  // chimney + AC unit on the roof (cover)
-  // (positions in traced plan units → P(); sizes in metres)
-  const at = (x: number, z: number, hx: number, hz: number, y0: number, y1: number): [number[], number[]] => [[P(x) - hx, y0, P(z) - hz], [P(x) + hx, y1, P(z) + hz]];
-  addStatic(...at(-6.4, -6.75, 0.5, 0.45, ROOF_Y, ROOF_Y + 1.6), new THREE.Color('#7a5446'), 'concrete', true);
-  addStatic(...at(3.3, -1.0, 0.7, 0.6, ROOF_Y, ROOF_Y + 0.9), new THREE.Color('#9a9b98'), 'metal', true);
-  addStatic(...at(-4.1, 3.5, 0.5, 0.5, ROOF_Y, ROOF_Y + 0.7), new THREE.Color('#9a9b98'), 'metal', true);
+  // chimney through the north-west wing's slope, up past its ridge
+  {
+    const cx = P(-6.4), cz = P(-6.75);
+    addStatic([cx - 0.5, ROOF_Y - 0.1, cz - 0.45], [cx + 0.5, ROOF_Y + 2.4, cz + 0.45], new THREE.Color('#7a5446'), 'concrete', true);
+  }
   // porch: posts, rail, steps (front = north)
   const porchZ = P(-6.85);
   for (const x of [-1.55, 1.3, 4.2]) addStatic([P(x) - 0.1, 0, porchZ - 0.1], [P(x) + 0.1, 3.2, porchZ + 0.1], PAL.solidExt, 'wood', true);
@@ -587,6 +592,11 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
   const trimMesh = new THREE.Mesh(trim.build(), vcMaterial());
   trimMesh.castShadow = true;
   trimMesh.receiveShadow = true;
+  const roofMesh = new THREE.Mesh(roof.build(), vcMaterial());
+  roofMesh.castShadow = true;
+  roofMesh.receiveShadow = true;
+  roofMesh.name = 'house_roof';
+  scene.add(roofMesh);
   const propMesh = new THREE.Mesh(propBatch.build(), vcMaterial());
   propMesh.castShadow = true;
   propMesh.receiveShadow = true;
