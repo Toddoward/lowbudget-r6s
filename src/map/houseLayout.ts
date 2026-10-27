@@ -41,9 +41,33 @@ export const FLOOR_LABEL: Record<FloorId, string> = { [-1]: 'B', 0: '1F', 1: '2F
 /** floor → ceiling */
 export const WALL_H = 3.2;
 export const SLAB_T = 0.3;
-/** exterior grade around the house: the front yard / treehouse alley level of the datamap (R = 182 → 0.0 m, level with the 1F floor) */
-export const GROUND_Y = 0;
-/** basement level outside: the garage driveway bay and the NW stairwell pit (datamap R = 55 → −3.5 m) */
+/**
+ * Outdoor levels (1F floor = 0; the agreed heights, terrain.ts builds the ground from them). The House stands on a rise:
+ * the front yard climbs from the road in two terraces with short flights to the porch stairs, so high that nobody on the
+ * ground in front is seen from the 1F windows; the east road falls gently to the river and is level with the basement
+ * where the garage drive leaves it; the west and back yards lie just under the 1F and back-deck level.
+ */
+export const YARD = {
+  /** the north road, its corner and the top of the east road */
+  road: -2.4,
+  /** sidewalks: a kerb over the road */
+  sidewalk: -2.25,
+  /** the construction site across the road */
+  site: -2.3,
+  lowerTerrace: -1.8,
+  upperTerrace: -1.2,
+  /** the east road past the drive, the drive, the garage floor */
+  garage: -3.5,
+  /** level with the 1F floor's drone vent and French windows on the west side (a drone climbs 5 cm) */
+  westYard: -0.03,
+  /** a step (0.18 + 0.16) down from the back deck */
+  backYard: -0.34,
+  /** the APC lot, the neighbour's lot, the far-west lane's south end */
+  south: -1.5,
+  riverBed: -5.5,
+  water: -4.4,
+} as const;
+/** basement level outside: the garage drive and the NW stairwell pit */
 export const LOWER_GROUND_Y = -3.5;
 export const ROOF_Y = 7.0;
 export const CELL = 0.25;
@@ -177,7 +201,7 @@ export const WALLS: WallDef[] = [
   E(0, 'x', -0.6, 8.1, 9.7),
   E(0, 'z', 8.1, -2.45, -0.6),
   E(0, 'z', 8.3, -4.1, -2.45, [win(-3.4, 0.9)]), // office E
-  E(0, 'x', -5.15, 4.35, 7.25, [french(6.6, 0.8), vent(4.8)]), // office N french window + porch→office drone vent
+  E(0, 'x', -5.15, 4.35, 7.25, [win(6.6, 0.8), vent(4.8)]), // office N window (2.15 m over the front yard: out of reach from the ground) + porch→office drone vent
   E(0, 'z', 4.35, -5.15, -4.9),
   E(0, 'x', -4.9, -1.7, 4.35, [xdoor(0.1, 1.8)]), // FRONT DOOR (double)
   E(0, 'z', -1.7, -7.4, -4.9),
@@ -271,6 +295,8 @@ export interface StairDef {
   yMin: number;
   yMax: number;
   exterior?: boolean;
+  /** number of steps (default: risers of about 0.19 m) */
+  steps?: number;
 }
 export const STAIRS: StairDef[] = [
   // main stairs (blueprint 1F / the source model): an L in the lobby's north-east corner — from beside the front door east
@@ -289,7 +315,12 @@ export const STAIRS: StairDef[] = [
   { id: 'stairs_back_12', label: 'Back Stairs', rect: R(-7.95, 0.75, -5.5, 2.2), axis: 'x', yMin: 1.75, yMax: 3.5 },
   // NW basement stairs (datamap zone 11): a flight down from the front yard, south to the pit at the storage door
   // (the datamap's 2.1 m flight is lengthened to 4.1 m: 40° instead of 58°, walkable and in step with the House's other stairs)
-  { id: 'stairs_storage_ext', label: 'NW Basement Stairs', rect: R(-10.8, -12.11, -7.87, -8.0), axis: 'z', yMin: GROUND_Y, yMax: -3.5, exterior: true },
+  { id: 'stairs_storage_ext', label: 'NW Basement Stairs', rect: R(-10.8, -12.11, -7.87, -8.0), axis: 'z', yMin: YARD.upperTerrace, yMax: -3.5, exterior: true },
+  // the front walk (blueprint / screenshots): up from the sidewalk through the low wall to the lower terrace, through the
+  // next wall to the upper terrace, then the porch stairs — 7 steps — to the front door (treads 0.3 m, in line with the door)
+  { id: 'steps_front_1', label: 'Front Steps', rect: { x0: P(-0.9), z0: P(-15.0), x1: P(1.1), z1: P(-15.0) + 0.9 }, axis: 'z', yMin: YARD.sidewalk, yMax: YARD.lowerTerrace, exterior: true, steps: 3 },
+  { id: 'steps_front_2', label: 'Front Steps', rect: { x0: P(-0.9), z0: P(-12.5), x1: P(1.1), z1: P(-12.5) + 1.2 }, axis: 'z', yMin: YARD.lowerTerrace, yMax: YARD.upperTerrace, exterior: true, steps: 4 },
+  { id: 'steps_porch', label: 'Porch Stairs', rect: { x0: P(-0.9), z0: P(-7.0) - 2.1, x1: P(1.1), z1: P(-7.0) }, axis: 'z', yMin: YARD.upperTerrace, yMax: 0, exterior: true, steps: 7 },
 ];
 /** the lobby stairs' corner landing (between the two flights of the L) */
 export const MAIN_LANDING = R(2.8, -4.78, 4.22, -3.6);
@@ -320,14 +351,15 @@ export const HATCHES: HatchDef[] = [
 ];
 
 /** six default cameras (exterior ones on poles at the datamap's CCTV Cam A / B: centre, ground + H_upper 3.22 m) */
-export const CCTVS: { id: string; label: string; pos: [number, number, number]; yaw: number; exterior: boolean; ground?: number }[] = ([
-  { id: 'cam_ext_se', label: 'Exterior Camera B (Back Patio)', pos: [13.6, -0.66 + 3.22, 12.83], ground: -0.66, yaw: Math.atan2(13.6, 12.83), exterior: true },
-  { id: 'cam_ext_nw', label: 'Exterior Camera A (Front Yard)', pos: [-11.87, 3.22, -13.71], ground: 0, yaw: Math.atan2(-11.87, -13.71), exterior: true },
+export const CCTVS: { id: string; label: string; pos: [number, number, number]; yaw: number; exterior: boolean }[] = ([
+  // (exterior ones: pos y is the height over the ground under them — MapBuilder stands the pole on the terrain)
+  { id: 'cam_ext_se', label: 'Exterior Camera B (Back Patio)', pos: [11.9, 3.22, 12.83], yaw: Math.atan2(11.9, 12.83), exterior: true },
+  { id: 'cam_ext_nw', label: 'Exterior Camera A (Front Yard)', pos: [-11.87, 3.22, -13.71], yaw: Math.atan2(-11.87, -13.71), exterior: true },
   { id: 'cam_kitchen', label: '1F Kitchen Camera', pos: [1.35, 3.0, 4.6], yaw: Math.PI, exterior: false },
   { id: 'cam_hallway', label: '2F Upper Hallway Camera', pos: [3.65, 6.5, -5.2], yaw: 0, exterior: false },
   { id: 'cam_garage', label: 'B Garage Camera', pos: [2.75, -0.5, -4.55], yaw: 0, exterior: false },
   { id: 'cam_training', label: 'B Training Room Camera', pos: [-7.7, -0.5, -0.25], yaw: -Math.PI / 2, exterior: false },
-] as { id: string; label: string; pos: [number, number, number]; yaw: number; exterior: boolean; ground?: number }[]).map((c) => ({ ...c, pos: [P(c.pos[0]), c.pos[1], P(c.pos[2])] as [number, number, number] }));
+] as { id: string; label: string; pos: [number, number, number]; yaw: number; exterior: boolean }[]).map((c) => ({ ...c, pos: [P(c.pos[0]), c.pos[1], P(c.pos[2])] as [number, number, number] }));
 
 export const FLOORS: FloorDef[] = [
   // basement floor (ground-bearing concrete)
@@ -362,6 +394,8 @@ export const FLOORS: FloorDef[] = [
   { id: 'roof_porch', y: 3.5, rect: R(-1.7, -7.0, 4.35, -5.5), tier: 'solid', kind: 'roof', label: 'Porch Roof' },
   // decks
   { id: 'porch_deck', y: 0, rect: R(-1.7, -7.0, 4.35, -4.9), tier: 'solid', kind: 'deck', label: 'Front Porch', t: 0.25 },
+  // the porch's east end runs on along the office front, to its drone vent (the yard is 1.2 m down: a drone gets in from here)
+  { id: 'porch_deck_e', y: 0, rect: { x0: P(4.35), z0: P(-7.0), x1: P(5.3), z1: P(-5.15) - 0.15 }, tier: 'solid', kind: 'deck', label: 'Front Porch', t: 0.25 },
   // the back deck along the whole south side (blueprint 1F): covered by the Kids' Room in the west, by the south porch
   // roof east of it, steps down to the yard on the west and the south
   { id: 'back_deck', y: 0, rect: R(-7.25, 4.85, -1.8, 6.7), tier: 'solid', kind: 'deck', label: 'Back Porch', t: 0.25 },
@@ -473,12 +507,13 @@ export interface SpawnZoneDef {
   /** extraction area for hostage mode */
   extract: Rect;
 }
-// the datamap's four Attacker Spawn Pad Centers (form 15): pad centre, pad ground (H_ground), extraction around it
+// the datamap's four Attacker Spawn Pad Centers (form 15): pad centre, its ground (terrain.ts; terrain.test checks they agree),
+// extraction around it
 export const SPAWN_ZONES: SpawnZoneDef[] = ([
-  { id: 'construction', label: 'Construction Site', center: [2.13, -1.21, -29.97], radius: 1.8, extract: R(-3.5, -35.5, 7.5, -25.5) },
-  { id: 'docks', label: 'River Docks', center: [22.93, -3.0, 6.96], radius: 1.8, extract: R(20.6, 3.4, 25.2, 12.5) },
-  { id: 'apc', label: 'APC Area', center: [-5.2, -1.51, 23.1], radius: 1.8, extract: R(-10.5, 19.5, -1, 27.5) },
-  { id: 'sidestreet', label: 'Side Street', center: [13.6, -1.51, 24.96], radius: 1.8, extract: R(9, 20.5, 18.5, 29.2) },
+  { id: 'construction', label: 'Construction Site', center: [2.13, YARD.site, -29.97], radius: 1.8, extract: R(-3.5, -35.5, 7.5, -25.5) },
+  { id: 'docks', label: 'River Docks', center: [22.93, YARD.garage + 0.15, 6.96], radius: 1.8, extract: R(20.6, 3.4, 25.2, 12.5) },
+  { id: 'apc', label: 'APC Area', center: [-5.2, YARD.south, 23.1], radius: 1.8, extract: R(-10.5, 19.5, -1, 27.5) },
+  { id: 'sidestreet', label: 'Side Street', center: [13.6, YARD.garage + 0.15, 24.96], radius: 1.8, extract: R(9, 20.5, 18.5, 29.2) },
 ] as SpawnZoneDef[]).map((z) => ({ ...z, center: [P(z.center[0]), z.center[1], P(z.center[2])] as [number, number, number] }));
 
 /** the datamap's extent: u, v ∈ [0, 512) → X −32.4 … 35.87, Z −39.04 … 29.23 */
@@ -486,15 +521,15 @@ export const MAP_BOUNDS = { x0: P(-32.4), x1: P(35.87), z0: P(-39.04), z1: P(29.
 /** house footprint (outer faces) — for exterior naming / suburb cut-outs */
 export const HOUSE_RECT = R(-9.6, -7.55, 9.85, 6.75);
 /** sunken garage driveway at basement level: the carport under the office (shutter B) and the apron at the foot of the datamap's Garage Entrance Ramp (shutter A) */
-/** the back deck's steps down to the yard (top at half the deck's height) */
-export const DECK_STEPS = [R(-7.6, 3.9, -7.25, 6.7), R(-7.6, 6.7, 5.15, 6.95)];
-export const DRIVEWAY = R(7.05, -4.95, 10.93, 3.89);
-/** the datamap's Garage Entrance Ramp (zone 9): climbs east from the apron to the road */
-export const GARAGE_RAMP = { x0: P(10.93), x1: P(14.13), z0: P(-4.11), z1: P(3.89), y0: -3.49, y1: -1.51 };
-/** drone vent shaft from the north yard down to the storage room (grille at grade) */
-export const VENT_SHAFT = R(-4.85, -8.05, -4.15, -7.55);
-/** a well outside the garage's B-level drone vent (x 9.7, z 4.35), open to the driveway apron on its south side */
-export const GARAGE_VENT_WELL = R(9.85, 3.85, 10.6, 4.85);
+/** the back deck's step down to the back yard along its south edge (top at half the way down; the west yard is level with the deck) */
+export const DECK_STEPS = [R(-7.25, 6.7, 5.15, 6.95)];
+/** the garage drive: level with the basement and with the east road it leaves (no ramp) — from the carport beside shutter B
+ *  (east of its wall) and the apron in front of shutter A out to the road */
+export const DRIVEWAY = { x0: P(7.2) + 0.15, x1: P(14.13), z0: P(-4.8) - 0.15, z1: P(3.89) };
+/** drone vent shaft from the north yard down to the storage room (grille at grade), against the storage's north wall */
+export const VENT_SHAFT = { x0: P(-4.85), z0: P(-8.05), x1: P(-4.15), z1: P(-7.4) - 0.15 };
+/** a well outside the garage's B-level drone vent (x 9.7, z 4.35), open to the drive on its north side */
+export const GARAGE_VENT_WELL = { x0: P(9.7) + 0.15, x1: P(10.6), z0: P(3.89), z1: P(4.85) };
 
 /** Simple outdoor zone naming for HUD / WebMCP when not inside a room. */
 export function exteriorZoneName(x: number, y: number, z: number): string {

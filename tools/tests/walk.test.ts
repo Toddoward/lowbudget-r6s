@@ -15,6 +15,7 @@ import { NavGraph } from '../../src/ai/NavGraph.ts';
 import { BODY_R, buildWalkGrid, clearWidth, gridDistance, lineWalk, MAX_LAYERS, moves, nearestFit, reach, surfaceAt, surfacePos } from '../../src/map/walkGrid.ts';
 import { SITES } from '../../shared/constants.ts';
 import { PROPS } from '../../src/map/houseProps.ts';
+import { terrain } from '../../src/map/terrain.ts';
 
 const ph = await Physics.create();
 const destruction = new DestructionSystem(ph);
@@ -172,6 +173,25 @@ test('door to door inside the House: every indoor side of every doorway reaches 
   seen[spots[0].s] = 1;
   while (q.length) for (const t of moves(grid, q.pop()!, 1)) if (!seen[t] && inside(t)) { seen[t] = 1; q.push(t); }
   assert.deepEqual(spots.filter((d) => !seen[d.s]).map((d) => `${d.label} at ${fmt(d.at)}`), [], `from ${spots[0].label}`);
+});
+
+test('nothing to get stuck on at the spawns: every walkable spot within 3.5 m of a spawn centre is standing room, reached upright', () => {
+  const T = terrain();
+  const bad: string[] = [];
+  for (const z of SPAWN_ZONES) {
+    const [cx, , cz] = z.center;
+    for (let dx = -3.5; dx <= 3.5; dx += 0.5) {
+      for (let dz = -3.5; dz <= 3.5; dz += 0.5) {
+        if (Math.hypot(dx, dz) > 3.5) continue;
+        const x = cx + dx, zz = cz + dz;
+        // open ground only: not the river, a pit, or the top of a wall or kerb
+        const s = T.surface(x, zz);
+        if (T.hole(x, zz) || s === 'riverbed' || s === 'stone') continue;
+        if (reachedNear(x, T.y(x, zz), zz, 0.15) < 0) bad.push(`${z.id}: (${x.toFixed(1)}, ${T.y(x, zz).toFixed(2)}, ${zz.toFixed(1)})`);
+      }
+    }
+  }
+  assert.deepEqual(bad, []);
 });
 
 test('the garage car is walked round: a lane at least 0.8 m wide along every side', () => {

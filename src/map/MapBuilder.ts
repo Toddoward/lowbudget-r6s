@@ -6,13 +6,14 @@ import { DestructionSystem, type Panel, type PanelKind } from '../world/Destruct
 import { PAL, vcMaterial } from '../render/palette.ts';
 import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
 import {
-  CCTVS, DIAG_WALLS, FLOORS, openingDims, HOUSE_RECT, MAIN_LANDING, STAIR_HOLES, NW_STAIRWELL_PIT, FLOOR_LABEL, FLOOR_Y, GROUND_Y, HATCHES, LANDINGS, PANEL_MAX_W, ROOF_Y, ROOFS, ROOMS, SLAB_T, STAIRS, WALLS, WALL_H, roofPoints,
+  CCTVS, DIAG_WALLS, FLOORS, openingDims, MAIN_LANDING, STAIR_HOLES, FLOOR_LABEL, FLOOR_Y, HATCHES, LANDINGS, PANEL_MAX_W, ROOF_Y, ROOFS, ROOMS, SLAB_T, STAIRS, WALLS, WALL_H, roofPoints,
   exteriorZoneName, type FloorId, type OpeningKind, type RoomDef, type Rect, type StairDef, type SurfaceTier, type WallDef,
   DECK_STEPS,
 } from './houseLayout.ts';
 import { P } from './plan.ts';
 import { PROPS, type PropDef } from './houseProps.ts';
 import { subtractRects, inRect } from './geometry.ts';
+import { HOUSE_HOLES, NW_PIT_WALLS, rimPieces, terrainY } from './terrain.ts';
 
 export interface Opening {
   id: number;
@@ -184,6 +185,7 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
       for (const [s0, s1] of sills) { band(u, s0, fy); band(Math.max(u, s0), s1, fy - 0.004); u = Math.max(u, s1); }
       band(u, b, fy);
       bandAt(fy, wall, t, a, b);
+      if (wall.floor === 0) foundation(wall, t, a, b, fy - SLAB_T);
     }
     const ops = [...(wall.openings ?? [])].sort((p, q) => p.at - q.at);
     type R4 = { u0: number; u1: number; v0: number; v1: number; full: boolean };
@@ -274,6 +276,35 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
    * share a plane and flicker), the jambs stop under the head and above the sill, and a frame never reaches past the middle
    * of the pier to the next opening (`reachL` / `reachR`).
    */
+  /**
+   * Under a 1F outer wall with no basement below it (its line outside the House's below-grade footprint) and yard ground
+   * beside it: a foundation from the band down into the ground, so there is no open slot under the floor line. (Not over
+   * the garage drive: there the band is the beam over the carport.)
+   */
+  function foundation(wall: WallDef, t: number, a: number, b: number, top: number) {
+    const pt = (u: number, off: number): [number, number] => (wall.run === 'x' ? [u, wall.c + off] : [wall.c + off, u]);
+    const inHole = ([x, z]: [number, number]) => HOUSE_HOLES.some((r) => x > r.x0 + 1e-3 && x < r.x1 - 1e-3 && z > r.z0 + 1e-3 && z < r.z1 - 1e-3);
+    const STEP = 0.25;
+    const n = Math.max(1, Math.round((b - a) / STEP));
+    const ground: number[] = [];
+    for (let k = 0; k < n; k++) {
+      const u = a + ((k + 0.5) * (b - a)) / n;
+      if (inHole(pt(u, 0))) { ground.push(NaN); continue; }
+      const beside = [-(t / 2 + 0.15), t / 2 + 0.15].map((o) => pt(u, o)).filter((p) => !inHole(p)).map(([x, z]) => terrainY(x, z));
+      const g = beside.length ? Math.min(...beside) : NaN;
+      ground.push(g >= -2.5 ? g : NaN);
+    }
+    for (let k = 0; k < n; ) {
+      if (Number.isNaN(ground[k])) { k++; continue; }
+      let e = k;
+      while (e < n && !Number.isNaN(ground[e])) e++;
+      const u0 = a + (k * (b - a)) / n, u1 = a + (e * (b - a)) / n;
+      const bottom = Math.min(...ground.slice(k, e)) - 0.15;
+      if (top - bottom > 0.05) addStatic(...box(wall.run, wall.c, t, u0, u1, bottom, top), PAL.concrete, 'concrete', true);
+      k = e;
+    }
+  }
+
   function frameOpening(run: 'x' | 'z', c: number, t: number, kind: OpeningKind, u0: number, u1: number, y0: number, y1: number, reachL = Infinity, reachR = Infinity) {
     const frameC = kind === 'shutter' ? new THREE.Color('#3a3d42') : kind === 'vent' ? PAL.darkMetal : new THREE.Color('#3b2f24');
     const ft = kind === 'vent' ? 0.025 : 0.05;
@@ -403,9 +434,16 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
   // porch: posts, rail, steps (front = north)
   const porchZ = P(-6.85);
   for (const x of [-1.55, 1.3, 4.2]) addStatic([P(x) - 0.1, 0, porchZ - 0.1], [P(x) + 0.1, 3.2, porchZ + 0.1], PAL.solidExt, 'wood', true);
-  for (const [x0, x1] of [[-1.6, -1.0], [1.2, 4.3]]) {
-    trim.box([P(x0), 0.85, porchZ - 0.07], [P(x1), 0.95, porchZ + 0.07], PAL.solidExt);
+  // (the porch stands 1.2 m over the yard: rails along its open edges, the steps' gap in line with the door)
+  for (const [x0, x1] of [[-1.6, -1.0], [1.2, 5.3]]) {
+    trim.box([P(x0), 0.85, porchZ - 0.07], [P(x1) - (x1 > 5 ? 0.14 : 0), 0.95, porchZ + 0.07], PAL.solidExt);
     clip([P(x0), 0, porchZ - 0.07], [P(x1), 0.95, porchZ + 0.07]);
+  }
+  {
+    const x = P(5.3) - 0.07, z1 = P(-5.15) - 0.15;
+    trim.box([x - 0.07, 0.85, porchZ - 0.07], [x + 0.07, 0.95, z1], PAL.solidExt);
+    addStatic([x - 0.07, 0, porchZ - 0.07], [x + 0.07, 0.85, porchZ + 0.07], PAL.solidExt, 'wood', true);
+    clip([x - 0.07, 0, porchZ - 0.07], [x + 0.07, 0.95, z1]);
   }
   // back porch: posts under the kids' room overhang and along the south porch roof, steps down to the yard
   // (14 cm posts, set back 2 cm from the overhang's edge)
@@ -414,32 +452,29 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
   for (const r of DECK_STEPS) addStatic([r.x0, -0.7, r.z0], [r.x1, -0.18, r.z1], PAL.woodFloor, 'wood', true, PAL.woodDark, 1);
   // the porch roofs' fascia (a lip at the edge, low enough to step over, a hand-hold for rappel)
   for (const f of FLOORS.filter((q) => q.id === 'roof_porch_s')) trim.box([f.rect.x0 - 0.01, f.y - 0.3, f.rect.z1 - 0.04], [f.rect.x1 + 0.01, f.y + 0.06, f.rect.z1 + 0.01], PAL.solidExt);
-  // NW basement stairs: guard rails around the stairwell at yard level (its walls are the cut in the terrain);
+  // NW basement stairs: guard rails on the pit walls round the stairwell (terrain.ts), piece by piece at the walls' tops;
   // open at the top of the flight (north) and against the House (storage W wall)
   {
-    const f = STAIRS.find((s) => s.id === 'stairs_storage_ext')!.rect;
-    const p = NW_STAIRWELL_PIT;
-    // one post per spot (corners are shared), corner posts as tall as the rail, the rail running between them
-    const posts = new Set<string>();
-    const post = (x: number, z: number, h: number) => {
-      const k = `${x.toFixed(3)},${z.toFixed(3)}`;
-      if (posts.has(k)) return;
-      posts.add(k);
-      trim.box([x - 0.025, GROUND_Y, z - 0.025], [x + 0.025, GROUND_Y + h, z + 0.025], PAL.darkMetal);
+    // one post per spot where pieces meet (from the lower piece's top to the higher one's rail), the rail between the posts
+    const posts = new Map<string, [number, number, number, number]>();
+    const post = (x: number, y: number, z: number) => {
+      const k = `${x.toFixed(2)},${z.toFixed(2)}`;
+      const p = posts.get(k);
+      posts.set(k, p ? [x, Math.min(p[1], y), Math.max(p[2], y), z] : [x, y, y, z]);
     };
-    const guard = (x0: number, z0: number, x1: number, z1: number) => {
-      const ax = x0 !== x1 ? 0.025 : -0.03, az = z0 !== z1 ? 0.025 : -0.03;
-      trim.box([x0 + ax, GROUND_Y + 0.88, z0 + az], [x1 - ax, GROUND_Y + 0.95, z1 - az], PAL.darkMetal);
-      post(x0, z0, 0.95);
-      post(x1, z1, 0.95);
-      post((x0 + x1) / 2, (z0 + z1) / 2, 0.9);
-      clip([x0 - 0.05, GROUND_Y, z0 - 0.05], [x1 + 0.05, GROUND_Y + 1.0, z1 + 0.05]);
-    };
-    guard(f.x0, f.z0, f.x0, p.z1); // west, flight + landing
-    guard(f.x1, f.z0, f.x1, p.z0); // east of the flight
-    guard(f.x1, p.z0, p.x1, p.z0); // north edge of the landing
-    guard(p.x1, p.z0, p.x1, HOUSE_RECT.z0); // east edge up to the House front
-    guard(p.x0, p.z1, p.x1, p.z1); // south
+    for (const wall of NW_PIT_WALLS) {
+      for (const { r, top } of rimPieces(wall)) {
+        const alongX = r.x1 - r.x0 >= r.z1 - r.z0;
+        const c = alongX ? (r.z0 + r.z1) / 2 : (r.x0 + r.x1) / 2;
+        const a = alongX ? r.x0 : r.z0, b = alongX ? r.x1 : r.z1;
+        const at = (u: number): [number, number] => (alongX ? [u, c] : [c, u]);
+        trim.box(alongX ? [a + 0.025, top + 0.88, c - 0.03] : [c - 0.03, top + 0.88, a + 0.025], alongX ? [b - 0.025, top + 0.95, c + 0.03] : [c + 0.03, top + 0.95, b - 0.025], PAL.darkMetal);
+        post(at(a)[0], top, at(a)[1]);
+        post(at(b)[0], top, at(b)[1]);
+        clip(alongX ? [a, top, c - 0.05] : [c - 0.05, top, a], alongX ? [b, top + 1.0, c + 0.05] : [c + 0.05, top + 1.0, b]);
+      }
+    }
+    for (const [x, y0, y1, z] of posts.values()) trim.box([x - 0.025, y0, z - 0.025], [x + 0.025, y1 + 0.95, z + 0.025], PAL.darkMetal);
   }
 
   /* ------------------------------------------------------------- stairs */
@@ -449,7 +484,7 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
     const along = s.axis === 'x' ? r.x1 - r.x0 : r.z1 - r.z0;
     const width = s.axis === 'x' ? r.z1 - r.z0 : r.x1 - r.x0;
     const rise = s.yMax - s.yMin;
-    const steps = Math.max(4, Math.round(Math.abs(rise) / 0.19));
+    const steps = s.steps ?? Math.max(4, Math.round(Math.abs(rise) / 0.19));
     const stepColor = s.exterior ? PAL.concrete : PAL.woodFloor;
     for (let i = 0; i < steps; i++) {
       const a0 = (along * i) / steps;
@@ -718,7 +753,9 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
     g.box([-0.05, -0.05, -0.2], [0.05, 0.05, -0.18], new THREE.Color('#111'));
     g.box([-0.02, 0.07, -0.02], [0.02, 0.2, 0.02], PAL.darkMetal);
     const mesh = new THREE.Mesh(g.build(), vcMaterial());
+    // (an exterior camera's y is its height over the ground: its pole stands on the terrain)
     const pos = new THREE.Vector3(...cdef.pos);
+    if (cdef.exterior) pos.y += terrainY(pos.x, pos.z);
     mesh.position.copy(pos);
     mesh.rotation.y = cdef.yaw;
     mesh.rotation.x = -0.35;
@@ -729,7 +766,7 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
     mesh.add(led);
     if (cdef.exterior) {
       // pole
-      addStatic([pos.x - 0.07, cdef.ground ?? GROUND_Y, pos.z - 0.07], [pos.x + 0.07, pos.y + 0.2, pos.z + 0.07], PAL.darkMetal, 'metal', true);
+      addStatic([pos.x - 0.07, pos.y - cdef.pos[1], pos.z - 0.07], [pos.x + 0.07, pos.y + 0.2, pos.z + 0.07], PAL.darkMetal, 'metal', true);
     }
     const collider = physics.addBox(pos.x, pos.y, pos.z, 0.09, 0.09, 0.16, { kind: 'gadget', gadgetId: `cctv:${cdef.id}` });
     cameras.push({ id: cdef.id, label: cdef.label, pos, yaw: cdef.yaw, exterior: cdef.exterior, mesh, alive: true, collider });

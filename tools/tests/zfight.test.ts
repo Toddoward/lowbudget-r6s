@@ -8,6 +8,8 @@ import { Physics } from '../../src/core/Physics.ts';
 import { DestructionSystem } from '../../src/world/Destruction.ts';
 import { buildHouse } from '../../src/map/MapBuilder.ts';
 import { BoxBatch } from '../../src/world/BoxBatch.ts';
+import { buildOutdoor } from '../../src/map/Outdoor.ts';
+import { decodeHouseDatamap512Headless } from '../../src/map/houseDatamap.ts';
 
 type Box = { min: number[]; max: number[]; skip: number; layer: string; mesh: string };
 type Face = { axis: number; sign: number; at: number; a0: number; a1: number; b0: number; b1: number; box: number };
@@ -93,11 +95,12 @@ function coplanarFights(boxes: Box[]): string[] {
   return fights;
 }
 
-test('no coplanar overlapping faces anywhere in the House (the source of the flicker at corners and floor lines)', async () => {
+test('no coplanar overlapping faces anywhere in the House and the grounds (the source of the flicker at corners and floor lines)', async () => {
   BoxBatch.record = true;
   const ph = await Physics.create();
   const scene = new THREE.Scene();
   buildHouse(ph, new DestructionSystem(ph), scene);
+  buildOutdoor(ph, scene, decodeHouseDatamap512Headless());
   BoxBatch.record = false;
   const boxes = worldBoxes(scene);
   if (process.env.ZFIGHT_DUMP) console.log(Object.entries(boxes.reduce((n: Record<string, number>, b) => ((n[b.mesh] = (n[b.mesh] ?? 0) + 1), n), {})));

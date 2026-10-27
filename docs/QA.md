@@ -25,14 +25,16 @@ Status: ✅ fixed and covered by a test · 🟡 fixed, manual check only · ⏳ 
 
 Manual: walk every room in each stance; the walk maps (`tools/level/walkmap.ts`) show what the grid thinks — green reached, yellow crouch/prone only, black solid, grey body margin, red unreachable floor.
 
-## 2. Outdoors (House datamap)
+## 2. Outdoors (terrain.ts + the House datamap's forms)
 
 | # | Problem | Fix | Verified by | Status |
 |---|---|---|---|---|
-| 2.1 | Outdoor context missing | `HOUSE_DATAMAP_512_B64` + decoder used as supplied; terrain, zones, spawn pads, lifts, treehouse, CCTV A/B, 11 police cruisers, APC, gazebo, pergola, sailboats, container, SW neighbour house, roof vents | `walk.test.ts` (spawns connect, no traps); manual fly-over | ✅ |
-| 2.2 | Level differences ≤ 1.6 m between zones were cliffs | stairs generated along the lower side of each edge (0.17 m risers) | `walk.test.ts` | ✅ |
-| 2.3 | Seams between the datamap's House outline and the traced House became trenches | road-level slivers < 2 m between higher zones take the lower side's level | walk maps | 🟡 |
-| 2.4 | Callouts outdoors | zone names from the datamap (`B >> 4`) | manual: HUD location while walking outside | 🟡 |
+| 2.1 | Outdoor context missing | forms from `HOUSE_DATAMAP_512_B64` (positions and heights above their ground): zones, spawn pads, lifts, treehouse, CCTV A/B, 11 police cruisers, APC, gazebo, pergola, sailboats, container, SW neighbour house, roof vents — each stood on the terrain | `walk.test.ts` (spawns connect, no traps); screenshots | ✅ |
+| 2.2 | The ground was boxes per datamap level ("voxel"), levels wrong, cliffs between them | `terrain.ts`: one surface from the agreed levels (`YARD`) laid out on the top view — hard areas at their level (roads, sidewalks, terraces, drive, yards, lots), every step between them inside a kerb / retaining wall / flight's cheek walls / quay wall / pit wall, the rest a Laplace solve limited to 15°; drawn and collided as the same triangles, solid fill under it | `terrain.test.ts` (levels, gentle: nothing over 40°, 97 % under 15°), `walk.test.ts`, `zfight.test.ts` (grounds included) | ✅ |
+| 2.3 | Garage drive was a 2 m ramp; the user: flush with the road | the east road falls gently (< 5°) from the corner to the basement level at the drive; drive = garage floor = road, dropped kerbs; retaining walls either side | `terrain.test.ts` (drive flush, grade) | ✅ |
+| 2.4 | Front yard: the user's screenshots — two terraces with short flights, a porch so high nobody on the ground in front is seen from the 1F windows | road −2.4 → sidewalk −2.25 → 3 steps → lower terrace −1.8 → 4 steps → upper terrace −1.2 → 7 porch steps → porch 0; stone walls with pillars, cheek pedestals | `terrain.test.ts` (levels; road → front door walked upright; head on the terrace below the 1F sill) | ✅ |
+| 2.5 | Players stuck in the APC on its spawn (R3) | APC parked at the west end of its lot; bollards, lamps, cruisers off the spawns | `walk.test.ts`: every walkable spot within 3.5 m of a spawn centre is standing room reached upright | ✅ |
+| 2.6 | Callouts outdoors | zone names from the datamap (`B >> 4`) | manual: HUD location while walking outside | 🟡 |
 
 ## 3. Rendering: Z-fighting and depth
 

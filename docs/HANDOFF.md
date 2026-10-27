@@ -42,9 +42,9 @@ Original message was in Korean; this is a faithful itemisation. Status: ✅ done
 
 | # | Requirement | Status |
 |---|---|---|
-| R1 | Build the map properly (Blender / the GLB & .blend given), not voxel boxes. If the SVG/datamap data is garbage, infer depth from the top-view image yourself (e.g. an image-to-depth model from Hugging Face) | ⬜ §6 |
-| R2 | Terrain elevations are wrong; everything outdoors is voxel blocks you can't walk on | ⬜ §6 |
-| R3 | No props in spawn zones (players get stuck in the APC). Verify with BFS / nav | ⬜ §6.4 |
+| R1 | Build the map properly (Blender / the GLB & .blend given), not voxel boxes. If the SVG/datamap data is garbage, infer depth from the top-view image yourself (e.g. an image-to-depth model from Hugging Face) | ✅ terrain commit — `terrain.ts`: one surface from the agreed levels laid out on the top view (no boxes); the depth model is still unreachable (huggingface.co blocked by the network policy), so it is not used — see §6.5 |
+| R2 | Terrain elevations are wrong; everything outdoors is voxel blocks you can't walk on | ✅ `terrain.test.ts` (levels; nothing over 40°, 97 % under 15°), `walk.test.ts` |
+| R3 | No props in spawn zones (players get stuck in the APC). Verify with BFS / nav | ✅ `walk.test.ts`: every walkable spot within 3.5 m of a spawn is standing room reached upright (APC moved off its pad) |
 | R4 | Many places still can't be walked door → door | ✅ `walk.test.ts` door to door inside the House (every indoor side of every doorway reaches every other upright, never leaving the footprint) |
 | R5 | Back entrance: 1F → basement stairs exist but **1F → 2F stairs are missing**; follow the stairs of the GLB / .blend | ✅ `7a23245` |
 | R6 | Indoor props are mis-sized and block players; rebuild from the uploaded blueprints, basement to roof | ✅ real-world sizes at the 1.3× plan (sofa 2.6 m, king bed 2.0 × 2.2 m, sedan 4.6 × 1.9 m); `walk.test.ts`: every room entered upright with no sealed pockets, every doorway clear, door to door inside |
@@ -52,7 +52,7 @@ Original message was in Korean; this is a faithful itemisation. Status: ✅ done
 | R8 | Basement garage: walkable space on all four sides of the car | ✅ `walk.test.ts`: a lane ≥ 0.8 m (plus a body radius) reached upright along every side |
 | R9 | House plan is too small: keep the storey height, enlarge the plan | ✅ `66f0843` |
 | R10 | Corners look "worm-eaten" (the overlap trimming for Z-fighting) and Z-fighting is still there — fix both | ✅ R10 commit (`zfight.test.ts`, QA §3.5) |
-| R11 | Model the level terrain from the high-res top view (depth model or anything that works) | ⬜ §6 |
+| R11 | Model the level terrain from the high-res top view (depth model or anything that works) | ✅ as R1 (levels from the user's screenshots and answers; the top view for the layout) |
 | R12 | Movement on slopes/stairs: walking lifts the body; speed barely changes on stairs; crouch must climb stairs/slopes | ✅ `1439fe7` |
 | R13 | Shield in **front** (viewport for sight), not off to the left while still stopping rounds; sprinting moves it to the **left**, and only that side blocks | ✅ `7c9acb4` + browser scenario (S2 shield step) and screenshots of front / sprint / ADS |
 | R14 | 3P arms pulled back while the gun points forward (grotesque); 1P and 3P out of sync | ✅ `7c9acb4` (🟡 front close-up screenshot, §4) |
@@ -64,7 +64,7 @@ Original message was in Korean; this is a faithful itemisation. Status: ✅ done
 | R20 | **Roof is still flat** — must be pitched (roof plan `6.webp`) | ✅ `41835fe` (`roof.test.ts`) |
 | N1 | (follow-up, with a screenshot) The lobby stairs are an **L**: from the front entrance along the wall up to 2F — east side, as in the GLB / blueprint (answered) | ✅ L-stairs commit (`walk.test.ts` flights end to end + both ends; screenshots lobby / 2F gallery) |
 | N2 | (follow-up) The back stairs run B → 1F → 2F with a half landing per storey; the three-sided bay window is at the **1F → 2F half landing**, not at 1F (nobody on the ground outside is seen from inside), with an upper window above it through which 2F is seen from rappel / watchtower height | ✅ `7a23245` + R10 commit (`BAY_LOW` / `BAY_HIGH`) |
-| N3 | (follow-up, 4 screenshots) Outdoors: the garage drive is **flush with the road** (no steep ramp); the front yard rises gently to the high front door — two terraces with gentle two-step flights, the porch deck so high that nobody on the ground is seen from the 1F windows; across the public road a **construction site**. Heights agreed (1F floor = 0): road −2.4 → steps → lower terrace → steps → upper terrace −1.2 → porch stairs (7) → porch 0; the east road falls gently to the river, flush with the garage (−3.5); the site at road level | ⬜ §6 |
+| N3 | (follow-up, 4 screenshots) Outdoors: the garage drive is **flush with the road** (no steep ramp); the front yard rises gently to the high front door — two terraces with gentle two-step flights, the porch deck so high that nobody on the ground is seen from the 1F windows; across the public road a **construction site**. Heights agreed (1F floor = 0): road −2.4 → steps → lower terrace → steps → upper terrace −1.2 → porch stairs (7) → porch 0; the east road falls gently to the river, flush with the garage (−3.5); the site at road level | ✅ terrain commit (`terrain.test.ts`: drive flush, front walk climbed road → door, 1F sill over a head on the terrace) |
 
 Earlier standing instructions still in force: verify with graph search / unit tests, **not** by agent play-throughs; develop on the branch above; commit trailer `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` + `Claude-Session: https://claude.ai/code/session_01Ests53BizZeDjYiu8CpRiP`; no model ids in commits/PRs. R1/R11 supersede the earlier "use the Base64 datamap as is / don't write a terrain generation script" instruction — the user now explicitly asks for terrain derived from the top-view image.
 
@@ -170,6 +170,11 @@ Earlier standing instructions still in force: verify with graph search / unit te
 - Top-down render of the height map + class map vs `7.webp` in the scratchpad.
 
 ---
+
+### 6.5 Done (terrain commit)
+- `src/map/terrain.ts` builds the ground; `Outdoor.ts` draws it (one mesh, colour per surface), collides it (the same triangles as a trimesh, merged fill boxes under it), builds what stands on its strips (kerbs, retaining walls with pillars, the flights' cheek walls, the quay wall, pit walls) and the plinths under the porch and the decks, then places the datamap's forms on it. `MapBuilder.ts` stands the 1F outer walls with no basement under them on foundations down to the ground, the NW stairwell's rails on its pit walls, the exterior cameras' poles on the ground.
+- Levels (`YARD` in houseLayout.ts, 1F = 0): road −2.4, sidewalks −2.25, site −2.3, terraces −1.8 / −1.2, garage / drive / east road past it −3.5, west yard −0.03 (level with the 1F vent and French windows), back yard −0.34, south lots −1.5, river bed −5.5 under water at −4.4.
+- Depth model: huggingface.co still answers 403 through the proxy (the environment's network policy). When it is allowed, `pip install torch transformers` (CPU) and run Depth Anything V2 Small on the top view as a check of the lawn banks' direction only — the levels stay the agreed ones.
 
 ## 7. Verification cycle and release (R15)
 
