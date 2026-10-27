@@ -289,7 +289,8 @@ await step('shield · Montagne: held in front the viewport slit is on the crossh
     const fwd = P.aimDir().setY(0).normalize(); const right = new V(-fwd.z, 0, fwd.x);
     const chest = P.pos.clone().setY(P.pos.y + 1.2);
     const stops = (from) => { const d = chest.clone().sub(from); const h = g.physics.raycast(from, d.clone().normalize(), d.length()); return !!h && String(h.tag?.gadgetId).startsWith('shield:'); };
-    return { pose: P.shieldPose, slit: [slit.x, slit.y], centre: [centre.x, centre.z], front: stops(chest.clone().addScaledVector(fwd, 3)), left: stops(chest.clone().addScaledVector(right, -3)), rightSide: stops(chest.clone().addScaledVector(right, 3)) };
+    // (rays from 1 m out: the plate is within half a metre of the body, and a sprint may end next to a wall)
+    return { pose: P.shieldPose, slit: [slit.x, slit.y], centre: [centre.x, centre.z], front: stops(chest.clone().addScaledVector(fwd, 1)), left: stops(chest.clone().addScaledVector(right, -1)), rightSide: stops(chest.clone().addScaledVector(right, 1)) };
   });
   const front = await look();
   assert.equal(front.pose, 'front');

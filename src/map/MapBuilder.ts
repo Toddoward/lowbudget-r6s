@@ -6,7 +6,7 @@ import { DestructionSystem, type Panel, type PanelKind } from '../world/Destruct
 import { PAL, vcMaterial } from '../render/palette.ts';
 import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
 import {
-  CCTVS, DIAG_WALLS, FLOORS, openingDims, HOUSE_RECT, NW_STAIRWELL_PIT, FLOOR_LABEL, FLOOR_Y, GROUND_Y, HATCHES, LANDINGS, PANEL_MAX_W, ROOF_Y, ROOFS, ROOMS, SLAB_T, STAIRS, WALLS, WALL_H, roofPoints,
+  CCTVS, DIAG_WALLS, FLOORS, openingDims, HOUSE_RECT, MAIN_LANDING, STAIR_HOLES, NW_STAIRWELL_PIT, FLOOR_LABEL, FLOOR_Y, GROUND_Y, HATCHES, LANDINGS, PANEL_MAX_W, ROOF_Y, ROOFS, ROOMS, SLAB_T, STAIRS, WALLS, WALL_H, roofPoints,
   exteriorZoneName, type FloorId, type OpeningKind, type RoomDef, type Rect, type StairDef, type SurfaceTier, type WallDef,
   DECK_STEPS,
 } from './houseLayout.ts';
@@ -499,17 +499,66 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
     }
     clip([x0 - 0.03, y, z0 - 0.03], [x1 + 0.03, y + h, z1 + 0.03]);
   };
-  // main stairs (2F gallery around the well)
-  // (rail lines in traced plan units → P(), 2 cm thick)
-  const railX = (x0: number, x1: number, z: number, y: number, h?: number) => rail(P(x0), P(z) - 0.01, P(x1), P(z) + 0.01, y, h);
-  const railZ = (x: number, z0: number, z1: number, y: number, h?: number) => rail(P(x) - 0.01, P(z0), P(x) + 0.01, P(z1), y, h);
-  railX(1.4, 4.2, -4.89, 3.5);
-  railZ(1.41, -4.9, -1.2, 3.5);
-  railX(2.8, 4.2, -3.01, 3.5); // edge of flight a's headroom cut-out
-  railZ(2.8, -3.0, -1.2, 3.5); // flight b's east side
-  railZ(2.8, -3.95, -1.2, 0); // between the two flights (1F)
-  clip([P(1.42), 0, P(-3.95)], [P(2.78), 1.6, P(-1.2)]); // nobody walks under the upper flight
-  railZ(1.41, -4.85, -1.2, 0, 1.0); // lobby side
+  /** a banister up the open side of a flight (balusters on the treads, the hand rail along the pitch), and the clip that
+   *  keeps bodies on the flight: one segment per tread, from its tread up past the rail */
+  const banister = (s: StairDef, side: 0 | 1, h = 0.95) => {
+    const r = s.rect;
+    const along = s.axis === 'x' ? r.x1 - r.x0 : r.z1 - r.z0;
+    const c = s.axis === 'x' ? (side ? r.z1 : r.z0) : side ? r.x1 : r.x0;
+    const at = (u: number, y: number) => (s.axis === 'x' ? new THREE.Vector3(r.x0 + u, y, c) : new THREE.Vector3(c, y, r.z0 + u));
+    const yAt = (u: number) => s.yMin + ((s.yMax - s.yMin) * u) / along;
+    const steps = Math.max(4, Math.round(Math.abs(s.yMax - s.yMin) / 0.19));
+    const tread = (i: number) => s.yMin + (s.yMax - s.yMin) * ((s.yMax > s.yMin ? i + 1 : i) / steps);
+    for (let i = 0; i < steps; i++) {
+      const u = ((i + 0.5) * along) / steps;
+      const p = at(u, tread(i));
+      trim.box([p.x - 0.022, p.y, p.z - 0.022], [p.x + 0.022, yAt(u) + h - 0.05, p.z + 0.022], PAL.woodDark);
+      const a = at((i * along) / steps, 0), b = at(((i + 1) * along) / steps, 0);
+      const lo = Math.min(yAt((i * along) / steps), yAt(((i + 1) * along) / steps));
+      clip([Math.min(a.x, b.x) - 0.03, lo, Math.min(a.z, b.z) - 0.03], [Math.max(a.x, b.x) + 0.03, lo + Math.abs(s.yMax - s.yMin) / steps + h, Math.max(a.z, b.z) + 0.03]);
+    }
+    const L = Math.hypot(along, s.yMax - s.yMin);
+    const theta = Math.atan2(s.yMax - s.yMin, along);
+    const q = s.axis === 'x' ? new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), theta) : new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -theta);
+    const m = new THREE.Matrix4().compose(at(along / 2, (s.yMin + s.yMax) / 2 + h - 0.035), q, new THREE.Vector3(1, 1, 1));
+    if (s.axis === 'x') trim.tbox(m, L, 0.07, 0.05, PAL.woodDark);
+    else trim.tbox(m, 0.05, 0.07, L, PAL.woodDark);
+  };
+  /** nobody crawls under a flight where it is lower than a body: a clip under each tread, its top under the walking surface */
+  const underFlight = (s: StairDef, headroom = 2.0) => {
+    const r = s.rect;
+    const along = s.axis === 'x' ? r.x1 - r.x0 : r.z1 - r.z0;
+    const steps = Math.max(4, Math.round(Math.abs(s.yMax - s.yMin) / 0.19));
+    const fy = Math.min(s.yMin, s.yMax);
+    const yAt = (u: number) => s.yMin + ((s.yMax - s.yMin) * u) / along;
+    for (let i = 0; i < steps; i++) {
+      const u0 = (i * along) / steps, u1 = ((i + 1) * along) / steps;
+      const top = Math.min(yAt(u0), yAt(u1)) - 0.24; // under the step block and the ramp under the tread's lower edge
+      if (top - fy < 0.1 || top - fy > headroom) continue;
+      if (s.axis === 'x') clip([r.x0 + u0, fy, r.z0], [r.x0 + u1, top, r.z1]);
+      else clip([r.x0, fy, r.z0 + u0], [r.x1, top, r.z0 + u1]);
+    }
+  };
+  // lobby stairs: banisters on the open sides of the L, the gallery round the well on 2F, nothing to crawl under
+  {
+    const a = STAIRS.find((s) => s.id === 'stairs_main_a')!, b = STAIRS.find((s) => s.id === 'stairs_main_b')!;
+    banister(a, 1); // flight a's south side, over the lobby
+    banister(b, 0); // flight b's west side
+    underFlight(a);
+    underFlight(b);
+    const l = MAIN_LANDING;
+    clip([l.x0, 0, l.z0], [l.x1, 1.4 - 0.27, l.z1]); // under the landing
+    // newel posts: the foot of the L, its turn, the head on 2F
+    for (const [x, z, top] of [[a.rect.x0, a.rect.z1, 1.0], [b.rect.x0, b.rect.z0, 1.4 + 1.0], [b.rect.x0, b.rect.z1, 3.5 + 1.0]]) {
+      trim.box([x - 0.045, 0, z - 0.045], [x + 0.045, top, z + 0.045], PAL.woodDark);
+    }
+    // (rails 1.5 cm inside the well's edge, 2 cm thick)
+    const w = STAIR_HOLES.main;
+    const zN = w.z0 + 0.015, xW = w.x0 + 0.015, zS = w.z1 - 0.015;
+    rail(w.x0, zN - 0.01, w.x1 - 0.1, zN + 0.01, 3.5); // along the strip by the front wall, up to the workshop wall's face
+    rail(xW - 0.01, w.z0, xW + 0.01, w.z1, 3.5); // west
+    rail(w.x0, zS - 0.01, b.rect.x0, zS + 0.01, 3.5); // south, up to where flight b arrives
+  }
   // back stairs: the wall between the climbing and the descending half of the switchback, B floor to a parapet on 2F
   addStatic([P(-7.95), FLOOR_Y[-1], P(2.25) - 0.06], [P(-5.5), FLOOR_Y[1] + 1.0, P(2.25) + 0.06], PAL.solidWall, 'concrete', false, PAL.solidWall, 1);
 

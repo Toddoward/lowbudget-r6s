@@ -273,9 +273,11 @@ export interface StairDef {
   exterior?: boolean;
 }
 export const STAIRS: StairDef[] = [
-  // main stairs: U-turn in the lobby (east flight up to a north landing, west flight on up to 2F)
-  { id: 'stairs_main_a', label: 'Lobby Stairs', rect: R(2.85, -3.95, 4.15, -1.2), axis: 'z', yMin: 1.75, yMax: 0 },
-  { id: 'stairs_main_b', label: 'Lobby Stairs', rect: R(1.45, -3.95, 2.75, -1.2), axis: 'z', yMin: 1.75, yMax: 3.5 },
+  // main stairs (blueprint 1F / the source model): an L in the lobby's north-east corner — from beside the front door east
+  // along the front wall to a landing in the corner, then south along the office wall up to 2F (both flights against the
+  // walls' inner faces)
+  { id: 'stairs_main_a', label: 'Lobby Stairs', rect: R(1.2, -4.78, 2.8, -3.6), axis: 'x', yMin: 0, yMax: 1.4 },
+  { id: 'stairs_main_b', label: 'Lobby Stairs', rect: R(2.8, -3.6, 4.22, -1.2), axis: 'z', yMin: 1.4, yMax: 3.5 },
   // basement stairs: 1F lobby landing → B (westwards, under the 2F upper-hallway hatch)
   { id: 'stairs_basement', label: 'Basement Stairs', rect: R(-2.3, -0.85, 2.3, 0.5), axis: 'x', yMin: -3.5, yMax: 0 },
   // back stairs (the source model's back-entrance stairwell): a switchback stacked B → 1F → 2F in the west bay — on every
@@ -289,10 +291,12 @@ export const STAIRS: StairDef[] = [
   // (the datamap's 2.1 m flight is lengthened to 4.1 m: 40° instead of 58°, walkable and in step with the House's other stairs)
   { id: 'stairs_storage_ext', label: 'NW Basement Stairs', rect: R(-10.8, -12.11, -7.87, -8.0), axis: 'z', yMin: GROUND_Y, yMax: -3.5, exterior: true },
 ];
+/** the lobby stairs' corner landing (between the two flights of the L) */
+export const MAIN_LANDING = R(2.8, -4.78, 4.22, -3.6);
 /** the back stairs' half landing: across the west end of the flights and into the bay (two rects inside its octagon) */
 const BACK_LANDING = [R(-8.65, 0.75, -7.95, 3.6), R(-9.05, 1.45, -8.65, 2.95), R(-9.45, 1.75, -9.05, 2.65)];
 export const LANDINGS: { rect: Rect; y: number; label: string }[] = [
-  { rect: R(1.45, -4.85, 4.15, -3.95), y: 1.75, label: 'Lobby Stairs Landing' },
+  { rect: MAIN_LANDING, y: 1.4, label: 'Lobby Stairs Landing' },
   ...BACK_LANDING.map((rect) => ({ rect, y: -1.75, label: 'Back Stairs Landing' })),
   ...BACK_LANDING.map((rect) => ({ rect, y: 1.75, label: 'Back Stairs Landing' })),
 ];
@@ -301,10 +305,9 @@ export const BACK_STAIRWELL = R(-9.45, 0.55, -5.5, 3.75);
 /** the landing at the bottom of the NW basement stairs, up to the storage door (x −7.25) */
 export const NW_STAIRWELL_PIT = R(-10.8, -8.0, -7.25, -5.7);
 export const STAIR_HOLES = {
-  // flight b (landing → 2F) needs the full opening; flight a only where its headroom is < 2 m
-  // (south of z −3.0) — the rest is hallway floor in front of the workshop door
-  main: R(1.4, -4.9, 2.8, -1.2),
-  mainA: R(2.8, -4.9, 4.2, -3.0),
+  // the lobby stairs' well: over both flights and the landing, from the gallery's west rail to the workshop wall (a strip
+  // of 2F floor stays along the front wall, over the porch)
+  main: R(1.2, -4.9, 4.35, -1.2),
   basement: R(-1.75, -0.95, 2.3, 0.6),
 };
 
@@ -348,7 +351,7 @@ export const FLOORS: FloorDef[] = [
   { id: 'wood_2f_bath', y: 3.5, rect: R(-7.25, -7.4, -1.7, -5.5), tier: 'semi', kind: 'wood', label: '2F Bathroom Floor' },
   { id: 'wood_2f_west', y: 3.5, rect: R(-7.25, -5.5, -3.15, -2.45), tier: 'semi', kind: 'wood', label: '2F West Hall Floor (N)' },
   { id: 'wood_2f_west2', y: 3.5, rect: R(-7.95, -2.45, -3.15, 2.2), tier: 'semi', kind: 'wood', holes: [R(-7.95, 0.55, -5.5, 2.2)], label: '2F West Hall Floor' },
-  { id: 'wood_2f_hall', y: 3.5, rect: R(-3.15, -5.5, 4.35, 0.55), tier: 'semi', kind: 'wood', holes: [STAIR_HOLES.main, STAIR_HOLES.mainA, HATCHES[2].rect], label: '2F Upper Hallway Floor' },
+  { id: 'wood_2f_hall', y: 3.5, rect: R(-3.15, -5.5, 4.35, 0.55), tier: 'semi', kind: 'wood', holes: [STAIR_HOLES.main, HATCHES[2].rect], label: '2F Upper Hallway Floor' },
   { id: 'wood_2f_hall_s', y: 3.5, rect: R(-3.15, 0.55, 1.25, 2.2), tier: 'semi', kind: 'wood', label: '2F Upper Hallway Floor (S)' },
   { id: 'wood_2f_workshop', y: 3.5, rect: R(4.35, -5.15, 8.3, -0.6), tier: 'semi', kind: 'wood', label: '2F Workshop Floor' },
   { id: 'wood_2f_master', y: 3.5, rect: R(1.25, -0.6, 9.7, 4.85), tier: 'semi', kind: 'wood', holes: [HATCHES[3].rect, R(1.25, -0.6, 4.35, 0.55)], label: '2F Master Bedroom Floor' },
