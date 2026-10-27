@@ -15,6 +15,8 @@
  *   S3  defense roles: reinforce, barricade, Castle, Kapkan, Tachanka, Mute, Bandit,
  *       Pulse, Jäger, Smoke, CCTV
  *   S4  PvP state: two tabs, lobby → round → drone prep for attackers → action
+ *   S6  TH round states: plant then clear (round on until the defuser completes → win), plant then the player dies
+ *       (camera on the defuser, cut → loss), hostage rescue cleared → win, no plant and the operators down → loss
  */
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
@@ -273,6 +275,38 @@ await step('support · Fuze: hold [G] on a soft wall plants a cluster charge', a
   await A.evaluate(() => window.qa.act({ gadget: 'key_hold', durationMs: 6000 }));
   await sim(A, () => window.qa.count('cluster') > 0 || window.r6game.player.gadgetLeft < 3);
 });
+await step('shield · Montagne: held in front the viewport slit is on the crosshair; sprinting it moves to the left and only the left is covered', async () => {
+  await A.evaluate(() => { window.qa.swap('montagne'); window.qa.openFacing(5); window.r6game.player.pitch = 0; });
+  await sim(A, () => window.r6game.player.equipT <= 0 && window.r6game.player.shieldPose === 'front');
+  /** the first-person plate as drawn (the view model, updated as the render loop does) and the collider vs rays */
+  const look = () => A.evaluate(() => {
+    const g = window.r6game; const P = g.player; const V = P.pos.constructor;
+    g.vm.worldFov = g.camera.fov;
+    for (let i = 0; i < 40; i++) g.vm.update(1 / 60, P, { x: 0, y: 0 }, false, P.sprinting, g.camera.aspect, 1);
+    const plate = g.vm.shield; plate.updateMatrixWorld(true); g.vm.camera.updateMatrixWorld(true);
+    const blitz = P.op.gadget === 'flash_shield';
+    const slit = plate.localToWorld(new V(blitz ? 0.07 : 0.08, blitz ? 0.2 : 0.25, 0)).project(g.vm.camera);
+    const centre = plate.getWorldPosition(new V()).applyMatrix4(g.vm.camera.matrixWorldInverse);
+    g.physics.step();
+    const fwd = P.aimDir().setY(0).normalize(); const right = new V(-fwd.z, 0, fwd.x);
+    const chest = P.pos.clone().setY(P.pos.y + 1.2);
+    // (against gadget colliders only: where the plate is, not whether a wall beside the player is in the way too)
+    const stops = (from) => { const d = chest.clone().sub(from); const h = g.physics.raycast(from, d.clone().normalize(), d.length(), 4); return !!h && String(h.tag?.gadgetId).startsWith('shield:'); };
+    // (rays from 1 m out: the plate is within half a metre of the body)
+    return { pose: P.shieldPose, slit: [slit.x, slit.y], centre: [centre.x, centre.z], front: stops(chest.clone().addScaledVector(fwd, 1)), left: stops(chest.clone().addScaledVector(right, -1)), rightSide: stops(chest.clone().addScaledVector(right, 1)) };
+  });
+  const front = await look();
+  assert.equal(front.pose, 'front');
+  assert.ok(Math.abs(front.slit[0]) < 0.1 && Math.abs(front.slit[1]) < 0.1, `viewport slit on the crosshair: NDC ${front.slit.map((v) => v.toFixed(2))}`);
+  assert.ok(front.front, 'in front: a round from ahead stops on the shield');
+  await A.evaluate(() => window.qa.act({ move: { forward: 1, strafe: 0, sprint: true }, durationMs: 60000 }));
+  await sim(A, () => window.r6game.player.shieldPose === 'run');
+  const run = await look();
+  await A.evaluate(() => window.qa.act({ move: { forward: 0, strafe: 0, sprint: false }, durationMs: 50 }));
+  assert.ok(run.centre[0] < -0.2, `sprinting: the plate is at the left of the view (x ${run.centre[0].toFixed(2)})`);
+  assert.ok(!run.front && run.left && !run.rightSide, `sprinting: front ${run.front} · left ${run.left} · right ${run.rightSide}`);
+  await sim(A, () => window.r6game.player.shieldPose === 'front', null, 3);
+});
 await step('shield · Montagne: [G] extends Le Roc; the shield collider stops a ray from the front', async () => {
   await A.evaluate(() => { window.qa.swap('montagne'); window.qa.openFacing(2); });
   await A.evaluate(() => window.qa.act({ gadget: 'key' }));
@@ -397,6 +431,59 @@ await step('defender CCTV: [3] opens the camera feed, click cycles, [3] returns'
   await until(A, () => !document.querySelector('#feed-overlay').classList.contains('hidden'));
   await A.evaluate(() => window.r6game.onUiAction('observe'));
   assert.equal(await A.evaluate(() => window.r6game.view), 'body');
+});
+
+/* ================================================================== S6 · Terrorist Hunt round states */
+// The round is served by the match's conditions, not by the player (R16, R17, R19): all White Masks down before a plant
+// ends it, after a plant only the defuser does (it completes, or the White Masks cut it), the player's death with a
+// defuser running leaves the round on with the camera on the defuser.
+console.log('S6 · Terrorist Hunt round states');
+const thStart = async (mission) => {
+  await A.evaluate((m) => { const g = window.r6game; g.input.lock = () => {}; g.startTH({ ...g.defaultTH(), mission: m, operator: 'ash', tod: 'day' }); }, mission);
+  await A.evaluate(HELPERS);
+  await A.evaluate(() => window.qa.action());
+  await sim(A, () => window.r6game.world.phase === 'action');
+};
+/** step the game for a while (no condition) */
+const run = (sec) => A.evaluate((sec) => { const g = window.r6game; for (let t = 0; t < sec; t += 1 / 60) g.step(1 / 60); }, sec);
+const result = () => A.evaluate(() => window.r6game.thResult && { win: window.r6game.thResult.win, reason: window.r6game.thResult.reason });
+const killWhiteMasks = () => A.evaluate(() => window.r6game.bots.forEach((b) => b.s.alive && b.s.die('qa', false)));
+const killOperators = () => A.evaluate(() => { const g = window.r6game; g.player.die('tango0', false); g.slots.forEach((s) => s.soldier.alive && s.soldier.die('tango0', false)); });
+await step('bomb: defuser planted, every White Mask down → the round goes on while it runs; it completes → win', async () => {
+  await thStart('bomb');
+  await A.evaluate(() => { const g = window.r6game; g.world.objectives.plantDefuser(0, g.player.id, false); });
+  await killWhiteMasks();
+  await run(1);
+  assert.equal(await result(), null, 'still on with the defuser running');
+  assert.equal(await A.evaluate(() => window.r6game.world.objectives.defuserHolds), true);
+  await A.evaluate(() => { const o = window.r6game.world.objectives; o.bombs[o.defuser.bomb].done = 39.5; });
+  await sim(A, () => !!window.r6game.thResult, null, 3);
+  assert.equal((await result()).win, true);
+});
+await step('bomb: defuser planted, the player dies → the round goes on, the camera on the defuser; a White Mask cuts it → loss', async () => {
+  await thStart('bomb');
+  await A.evaluate(() => { const g = window.r6game; g.world.objectives.plantDefuser(0, g.player.id, false); });
+  await killOperators();
+  await run(1);
+  assert.equal(await result(), null, 'still on: the defuser decides');
+  await until(A, () => /DEFUSER|해체기/.test(document.querySelector('#spectating')?.textContent ?? ''), null, 15000);
+  await A.evaluate(() => { const g = window.r6game; const b = g.bots.find((x) => x.s.alive); g.world.objectives.botWorkDefuser(b.s.id, 4); });
+  await sim(A, () => !!window.r6game.thResult, null, 3);
+  assert.deepEqual(await result(), { win: false, reason: 'All operators down' });
+});
+await step('hostage rescue: every White Mask down → win', async () => {
+  await thStart('hostage');
+  await killWhiteMasks();
+  await sim(A, () => !!window.r6game.thResult, null, 3);
+  assert.deepEqual(await result(), { win: true, reason: 'All hostiles eliminated' });
+});
+await step('bomb, no defuser planted: the operators go down → loss; the result screen shows it', async () => {
+  await thStart('bomb');
+  await killOperators();
+  await sim(A, () => !!window.r6game.thResult, null, 3);
+  assert.deepEqual(await result(), { win: false, reason: 'All operators down' });
+  await until(A, () => !document.querySelector('#th-result').classList.contains('hidden'), null, 15000);
+  await A.evaluate(() => window.r6game.quitToMenu());
 });
 
 /* ================================================================== S4 · PvP state */

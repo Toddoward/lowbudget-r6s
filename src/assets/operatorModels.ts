@@ -2,7 +2,7 @@ import { box, cone, cyl, sph, type AssetSpec, type PartSpec } from './spec.ts';
 import type { OperatorDef } from '../game/operators.ts';
 
 /**
- * Low-poly operator rig: bones hips/torso/head/armL/armR/legL/legR, each in
+ * Low-poly operator rig: bones hips/torso/head/armL/armR (upper arms)/foreL/foreR/legL/legR, each in
  * its own pivot frame (see Rig.ts). Helmets, armour carriers and the unique
  * gadget silhouettes (hammer on the back, M120 launcher, thermite pack …)
  * are kept chunky so operators read at a distance.
@@ -10,6 +10,9 @@ import type { OperatorDef } from '../game/operators.ts';
 const SKIN = '#c49a7a';
 const BOOT = '#1d1c1a';
 const GLOVE = '#26241f';
+/** shoulder → elbow, elbow → centre of the hand (m) */
+export const ARM_UPPER = 0.3;
+export const ARM_FORE = 0.31;
 
 function headgear(kind: string, accent: string): PartSpec[] {
   const H = 'head';
@@ -92,7 +95,7 @@ function gadgetSilhouette(gadget: string): PartSpec[] {
     case 'ads':
       return [cyl([0.14, -0.03, 0], 0.045, 0.06, '#3c4136', { bone: T }), sph([0.14, 0.01, 0], 0.035, '#2a2d27', { bone: T })];
     case 'scanner': // IQ: wrist detector
-      return [box([0, -0.42, -0.08], [0.1, 0.06, 0.09], '#22252a', { bone: 'armL' }), box([0, -0.39, -0.08], [0.08, 0.005, 0.07], '#3a9dff', { bone: 'armL', emissive: true })];
+      return [box([0, -0.2, -0.05], [0.1, 0.09, 0.05], '#22252a', { bone: 'foreL' }), box([0, -0.2, -0.076], [0.08, 0.07, 0.004], '#3a9dff', { bone: 'foreL', emissive: true })];
     case 'edd': // Kapkan: EDD pouches
       return [box([0.08, 0.26, -0.15], [0.06, 0.1, 0.05], '#3b4031', { bone: T }), box([-0.08, 0.26, -0.15], [0.06, 0.1, 0.05], '#3b4031', { bone: T }), box([0, 0.26, -0.17], [0.02, 0.02, 0.01], '#ff2020', { bone: T, emissive: true })];
     case 'turret': // Tachanka: folded LMG on the back
@@ -119,13 +122,14 @@ export function operatorSpec(def: OperatorDef): AssetSpec {
     box([0, 0.47, 0], [0.12, 0.06, 0.12], SKIN, { bone: 'torso' }), // neck
     box([0.17, 0.45, 0], [0.09, 0.06, 0.18], vest, { bone: 'torso' }), // shoulder pads
     box([-0.17, 0.45, 0], [0.09, 0.06, 0.18], vest, { bone: 'torso' }),
-    // arms (pivot at shoulder) – hang down & forward
-    box([0, -0.15, 0], [0.09, 0.3, 0.1], cloth, { bone: 'armR' }),
-    box([0, -0.38, -0.06], [0.08, 0.22, 0.08], cloth, { bone: 'armR', r: [30, 0, 0] }),
-    box([0, -0.5, -0.14], [0.08, 0.08, 0.08], GLOVE, { bone: 'armR' }),
-    box([0, -0.15, 0], [0.09, 0.3, 0.1], cloth, { bone: 'armL' }),
-    box([0, -0.38, -0.06], [0.08, 0.22, 0.08], cloth, { bone: 'armL', r: [30, 0, 0] }),
-    box([0, -0.5, -0.14], [0.08, 0.08, 0.08], GLOVE, { bone: 'armL' }),
+    // arms: upper arm (pivot at the shoulder, ARM_UPPER long) and forearm + glove (pivot at the elbow, hand centre ARM_FORE
+    // down it), both along −Y at rest — Rig solves the elbow so the hands land on the weapon / shield
+    box([0, -ARM_UPPER / 2, 0], [0.095, ARM_UPPER + 0.02, 0.1], cloth, { bone: 'armR' }),
+    box([0, -0.13, 0], [0.08, 0.26, 0.085], cloth, { bone: 'foreR' }),
+    box([0, -ARM_FORE, 0], [0.075, 0.09, 0.09], GLOVE, { bone: 'foreR' }),
+    box([0, -ARM_UPPER / 2, 0], [0.095, ARM_UPPER + 0.02, 0.1], cloth, { bone: 'armL' }),
+    box([0, -0.13, 0], [0.08, 0.26, 0.085], cloth, { bone: 'foreL' }),
+    box([0, -ARM_FORE, 0], [0.075, 0.09, 0.09], GLOVE, { bone: 'foreL' }),
     // legs (pivot at hip joint)
     box([0, -0.22, 0], [0.13, 0.44, 0.15], cloth, { bone: 'legR' }),
     box([0, -0.27, -0.08], [0.1, 0.1, 0.04], '#24241f', { bone: 'legR' }), // knee pad

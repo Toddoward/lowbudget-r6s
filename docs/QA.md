@@ -25,23 +25,26 @@ Status: ✅ fixed and covered by a test · 🟡 fixed, manual check only · ⏳ 
 
 Manual: walk every room in each stance; the walk maps (`tools/level/walkmap.ts`) show what the grid thinks — green reached, yellow crouch/prone only, black solid, grey body margin, red unreachable floor.
 
-## 2. Outdoors (House datamap)
+## 2. Outdoors (terrain.ts + the House datamap's forms)
 
 | # | Problem | Fix | Verified by | Status |
 |---|---|---|---|---|
-| 2.1 | Outdoor context missing | `HOUSE_DATAMAP_512_B64` + decoder used as supplied; terrain, zones, spawn pads, lifts, treehouse, CCTV A/B, 11 police cruisers, APC, gazebo, pergola, sailboats, container, SW neighbour house, roof vents | `walk.test.ts` (spawns connect, no traps); manual fly-over | ✅ |
-| 2.2 | Level differences ≤ 1.6 m between zones were cliffs | stairs generated along the lower side of each edge (0.17 m risers) | `walk.test.ts` | ✅ |
-| 2.3 | Seams between the datamap's House outline and the traced House became trenches | road-level slivers < 2 m between higher zones take the lower side's level | walk maps | 🟡 |
-| 2.4 | Callouts outdoors | zone names from the datamap (`B >> 4`) | manual: HUD location while walking outside | 🟡 |
+| 2.1 | Outdoor context missing | forms from `HOUSE_DATAMAP_512_B64` (positions and heights above their ground): zones, spawn pads, lifts, treehouse, CCTV A/B, 11 police cruisers, APC, gazebo, pergola, sailboats, container, SW neighbour house, roof vents — each stood on the terrain | `walk.test.ts` (spawns connect, no traps); screenshots | ✅ |
+| 2.2 | The ground was boxes per datamap level ("voxel"), levels wrong, cliffs between them | `terrain.ts`: one surface from the agreed levels (`YARD`) laid out on the top view — hard areas at their level (roads, sidewalks, terraces, drive, yards, lots), every step between them inside a kerb / retaining wall / flight's cheek walls / quay wall / pit wall, the rest a Laplace solve limited to 15°; drawn and collided as the same triangles, solid fill under it | `terrain.test.ts` (levels, gentle: nothing over 40°, 97 % under 15°), `walk.test.ts`, `zfight.test.ts` (grounds included) | ✅ |
+| 2.3 | Garage drive was a 2 m ramp; the user: flush with the road | the east road falls gently (< 5°) from the corner to the basement level at the drive; drive = garage floor = road, dropped kerbs; retaining walls either side | `terrain.test.ts` (drive flush, grade) | ✅ |
+| 2.4 | Front yard: the user's screenshots — two terraces with short flights, a porch so high nobody on the ground in front is seen from the 1F windows | road −2.4 → sidewalk −2.25 → 3 steps → lower terrace −1.8 → 4 steps → upper terrace −1.2 → 7 porch steps → porch 0; stone walls with pillars, cheek pedestals | `terrain.test.ts` (levels; road → front door walked upright; head on the terrace below the 1F sill) | ✅ |
+| 2.5 | Players stuck in the APC on its spawn (R3) | APC parked at the west end of its lot; bollards, lamps, cruisers off the spawns | `walk.test.ts`: every walkable spot within 3.5 m of a spawn centre is standing room reached upright | ✅ |
+| 2.6 | Callouts outdoors | zone names from the datamap (`B >> 4`) | manual: HUD location while walking outside | 🟡 |
 
 ## 3. Rendering: Z-fighting and depth
 
 | # | Rule | Where | Status |
 |---|---|---|---|
 | 3.1 | 1F_0 west-wall vertices above z_local 0.0359 clamped | `tools/level/glb_extract.py` (390 glTF vertices) | ✅ |
-| 3.2 | soft walls: polygonOffset −1 / −2, height × 0.995 | `Destruction.ts` panel mesh (visual only) | 🟡 |
-| 3.3 | hatches: ± 0.015 m thicker, polygonOffsetFactor −3 | `Destruction.ts` | 🟡 |
+| 3.2 | soft walls: polygonOffset −1 / −2 (drawn at their true size) | `Destruction.ts` panel mesh | ✅ `zfight.test.ts` |
+| 3.3 | hatches: ± 0.015 m thicker, polygonOffsetFactor −3 | `Destruction.ts` | ✅ `zfight.test.ts` |
 | 3.4 | logarithmic depth buffer, near 0.15, far 250 | `Game.ts`; custom shaders (sky, light shafts, particles) carry the log-depth chunks | 🟡 |
+| 3.5 | nothing coplanar by construction: one wall owns each joint (pass-through line › outer › thicker › X-running), the others stop at its face — no overlaps, no notches; bands under the outer walls (B: footing) and the frieze under the eaves, with the slabs stopping at them; frames 4 mm proud of the cut faces; baseboards into the floor; props' boxes that share a face plane pulled 2 mm apart | `MapBuilder.ts` `wallReach`, `sliceWall`, `frameOpening`, `apart` | ✅ `zfight.test.ts`: every mesh of the House read back from the scene in world space, no two same-facing faces in one plane overlapping where they can be seen |
 
 Manual: look along the 2F west wall, soft walls next to hard walls and the hatches from a distance — no flicker.
 
@@ -64,6 +67,8 @@ Manual: look along the 2F west wall, soft walls next to hard walls and the hatch
 | # | Problem | Fix | Verified by | Status |
 |---|---|---|---|---|
 | 6.1 | Inverted rappel: W/S reversed | controls follow the view: inverted, W descends, S climbs, A/D mirror | `rules.test.ts` | ✅ |
+| 6.2 | Inverted rappel: the mouse was inverted on both axes | mouse look follows the view too (`viewLook`): right turns toward screen-right, up toward screen-up | `rules.test.ts` (the game's camera, projected before / after; fails on the old code) | ✅ |
+| 6.3 | Slopes and stairs slowed walking to ~55 %, crouch / prone could stall | grounded motion follows the surface (lift from the ground normal), pressed into it along the normal | `locomotion.test.ts` (15° / 33° slopes, 18 cm steps, every stance ≥ 90 % / 85 % of the flat; downhill stays grounded) | ✅ |
 
 ## 7. Rules: destruction, missions, round state
 
@@ -71,6 +76,7 @@ Manual: look along the 2F west wall, soft walls next to hard walls and the hatch
 |---|---|---|---|---|
 | 7.1 | Soft walls & hatches vanished under punches / bullets | the wooden stud frame stays after melee and bullets (bullets pass between studs, bodies don't); only explosives, sledge, shotgun and breach charges break it | `destruction.test.ts` | ✅ |
 | 7.2 | Terrorist Hunt had Secure Area and no defense mission | attack: Elimination, Bomb (plant the defuser, White Masks rush and cut it, progress is kept, two bombs or elimination wins), Hostage Rescue; defense: Hostage Protection (White Masks grab the hostage and run for an extraction) | `missions.test.ts` (rules + bots from all 10 rooms reach a planted defuser on the real map) | ✅ |
+| 7.4 | TH: every enemy dead did not end Hostage Rescue; the round ended when the player died even with a defuser running | the match decides, not the player: every White Mask down wins (Elimination, Bomb before a plant, Rescue); a running defuser holds the round until it completes or is cut (not enemies dying, not operators dying, not the timer); the camera watches the defuser | `missions.test.ts`; E2E state cycles: to do (`docs/HANDOFF.md` §4.3) | 🟡 |
 | 7.3 | Round state was silent | banner + SFX for defuser planted / cut / resumed, bomb defused, hostage picked up / taken / dropped / down, enemies left, round won / lost; HUD progress bar for the defuser | `missions.test.ts` (announcement keys); manual: listen | 🟡 |
 
 ## 8. Drone, ping, scan
@@ -92,7 +98,9 @@ Manual: look along the 2F west wall, soft walls next to hard walls and the hatch
 | 9.2 | No ADS with the shield | RMB swings the shield out to the left (turned 65°, still covers the left flank) and aims the pistol past its edge; one-handed hipfire is wider | `shield.test.ts` (collider front / aside / back against rays) | ✅ |
 | 9.3 | Extend / flash regardless of where the shield is | only with the shield in front; no shooting while extended | `shield.test.ts` | ✅ |
 | 9.4 | First person: no shield | shield in view (front: lower left · ADS: out of view to the left · extended: across the view with an open viewport slit · back: gone), left hand on the handle; the plate is built round a real slit (see-through in 1P and 3P) | manual: screenshots of the four poses | 🟡 |
-| 9.5 | Peers saw the shield only in front | pose synced (`sb` + ADS), rig and collider follow it | code | 🟡 |
+| 9.5 | Peers saw the shield only in front | pose synced (`sb` + ADS + `sr` sprint), rig and collider follow it | code | 🟡 |
+| 9.6 | The shield was drawn lower-left while its collider stopped rounds in front | one placement (`Soldier.shieldPlace`) for collider, 3P and 1P: in front the viewport slit is on the eye line (crosshair in it); sprinting it is carried on the left and covers only the left; 1P warped to the world fov | `shield.test.ts` (3P plate = collider; 1P screen IoU > 0.9; rounds front / sprint); browser: front ✅, sprint pose to re-check (`HANDOFF.md` §4.1) | 🟡 |
+| 9.7 | Third-person arms bent behind the back while the gun pointed forward | upper arm + forearm with two-bone IK onto the grip / handguard / shield handle; ADS, sprint low-ready, reload; crouch leans forward | `rig.test.ts` (hands within 3 cm of their holds, in front of the shoulders, gun along the aim, every stance / pitch) | ✅ |
 
 ## 10. Interactions, first person, corpses
 

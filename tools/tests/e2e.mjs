@@ -51,8 +51,11 @@ const rap = await A.evaluate(() => {
   g.bots.forEach((b) => { b.update = () => inp0; b.s.teleport(g.nav.randomNodeIn(['__ext']).pos.clone()); }); // freeze (killing them all would end the hunt)
   // windows on this wall may or may not be barricaded (TH fortifies at random): scan for a solid stretch
   let ok = false;
-  for (let x = -6; x <= -1.5 && !ok; x += 0.5) {
-    P.teleport(new V3(x, -0.23, -8.05), Math.PI); P.pitch = 0; P.update(1 / 60, inp0); P.update(1 / 60, inp0);
+  // half a metre off the living room's north wall (traced plan z −7.4, × the plan scale 1.3, outer face 0.15 m out)
+  const PLAN = 1.3, z = -7.4 * PLAN - 0.15 - 0.5;
+  for (let x = -5 * PLAN; x <= -1.5 * PLAN && !ok; x += 0.5) { // (west of x −5 the chimney stands behind the parapet)
+    const ground = g.physics.raycast(new V3(x, 3, z), new V3(0, -1, 0), 8, 1);
+    P.teleport(new V3(x, (ground ? ground.point.y : -0.23) + 0.02, z), Math.PI); P.pitch = 0; P.update(1 / 60, inp0); P.update(1 / 60, inp0);
     ok = P.startRappel(true);
   }
   ok = ok && P.startRappel();

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { buildAsset } from '../assets/build.ts';
 import { chargeSpec, deviceSpec, hammerSpec, launcherSpec, pulseSensorSpec, throwableSpec } from '../assets/weaponModels.ts';
 import { weaponSpec, WEAPONS } from '../game/weapons.ts';
-import type { ShieldPose, Soldier } from '../game/Soldier.ts';
+import { shieldLocal, shieldPlace, shieldPlateOf, type ShieldPose, type Soldier } from '../game/Soldier.ts';
 import type { AssetSpec } from '../assets/spec.ts';
 import { vcMaterial } from './palette.ts';
 import { BoxBatch } from '../world/BoxBatch.ts';
@@ -44,6 +44,24 @@ const holdOf = (key: string): Hold => (WEAPONS[key] ? (WEAPONS[key].cls === 'Pis
  *  - Hands grip the weapon's `grip` / `fore` anchors; equip, reload (mag drop),
  *    melee, gadget-placement and sprint poses animate both.
  */
+/**
+ * The shield plate in the eye's camera frame (world-camera units): the same placement as the collider, relative to the eye,
+ * turned by the inverse of the view rotation (pitch, recoil, lean roll) exactly as Game builds the camera.
+ */
+export function shieldInView(s: Soldier, pose: ShieldPose): { p: THREE.Vector3; q: THREE.Quaternion; scale: THREE.Vector3 } {
+  const pl = shieldPlace(pose, s.stance, shieldPlateOf(s.op));
+  const { p, q } = shieldLocal(pl);
+  const body = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), s.yaw);
+  const world = p.applyQuaternion(body).add(s.pos);
+  const camQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(s.pitch + s.recoilP, s.yaw + s.recoilY, s.cameraRoll, 'YXZ'));
+  const inv = camQ.clone().invert();
+  return {
+    p: world.sub(s.eye()).applyQuaternion(inv),
+    q: inv.multiply(body).multiply(q),
+    scale: new THREE.Vector3(pl.sx, pl.sy, 1),
+  };
+}
+
 export class ViewModel {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(58, 1, 0.01, 12);
@@ -72,6 +90,10 @@ export class ViewModel {
   private shield: THREE.Group | null = null;
   private shieldKey = '';
   private shieldHand: THREE.Group;
+  /** camera-space warp for the shield (see updateShield) */
+  private shieldRoot = new THREE.Group();
+  /** vertical fov of the world camera (deg) — the shield is matched to it */
+  worldFov = 75;
 
   constructor() {
     this.scene.add(this.camera, this.sun, this.fill);
@@ -298,41 +320,47 @@ export class ViewModel {
   }
 
   /**
-   * front: lower-left of the view, viewport low · ads: swung out to the left edge, edge-on (the pistol aims past it)
-   * · ext: Montagne's extension across the view · back: not in view
+   * The shield where its collider is (Soldier.shieldPlace), seen from the eye: the plate is put in camera space and the
+   * whole thing is warped by (k, k, 1), k = tan(vmFov/2) / tan(worldFov/2), so it covers exactly the part of the screen
+   * the collider covers in the world view (the view model is drawn with its own narrower camera).
    */
   private updateShield(dt: number, s: Soldier, pose: ShieldPose | null, equip: number) {
     const key = pose ? (s.op.gadget === 'flash_shield' ? 'flash_shield' : 'shield') : '';
     if (key !== this.shieldKey) {
-      if (this.shield) this.camera.remove(this.shield);
+      if (this.shield) this.shieldRoot.remove(this.shield);
       this.shield = null;
       this.shieldKey = key;
       if (key) {
         const sh = buildAsset({ ...extraGadgetSpec(key)!, id: `vm_${key}` });
         sh.traverse((o) => { o.castShadow = false; o.receiveShadow = false; });
         this.shield = sh;
-        this.camera.add(sh, this.shieldHand);
-      } else this.camera.remove(this.shieldHand);
+        this.shieldRoot.add(sh);
+        this.camera.add(this.shieldRoot, this.shieldHand);
+      } else this.camera.remove(this.shieldRoot, this.shieldHand);
     }
     const sh = this.shield;
     if (!sh || !pose) return;
-    // shield-local plate centre is (-0.12, 0, -0.42): place the group so the plate lands where it should
-    const T = {
-      front: { p: [-0.32, -0.36, -0.12], ry: 0.12, sc: [1, 1, 1] },
-      ads: { p: [-0.3, -0.24, -0.28], ry: 1.15, sc: [1, 1, 1] },
-      // the viewport slit (plate y +0.2 × 1.85) at eye level
-      ext: { p: [0.16, -0.31, -0.04], ry: 0, sc: [1.35, 1.85, 1] },
-      back: { p: [-0.3, -0.9, 0.1], ry: 0.4, sc: [1, 1, 1] },
-    }[pose];
-    const k = Math.min(1, dt * 12);
-    sh.position.lerp(new THREE.Vector3(T.p[0], T.p[1] - equip * 0.25, T.p[2]), k);
-    sh.rotation.y += (T.ry - sh.rotation.y) * k;
-    sh.scale.lerp(new THREE.Vector3(...T.sc), k);
-    sh.visible = !(pose === 'back' && sh.position.y < -0.8);
-    // the left hand on the handle (shield-local (-0.12, -0.02, -0.39)) in camera space, forearm back and down out of
-    // the view whichever way the shield is turned (parented to the shield, the forearm swept across the screen in ADS)
+    const k = Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2) / Math.tan(THREE.MathUtils.degToRad(this.worldFov) / 2);
+    this.shieldRoot.scale.set(k, k, 1);
+    const cam = shieldInView(s, pose);
+    // equip: comes up from below
+    cam.p.y -= equip * 0.6;
+    const blend = Math.min(1, dt * 14);
+    if (sh.userData.placed) {
+      sh.position.lerp(cam.p, blend);
+      sh.quaternion.slerp(cam.q, blend);
+      sh.scale.lerp(cam.scale, blend);
+    } else {
+      sh.position.copy(cam.p);
+      sh.quaternion.copy(cam.q);
+      sh.scale.copy(cam.scale);
+      sh.userData.placed = true;
+    }
+    sh.visible = pose !== 'back';
+    // the left hand on the handle (plate-local (0, −0.02, 0.06)), forearm back and down out of the view
     sh.updateMatrix();
-    this.shieldHand.position.set(-0.12, -0.03, -0.37).applyMatrix4(sh.matrix);
+    const handle = new THREE.Vector3(0, -0.02, 0.06).applyMatrix4(sh.matrix);
+    this.shieldHand.position.set(handle.x * k, handle.y * k, handle.z);
     this.shieldHand.rotation.set(-0.35, 0.45, -0.25);
     this.shieldHand.visible = sh.visible;
   }

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import { G_CHAR, G_GADGET, G_WORLD, type Physics } from '../core/Physics.ts';
-import { placeShield, shieldPoseOf, type ShieldPose } from '../game/Soldier.ts';
+import { placeShield, shieldPlateOf, shieldPoseOf, type ShieldPose } from '../game/Soldier.ts';
 import type { ActorSnapshot } from '../../shared/protocol.ts';
 import { computeHitboxes, type Actor, type Hitboxes } from '../game/Actor.ts';
 import { Rig } from '../render/Rig.ts';
@@ -29,6 +29,8 @@ export class RemoteActor implements Actor {
   private collider: RAPIER.Collider;
   private shield: RAPIER.Collider | null = null;
   shieldExtended = false;
+  private ads = false;
+  private sprinting = false;
   private shieldPose: ShieldPose = 'front';
   private offset = 0;
   lastHeard = performance.now();
@@ -83,7 +85,9 @@ export class RemoteActor implements Actor {
       if (wasAlive !== this.alive) this.rig.setDead(!this.alive, this.stance === Stance.Prone, Math.sin(this.yaw * 7.3));
       this.drone = b.dr ? new THREE.Vector3(...b.dr) : null;
       this.shieldExtended = !!b.sx;
-      this.shieldPose = shieldPoseOf(this.shieldExtended, !!b.sb, !!b.ads);
+      this.ads = !!b.ads;
+      this.sprinting = !!b.sr;
+      this.shieldPose = shieldPoseOf(this.shieldExtended, !!b.sb, !!b.ads, !!b.sr);
       if (this.shield) this.rig.setShieldPose(this.shieldPose);
       const def = OPERATORS[this.operator];
       const wid = def?.shield && b.w < 2 ? def.secondary : b.w === 0 ? def?.primary : b.w === 1 ? def?.secondary : null;
@@ -91,11 +95,11 @@ export class RemoteActor implements Actor {
     }
     this.rig.root.position.copy(this.pos);
     this.rig.root.rotation.y = this.yaw;
-    this.rig.pose(dt, this.stance, this.pitch, this.lean, Math.hypot(this.vel.x, this.vel.z), this.inverted);
+    this.rig.pose(dt, this.stance, this.pitch, this.lean, Math.hypot(this.vel.x, this.vel.z), this.inverted, { ads: this.ads ? 1 : 0, sprint: this.sprinting });
     const h = this.stance === Stance.Crouch ? 0.33 : this.stance === Stance.Prone ? 0.06 : 0.6;
     this.collider.setHalfHeight(h);
     this.collider.setTranslation(this.alive ? { x: this.pos.x, y: this.pos.y + h + 0.3, z: this.pos.z } : { x: 0, y: -500, z: 0 });
-    if (this.shield) placeShield(this.shield, this.pos, this.yaw, this.stance, this.shieldPose, this.alive);
+    if (this.shield) placeShield(this.shield, this.pos, this.yaw, this.stance, this.shieldPose, this.alive, shieldPlateOf(OPERATORS[this.operator] ?? OPERATORS.recruit));
   }
 
   dispose(scene: THREE.Scene) {

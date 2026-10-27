@@ -162,11 +162,10 @@ export class Panel {
     for (let i = 0; i < this.state.length; i++) if (!(this.state[i] & F_VOID)) this.totalSkin++;
     this.frameMask = this.state.map((s) => s & F_BEAM);
     this.mesh = new THREE.Mesh(new THREE.BufferGeometry(), spec.kind === 'wall_soft' ? SOFT_WALL_MAT() : spec.kind === 'hatch' ? HATCH_MAT() : vcMaterial());
-    // Z-fighting rules 2 / 3 (visual only; colliders keep the true size):
-    // soft walls are 0.995 of their height around their middle (their top / bottom no longer coincide with the hard walls' and slabs')
-    // hatches stick out 0.015 m above and below the slab they sit in
+    // Z-fighting rule 3 (visual only; colliders keep the true size): hatches stick out 0.015 m above and below the slab they
+    // sit in. Soft walls are drawn at their true size — walls meet edge to edge and stop at the slabs, nothing coplanar overlaps.
     const midY = (this.min.y + this.max.y) / 2;
-    const sy = spec.kind === 'wall_soft' ? 0.995 : spec.kind === 'hatch' ? (this.size(1) + 0.03) / this.size(1) : 1;
+    const sy = spec.kind === 'hatch' ? (this.size(1) + 0.03) / this.size(1) : 1;
     if (sy !== 1) { this.mesh.scale.y = sy; this.mesh.position.y = midY * (1 - sy); }
     this.mesh.castShadow = true;
     this.mesh.receiveShadow = true;
@@ -457,6 +456,7 @@ export class DestructionSystem {
     const id = forcedId ?? this.nextId++;
     const p = new Panel(id, spec);
     this.panels.set(id, p);
+    p.mesh.name = spec.kind;
     this.group.add(p.mesh);
     p.rebuild(this.physics, this.xray);
     return p;

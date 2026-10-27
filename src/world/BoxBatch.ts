@@ -7,6 +7,11 @@ import * as THREE from 'three';
  * the procedural low-poly asset builder.
  */
 export class BoxBatch {
+  /** when set, each built geometry keeps its axis-aligned boxes in `userData.boxes` (x0 y0 z0 x1 y1 z1 skipFaces per box) —
+   *  tools/tests/zfight.test.ts reads them back through the scene graph and looks for coplanar overlapping faces */
+  static record = false;
+  private boxes: number[] = [];
+  private transforming = false;
   pos: number[] = [];
   nor: number[] = [];
   col: number[] = [];
@@ -17,6 +22,7 @@ export class BoxBatch {
   box(min: ArrayLike<number>, max: ArrayLike<number>, faceColor: THREE.Color, sideColor: THREE.Color = faceColor, primaryAxis = -1, skipFaces = 0) {
     const [x0, y0, z0] = [min[0], min[1], min[2]];
     const [x1, y1, z1] = [max[0], max[1], max[2]];
+    if (BoxBatch.record && !this.transforming) this.boxes.push(x0, y0, z0, x1, y1, z1, skipFaces);
     // faces: +x -x +y -y +z -z
     const faces: [number, number[][]][] = [
       [0, [[x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1]]],
@@ -40,10 +46,17 @@ export class BoxBatch {
     }
   }
 
+  /** a solid drawn some other way (a convex hull through `geom`): nothing is drawn, the recorded boxes just know it hides what is inside */
+  occlude(min: ArrayLike<number>, max: ArrayLike<number>) {
+    if (BoxBatch.record) this.boxes.push(min[0], min[1], min[2], max[0], max[1], max[2], 63);
+  }
+
   /** Box of size (sx,sy,sz) transformed by matrix m. */
   tbox(m: THREE.Matrix4, sx: number, sy: number, sz: number, color: THREE.Color) {
     const start = this.pos.length;
+    this.transforming = true;
     this.box([-sx / 2, -sy / 2, -sz / 2], [sx / 2, sy / 2, sz / 2], color);
+    this.transforming = false;
     this.transformFrom(start, m);
   }
 
@@ -90,6 +103,7 @@ export class BoxBatch {
     g.setAttribute('color', new THREE.Float32BufferAttribute(this.col, 3));
     g.computeBoundingSphere();
     g.computeBoundingBox();
+    if (BoxBatch.record) g.userData.boxes = this.boxes.slice();
     return g;
   }
 }
