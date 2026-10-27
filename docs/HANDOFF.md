@@ -46,12 +46,12 @@ Original message was in Korean; this is a faithful itemisation. Status: ✅ done
 | R2 | Terrain elevations are wrong; everything outdoors is voxel blocks you can't walk on | ⬜ §6 |
 | R3 | No props in spawn zones (players get stuck in the APC). Verify with BFS / nav | ⬜ §6.4 |
 | R4 | Many places still can't be walked door → door | ⬜ §5.6 |
-| R5 | Back entrance: 1F → basement stairs exist but **1F → 2F stairs are missing**; follow the stairs of the GLB / .blend | ⬜ §5.3 |
+| R5 | Back entrance: 1F → basement stairs exist but **1F → 2F stairs are missing**; follow the stairs of the GLB / .blend | ✅ `7a23245` |
 | R6 | Indoor props are mis-sized and block players; rebuild from the uploaded blueprints, basement to roof | ⬜ §5.5 |
-| R7 | Kitchen back-door **deck runs long** (as in the blueprint) with a **roof along it**, so on 2F you can walk between the Kid's Bedroom and Master Bedroom windows over that roof | ⬜ §5.4 |
+| R7 | Kitchen back-door **deck runs long** (as in the blueprint) with a **roof along it**, so on 2F you can walk between the Kid's Bedroom and Master Bedroom windows over that roof | ✅ `932b666` (`vault.test.ts`: Kids → porch roof → Master) |
 | R8 | Basement garage: walkable space on all four sides of the car | ⬜ §5.5 |
-| R9 | House plan is too small: keep the storey height, enlarge the plan | ⬜ §5.2 |
-| R10 | Corners look "worm-eaten" (the overlap trimming for Z-fighting) and Z-fighting is still there — fix both | ⬜ §5.7 |
+| R9 | House plan is too small: keep the storey height, enlarge the plan | ✅ `66f0843` |
+| R10 | Corners look "worm-eaten" (the overlap trimming for Z-fighting) and Z-fighting is still there — fix both | ✅ R10 commit (`zfight.test.ts`, QA §3.5) |
 | R11 | Model the level terrain from the high-res top view (depth model or anything that works) | ⬜ §6 |
 | R12 | Movement on slopes/stairs: walking lifts the body; speed barely changes on stairs; crouch must climb stairs/slopes | ✅ `1439fe7` |
 | R13 | Shield in **front** (viewport for sight), not off to the left while still stopping rounds; sprinting moves it to the **left**, and only that side blocks | ✅ `7c9acb4` + browser scenario (S2 shield step) and screenshots of front / sprint / ADS |
@@ -61,7 +61,7 @@ Original message was in Korean; this is a faithful itemisation. Status: ✅ done
 | R17 | After a plant: ends only when the defuser completes or the defenders cut it — not when every enemy dies | ✅ `1439fe7` |
 | R18 | Rappel: keys follow the view; the **mouse must not be inverted** | ✅ `1439fe7` |
 | R19 | Match state is served by match conditions, not by the player character: the player dying after planting → the terrorists must still cut the defuser | ✅ `1439fe7` |
-| R20 | **Roof is still flat** — must be pitched (roof plan `6.webp`) | ⬜ §5.8 |
+| R20 | **Roof is still flat** — must be pitched (roof plan `6.webp`) | ✅ `41835fe` (`roof.test.ts`) |
 
 Earlier standing instructions still in force: verify with graph search / unit tests, **not** by agent play-throughs; develop on the branch above; commit trailer `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` + `Claude-Session: https://claude.ai/code/session_01Ests53BizZeDjYiu8CpRiP`; no model ids in commits/PRs. R1/R11 supersede the earlier "use the Base64 datamap as is / don't write a terrain generation script" instruction — the user now explicitly asks for terrain derived from the top-view image.
 

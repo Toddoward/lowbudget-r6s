@@ -39,9 +39,10 @@ Manual: walk every room in each stance; the walk maps (`tools/level/walkmap.ts`)
 | # | Rule | Where | Status |
 |---|---|---|---|
 | 3.1 | 1F_0 west-wall vertices above z_local 0.0359 clamped | `tools/level/glb_extract.py` (390 glTF vertices) | ✅ |
-| 3.2 | soft walls: polygonOffset −1 / −2, height × 0.995 | `Destruction.ts` panel mesh (visual only) | 🟡 |
-| 3.3 | hatches: ± 0.015 m thicker, polygonOffsetFactor −3 | `Destruction.ts` | 🟡 |
+| 3.2 | soft walls: polygonOffset −1 / −2 (drawn at their true size) | `Destruction.ts` panel mesh | ✅ `zfight.test.ts` |
+| 3.3 | hatches: ± 0.015 m thicker, polygonOffsetFactor −3 | `Destruction.ts` | ✅ `zfight.test.ts` |
 | 3.4 | logarithmic depth buffer, near 0.15, far 250 | `Game.ts`; custom shaders (sky, light shafts, particles) carry the log-depth chunks | 🟡 |
+| 3.5 | nothing coplanar by construction: one wall owns each joint (pass-through line › outer › thicker › X-running), the others stop at its face — no overlaps, no notches; bands under the outer walls (B: footing) and the frieze under the eaves, with the slabs stopping at them; frames 4 mm proud of the cut faces; baseboards into the floor; props' boxes that share a face plane pulled 2 mm apart | `MapBuilder.ts` `wallReach`, `sliceWall`, `frameOpening`, `apart` | ✅ `zfight.test.ts`: every mesh of the House read back from the scene in world space, no two same-facing faces in one plane overlapping where they can be seen |
 
 Manual: look along the 2F west wall, soft walls next to hard walls and the hatches from a distance — no flicker.
 

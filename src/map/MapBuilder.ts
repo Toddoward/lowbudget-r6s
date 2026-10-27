@@ -6,8 +6,8 @@ import { DestructionSystem, type Panel, type PanelKind } from '../world/Destruct
 import { PAL, vcMaterial } from '../render/palette.ts';
 import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
 import {
-  CCTVS, DIAG_WALLS, FLOORS, HOUSE_RECT, NW_STAIRWELL_PIT, FLOOR_LABEL, FLOOR_Y, GROUND_Y, HATCHES, LANDINGS, OPENING_DIMS, PANEL_MAX_W, ROOF_Y, ROOFS, ROOMS, SLAB_T, STAIRS, WALLS, WALL_H, roofPoints,
-  exteriorZoneName, type FloorId, type OpeningKind, type RoomDef, type StairDef, type SurfaceTier, type WallDef,
+  CCTVS, DIAG_WALLS, FLOORS, openingDims, HOUSE_RECT, NW_STAIRWELL_PIT, FLOOR_LABEL, FLOOR_Y, GROUND_Y, HATCHES, LANDINGS, PANEL_MAX_W, ROOF_Y, ROOFS, ROOMS, SLAB_T, STAIRS, WALLS, WALL_H, roofPoints,
+  exteriorZoneName, type FloorId, type OpeningKind, type RoomDef, type Rect, type StairDef, type SurfaceTier, type WallDef,
   DECK_STEPS,
 } from './houseLayout.ts';
 import { P } from './plan.ts';
@@ -110,28 +110,88 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
   const box = (run: 'x' | 'z', c: number, t: number, u0: number, u1: number, v0: number, v1: number): [number[], number[]] =>
     run === 'x' ? [[u0, v0, c - t / 2], [u1, v1, c + t / 2]] : [[c - t / 2, v0, u0], [c + t / 2, v1, u1]];
 
+  /** footprints of the bands along the outer walls (floor lines) and of the frieze under the eaves, per slab level: the
+   *  slabs at that level stop at them instead of running into them (overlapping coplanar faces flicker) */
+  const bands = new Map<number, Rect[]>();
+  const bandAt = (y: number, wall: WallDef, t: number, u0: number, u1: number) => {
+    const [mn, mx] = box(wall.run, wall.c, t, u0, u1, 0, 0);
+    (bands.get(y) ?? bands.set(y, []).get(y)!).push({ x0: mn[0], z0: mn[2], x1: mx[0], z1: mx[2] });
+  };
+
   /* ------------------------------------------------------------- walls */
   for (const wall of WALLS) sliceWall(wall);
+  // a frieze along the top of every 2F outer wall, up to the eaves (closes the strip between the wall top and the roof)
+  for (const w of WALLS) {
+    if (!w.ext || w.floor !== 1) continue;
+    const a = w.from - wallReach(w, w.from), b = w.to + wallReach(w, w.to);
+    addStatic(...box(w.run, w.c, thicknessOf(w), a, b, FLOOR_Y[1] + WALL_H, ROOF_Y), PAL.solidExt, 'concrete', true);
+    bandAt(ROOF_Y, w, thicknessOf(w), a, b);
+  }
 
   function tierAt(wall: WallDef, u: number): SurfaceTier {
     for (const s of wall.spans ?? []) if (u >= s.from - 1e-4 && u <= s.to + 1e-4) return s.tier;
     return wall.tier;
   }
 
+  /**
+   * How far a wall reaches past one of its ends (+) or stops short of it (−), so walls meet without overlapping (coplanar
+   * faces flicker) and without notches. One wall owns each joint and runs over it to the far face of the walls across; the
+   * others stop at its face (or, on its own line, where it ends). The owner is a line that runs on through the joint (two
+   * walls of the same make end to end), else an outer wall over an inner one, a thicker over a thinner, an X-running over a
+   * Z-running one. Without walls across: walls on one line abut; a parallel wall offset by less than the walls are thick
+   * (a jog in an outer line) — the one nearer the origin runs to the other's far side; a free end of an outer wall covers
+   * half its thickness.
+   */
+  function wallReach(wall: WallDef, end: number): number {
+    const near = (p: number, q: number) => Math.abs(p - q) < 0.03;
+    const t = thicknessOf(wall);
+    const alike = (a: WallDef, b: WallDef) => thicknessOf(a) === thicknessOf(b) && !!a.ext === !!b.ext;
+    const endsAt = (v: WallDef, u: number) => near(v.from, u) || near(v.to, u);
+    const same = WALLS.filter((v) => v !== wall && v.floor === wall.floor);
+    const partners = same.filter((v) => v.run === wall.run && near(v.c, wall.c) && endsAt(v, end));
+    const across = same.filter((v) => v.run !== wall.run && near(v.c, end) && wall.c > Math.min(v.from, v.to) - 0.03 && wall.c < Math.max(v.from, v.to) + 0.03);
+    if (!across.length) {
+      if (partners.length) return 0;
+      const jog = same.find((v) => v.run === wall.run && !near(v.c, wall.c) && Math.abs(v.c - wall.c) < (t + thicknessOf(v)) / 2 && endsAt(v, end));
+      if (jog) return wall.c < jog.c ? t / 2 : -thicknessOf(jog) / 2;
+      return wall.ext ? t / 2 : 0;
+    }
+    const tAcross = Math.max(...across.map(thicknessOf));
+    const oursRunsOn = partners.some((v) => alike(v, wall));
+    const theirsRunsOn = across.some((v) => !endsAt(v, wall.c)) || across.some((a) => across.some((b) => a !== b && alike(a, b)));
+    if (theirsRunsOn && !oursRunsOn) return -tAcross / 2;
+    if (oursRunsOn) return 0;
+    const rank = (v: WallDef) => (v.ext ? 4 : 0) + thicknessOf(v) + (v.run === 'x' ? 0.001 : 0);
+    const owner = [wall, ...partners, ...across].reduce((a, b) => (rank(b) > rank(a) ? b : a));
+    if (owner === wall) return tAcross / 2;
+    if (owner.run === wall.run) return -tAcross / 2;
+    return -thicknessOf(owner) / 2;
+  }
+
   function sliceWall(wall: WallDef) {
     const fy = FLOOR_Y[wall.floor];
     const t = thicknessOf(wall);
     const wh = wall.h ?? WALL_H;
-    const e = wall.ext ? t / 2 : 0;
-    const a = wall.from - e;
-    const b = wall.to + e;
+    const a = wall.from - wallReach(wall, wall.from);
+    const b = wall.to + wallReach(wall, wall.to);
+    // outer walls: a band through the slab line under them (on B the footing) — the slabs stop at its faces, so nothing
+    // overlaps, and where a stairwell has no slab there is no slot; just under the floor line where a doorway shows its threshold
+    if (wall.ext) {
+      const sills = (wall.openings ?? []).filter((o) => openingDims(o).y0 < 0.05).map((o) => [o.at - o.w / 2, o.at + o.w / 2]).sort((p, q) => p[0] - q[0]);
+      let u = a;
+      const col = wall.floor === -1 ? PAL.concrete : PAL.solidExt;
+      const band = (u0: number, u1: number, top: number) => { if (u1 - u0 > 1e-3) addStatic(...box(wall.run, wall.c, t, u0, u1, fy - SLAB_T, top), col, 'concrete', true); };
+      for (const [s0, s1] of sills) { band(u, s0, fy); band(Math.max(u, s0), s1, fy - 0.004); u = Math.max(u, s1); }
+      band(u, b, fy);
+      bandAt(fy, wall, t, a, b);
+    }
     const ops = [...(wall.openings ?? [])].sort((p, q) => p.at - q.at);
     type R4 = { u0: number; u1: number; v0: number; v1: number; full: boolean };
     const rects: R4[] = [];
     let cur = a;
     const nrm = wall.run === 'x' ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0);
     for (const o of ops) {
-      const d = OPENING_DIMS[o.kind];
+      const d = openingDims(o);
       const u0 = o.at - o.w / 2;
       const u1 = o.at + o.w / 2;
       if (u0 > cur + 1e-3) rects.push({ u0: cur, u1: u0, v0: fy, v1: fy + wh, full: true });
@@ -147,14 +207,10 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
         floor: wall.floor, floorY: fy, exterior: !!wall.ext, barricadeable: d.barricade, gap: d.gap, thickness: t,
         rooms: [sideA?.id ?? null, sideB?.id ?? null], barricadePanel: null, barricadeKind: 'none', barricadeGen: 0,
       });
-      frameOpening(wall.run, wall.c, t, o.kind, u0, u1, fy + d.y0, fy + d.y0 + d.h);
-      // floor-level openings in an outer wall: the slab ends at the wall's centre line and the wall below stops a slab lower —
-      // fill the threshold so nothing (a drone, a grenade) drops into the pocket under the opening
-      if (wall.ext && d.y0 < 0.05 && wall.floor >= 0) {
-        const [mn, mx] = box(wall.run, wall.c, t, u0, u1, fy - SLAB_T, fy);
-        physics.addBox((mn[0] + mx[0]) / 2, (mn[1] + mx[1]) / 2, (mn[2] + mx[2]) / 2, (mx[0] - mn[0]) / 2, (mx[1] - mn[1]) / 2, (mx[2] - mn[2]) / 2, { kind: 'static', mat: 'concrete' });
-        stat.box(mn as [number, number, number], mx as [number, number, number], PAL.concrete, PAL.concrete, 1);
-      }
+      const prev = ops[ops.indexOf(o) - 1], next = ops[ops.indexOf(o) + 1];
+      const reachL = prev ? (u0 - (prev.at + prev.w / 2)) / 2 : Infinity;
+      const reachR = next ? (next.at - next.w / 2 - u1) / 2 : Infinity;
+      frameOpening(wall.run, wall.c, t, o.kind, u0, u1, fy + d.y0, fy + d.y0 + d.h, reachL, reachR);
       if (o.kind === 'shutter') {
         // shutter = three reinforceable metal sections
         const n = 3;
@@ -200,7 +256,8 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
           // baseboard: the visual cue that this wall is breakable (it goes when the wall goes)
           if (r.full && r.v0 === fy) {
             const bb = new BoxBatch();
-            const [mn, mx] = box(wall.run, wall.c, t + 0.035, s0 + 0.01, s1 - 0.01, fy, fy + 0.11);
+            // (the Z-running ones 4 mm lower: two meeting at a corner don't share their top)
+            const [mn, mx] = box(wall.run, wall.c, t + 0.035, s0 + 0.01, s1 - 0.01, fy - 0.002, fy + (wall.run === 'x' ? 0.11 : 0.106));
             bb.box(mn, mx, tier === 'semi' ? PAL.studDark : PAL.baseboard);
             const m = new THREE.Mesh(bb.build(), vcMaterial());
             m.receiveShadow = true;
@@ -212,17 +269,26 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
     }
   }
 
-  function frameOpening(run: 'x' | 'z', c: number, t: number, kind: OpeningKind, u0: number, u1: number, y0: number, y1: number) {
+  /**
+   * The frame lines the opening: jambs, head and sill stand 4 mm proud of the cut faces of the wall (flush, the two would
+   * share a plane and flicker), the jambs stop under the head and above the sill, and a frame never reaches past the middle
+   * of the pier to the next opening (`reachL` / `reachR`).
+   */
+  function frameOpening(run: 'x' | 'z', c: number, t: number, kind: OpeningKind, u0: number, u1: number, y0: number, y1: number, reachL = Infinity, reachR = Infinity) {
     const frameC = kind === 'shutter' ? new THREE.Color('#3a3d42') : kind === 'vent' ? PAL.darkMetal : new THREE.Color('#3b2f24');
     const ft = kind === 'vent' ? 0.025 : 0.05;
+    const e = 0.004;
+    const fl = Math.min(ft, reachL), fr_ = Math.min(ft, reachR);
     const fr = (a0: number, a1: number, v0: number, v1: number, extra = 0.02) => {
       const [mn, mx] = box(run, c, t + extra * 2, a0, a1, v0, v1);
       trim.box(mn, mx, frameC);
     };
-    fr(u0 - ft, u0, y0, y1);
-    fr(u1, u1 + ft, y0, y1);
-    fr(u0 - ft, u1 + ft, y1, y1 + ft);
-    if (y0 > FLOOR_Y[floorOf(y0)] + 0.01) fr(u0 - ft, u1 + ft, y0 - ft, y0, 0.06);
+    const sill = y0 > FLOOR_Y[floorOf(y0)] + 0.01;
+    const j0 = sill ? y0 + e : y0;
+    fr(u0 - fl, u0 + e, j0, y1 - e);
+    fr(u1 - e, u1 + fr_, j0, y1 - e);
+    fr(u0 - fl, u1 + fr_, y1 - e, y1 + ft);
+    if (sill) fr(u0 - fl, u1 + fr_, y0 - ft, y0 + e, 0.06);
     if (kind === 'vent') {
       // grille bars: visual only — drones and grenades pass, bodies can't fit anyway
       for (let k = 1; k < 5; k++) {
@@ -253,18 +319,23 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
     const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
     const t = 0.3;
     const col = dw.floor === -1 ? PAL.concrete : PAL.solidExt;
+    // (the wall's own ends reach 7.5 cm into the walls they meet; pieces between them meet edge to edge — overlapping
+    // coplanar pieces flicker)
     const piece = (s0: number, s1: number, v0: number, v1: number) => {
-      const m = (s0 + s1) / 2;
+      const e0 = s0 <= 1e-6 ? 0.075 : 0, e1 = s1 >= len - 1e-6 ? 0.075 : 0;
+      const m = (s0 - e0 + s1 + e1) / 2;
+      const L = s1 + e1 - (s0 - e0);
       const c = new THREE.Vector3(A.x + dir.x * m, fy + (v0 + v1) / 2, A.y + dir.y * m);
       const mat = new THREE.Matrix4().compose(c, q, new THREE.Vector3(1, 1, 1));
-      stat.tbox(mat, s1 - s0 + 0.15, v1 - v0, t, col);
-      physics.addBox(c.x, c.y, c.z, (s1 - s0 + 0.15) / 2, (v1 - v0) / 2, t / 2, { kind: 'static', mat: 'concrete', exterior: true }, q);
+      stat.tbox(mat, L, v1 - v0, t, col);
+      physics.addBox(c.x, c.y, c.z, L / 2, (v1 - v0) / 2, t / 2, { kind: 'static', mat: 'concrete', exterior: true }, q);
     };
+    if (dw.floor >= 0) piece(0, len, -SLAB_T, 0); // the band through the slab under it (as for the straight outer walls)
     if (!dw.window) piece(0, len, 0, WALL_H);
     else {
       const w = dw.window.w;
       const mid = dw.window.at * len;
-      const d = OPENING_DIMS.window;
+      const d = openingDims({ kind: 'window', ...dw.window });
       piece(0, mid - w / 2, 0, WALL_H);
       piece(mid + w / 2, len, 0, WALL_H);
       piece(mid - w / 2, mid + w / 2, 0, d.y0);
@@ -288,13 +359,13 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
     if (f.tier === 'semi') {
       // one panel per piece around the holes: the pieces end exactly at a hatch / stairwell edge
       // (void cells of a single grid stop up to half a cell short and leave a crack to the floor below)
-      for (const r of subtractRects(f.rect, f.holes ?? [])) {
+      for (const r of subtractRects(f.rect, [...(f.holes ?? []), ...(bands.get(f.y) ?? [])])) {
         destruction.add({ kind: 'floor_semi', min: [r.x0, y0, r.z0], max: [r.x1, y1, r.z1], nAx: 1, label: f.label ?? f.id, exterior: f.kind === 'roof' });
       }
       continue;
     }
     const color = f.kind === 'roof' ? PAL.roof : f.kind === 'wood' || f.kind === 'deck' ? PAL.woodFloor : f.y < -1 ? PAL.concreteDark : PAL.concrete;
-    for (const r of subtractRects(f.rect, f.holes ?? [])) addStatic([r.x0, y0, r.z0], [r.x1, y1, r.z1], color, f.kind === 'wood' || f.kind === 'deck' ? 'wood' : 'concrete', f.kind === 'roof' || f.kind === 'deck', PAL.concreteDark, 1);
+    for (const r of subtractRects(f.rect, [...(f.holes ?? []), ...(bands.get(f.y) ?? [])])) addStatic([r.x0, y0, r.z0], [r.x1, y1, r.z1], color, f.kind === 'wood' || f.kind === 'deck' ? 'wood' : 'concrete', f.kind === 'roof' || f.kind === 'deck', PAL.concreteDark, 1);
   }
   for (const l of LANDINGS) addStatic([l.rect.x0, l.y - 0.25, l.rect.z0], [l.rect.x1, l.y, l.rect.z1], PAL.woodFloor, 'wood', false, PAL.woodDark, 1);
   for (const h of HATCHES) {
@@ -316,16 +387,12 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
   }
 
   /* ------------------------------------------------------------- roof, porch, decks */
-  // a frieze along the top of every 2F outer wall, up to the eaves (closes the strip between the wall top and the roof)
-  for (const w of WALLS) {
-    if (!w.ext || w.floor !== 1) continue;
-    const [mn, mx] = box(w.run, w.c, 0.3, w.from - 0.15, w.to + 0.15, FLOOR_Y[1] + WALL_H, ROOF_Y);
-    addStatic(mn, mx, PAL.solidExt, 'concrete', true);
-  }
   // the pitched roof: one convex solid per part, the hull is both the mesh and the collider
   for (const r of ROOFS) {
     const pts = roofPoints(r);
     roof.geom(new ConvexGeometry(pts.map((p) => new THREE.Vector3(...p))), new THREE.Matrix4(), PAL.roof);
+    // (the eaves' slab: what lies on the 2F ceiling under the hull is hidden)
+    roof.occlude([pts[0][0] + 0.05, pts[0][1], pts[0][2] + 0.05], [pts[2][0] - 0.05, pts[0][1] + 0.028, pts[2][2] - 0.05]);
     physics.addConvexHull(new Float32Array(pts.flat()), { kind: 'static', mat: 'concrete', exterior: true });
   }
   // chimney through the north-west wing's slope, up past its ridge
@@ -340,22 +407,32 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
     trim.box([P(x0), 0.85, porchZ - 0.07], [P(x1), 0.95, porchZ + 0.07], PAL.solidExt);
     clip([P(x0), 0, porchZ - 0.07], [P(x1), 0.95, porchZ + 0.07]);
   }
-  addStatic([P(-1.6), -0.3, P(-7.0)], [P(4.3), 0.0, porchZ + 0.1], PAL.woodFloor, 'wood', true);
   // back porch: posts under the kids' room overhang and along the south porch roof, steps down to the yard
   // (14 cm posts, set back 2 cm from the overhang's edge)
   for (const x of [-7.1, -4.3, -1.95]) addStatic([P(x) - 0.07, 0, P(6.6) - 0.16], [P(x) + 0.07, 3.2, P(6.6) - 0.02], PAL.solidExt, 'wood', true);
   for (const x of [0.3, 2.3, 4.35]) addStatic([P(x) - 0.07, 0, P(6.6) - 0.16], [P(x) + 0.07, 3.25, P(6.6) - 0.02], PAL.solidExt, 'wood', true);
   for (const r of DECK_STEPS) addStatic([r.x0, -0.7, r.z0], [r.x1, -0.18, r.z1], PAL.woodFloor, 'wood', true, PAL.woodDark, 1);
   // the porch roofs' fascia (a lip at the edge, low enough to step over, a hand-hold for rappel)
-  for (const f of FLOORS.filter((q) => q.id === 'roof_porch_s')) trim.box([f.rect.x0, f.y - 0.3, f.rect.z1 - 0.05], [f.rect.x1, f.y + 0.06, f.rect.z1], PAL.solidExt);
+  for (const f of FLOORS.filter((q) => q.id === 'roof_porch_s')) trim.box([f.rect.x0 - 0.01, f.y - 0.3, f.rect.z1 - 0.04], [f.rect.x1 + 0.01, f.y + 0.06, f.rect.z1 + 0.01], PAL.solidExt);
   // NW basement stairs: guard rails around the stairwell at yard level (its walls are the cut in the terrain);
   // open at the top of the flight (north) and against the House (storage W wall)
   {
     const f = STAIRS.find((s) => s.id === 'stairs_storage_ext')!.rect;
     const p = NW_STAIRWELL_PIT;
+    // one post per spot (corners are shared), corner posts as tall as the rail, the rail running between them
+    const posts = new Set<string>();
+    const post = (x: number, z: number, h: number) => {
+      const k = `${x.toFixed(3)},${z.toFixed(3)}`;
+      if (posts.has(k)) return;
+      posts.add(k);
+      trim.box([x - 0.025, GROUND_Y, z - 0.025], [x + 0.025, GROUND_Y + h, z + 0.025], PAL.darkMetal);
+    };
     const guard = (x0: number, z0: number, x1: number, z1: number) => {
-      trim.box([x0 - 0.03, GROUND_Y + 0.88, z0 - 0.03], [x1 + 0.03, GROUND_Y + 0.95, z1 + 0.03], PAL.darkMetal);
-      for (const t of [0, 0.5, 1]) trim.box([x0 + (x1 - x0) * t - 0.025, GROUND_Y, z0 + (z1 - z0) * t - 0.025], [x0 + (x1 - x0) * t + 0.025, GROUND_Y + 0.9, z0 + (z1 - z0) * t + 0.025], PAL.darkMetal);
+      const ax = x0 !== x1 ? 0.025 : -0.03, az = z0 !== z1 ? 0.025 : -0.03;
+      trim.box([x0 + ax, GROUND_Y + 0.88, z0 + az], [x1 - ax, GROUND_Y + 0.95, z1 - az], PAL.darkMetal);
+      post(x0, z0, 0.95);
+      post(x1, z1, 0.95);
+      post((x0 + x1) / 2, (z0 + z1) / 2, 0.9);
       clip([x0 - 0.05, GROUND_Y, z0 - 0.05], [x1 + 0.05, GROUND_Y + 1.0, z1 + 0.05]);
     };
     guard(f.x0, f.z0, f.x0, p.z1); // west, flight + landing
@@ -405,13 +482,19 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
     }
   }
   // banisters: turned balusters stop bodies but let sight & bullets through (spec: lobby stair rail = semi-transparent)
+  // (one baluster per spot where two rails meet; the Z-running hand rails sit 4 mm lower, so the two at a corner don't
+  // share their top and bottom)
+  const balusters: [number, number, number][] = [];
   const rail = (x0: number, z0: number, x1: number, z1: number, y: number, h = 0.95) => {
-    trim.box([x0, y + h - 0.07, z0], [x1, y + h, z1], PAL.woodDark);
+    const dy = x1 - x0 < z1 - z0 ? -0.004 : 0;
+    trim.box([x0, y + h - 0.07 + dy, z0], [x1, y + h + dy, z1], PAL.woodDark);
     const L = Math.hypot(x1 - x0, z1 - z0);
     const n = Math.max(2, Math.round(L / 0.16));
     for (let k = 0; k <= n; k++) {
       const px = x0 + ((x1 - x0) * k) / n;
       const pz = z0 + ((z1 - z0) * k) / n;
+      if (balusters.some(([bx, by, bz]) => Math.abs(bx - px) < 0.05 && Math.abs(bz - pz) < 0.05 && by === y)) continue;
+      balusters.push([px, y, pz]);
       trim.box([px - 0.022, y, pz - 0.022], [px + 0.022, y + h - 0.05, pz + 0.022], PAL.woodDark);
     }
     clip([x0 - 0.03, y, z0 - 0.03], [x1 + 0.03, y + h, z1 + 0.03]);
@@ -442,12 +525,23 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
     // rot90: the model is authored with its long axis along local Z; lay it along world X
     // every visible box is also its collider: bullets, sight and bodies stop exactly where the model is
     const parts: [number[], number[]][] = [];
+    const drawn: [number[], number[], THREE.Color][] = [];
     const B = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, col = c) => {
       const mn = p.rot90 ? [p.x + Math.min(z0, z1), fy + y0, p.z + Math.min(-x0, -x1)] : [p.x + x0, fy + y0, p.z + z0];
       const mx = p.rot90 ? [p.x + Math.max(z0, z1), fy + y1, p.z + Math.max(-x0, -x1)] : [p.x + x1, fy + y1, p.z + z1];
-      propBatch.box(mn, mx, col);
+      drawn.push([[...mn], [...mx], col]);
       parts.push([mn, mx]);
     };
+    model();
+    for (const [mn, mx, col] of apart(drawn)) propBatch.box(mn, mx, col);
+    if (p.style === 'shower' || p.style === 'cylinder') return; // their own colliders
+    if (sy <= 0.08) return; // rugs and mats: walked over, shot through
+    for (const [mn, mx] of parts) {
+      // decals (head lights, stencil bands, handles) are part of the box they sit on
+      if (Math.min(mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]) < 0.025) continue;
+      physics.addBox((mn[0] + mx[0]) / 2, (mn[1] + mx[1]) / 2, (mn[2] + mx[2]) / 2, (mx[0] - mn[0]) / 2, (mx[1] - mn[1]) / 2, (mx[2] - mn[2]) / 2, { kind: 'static', mat: p.mat });
+    }
+    function model() {
     const hx = (p.rot90 ? sz : sx) / 2, hz = (p.rot90 ? sx : sz) / 2;
     switch (p.style) {
       case 'sofa': {
@@ -544,12 +638,27 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
         if (p.style === 'appliance') B(-hx + 0.05, sy * 0.55, -hz - 0.005, hx - 0.05, sy * 0.58, -hz, dark);
         if (p.style === 'box') B(-hx - 0.005, sy * 0.45, -hz - 0.005, hx + 0.005, sy * 0.55, hz + 0.005, new THREE.Color('#c8b28a'));
     }
-    if (sy <= 0.08) return; // rugs and mats: walked over, shot through
-    for (const [mn, mx] of parts) {
-      // decals (head lights, stencil bands, handles) are part of the box they sit on
-      if (Math.min(mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]) < 0.025) continue;
-      physics.addBox((mn[0] + mx[0]) / 2, (mn[1] + mx[1]) / 2, (mn[2] + mx[2]) / 2, (mx[0] - mn[0]) / 2, (mx[1] - mn[1]) / 2, (mx[2] - mn[2]) / 2, { kind: 'static', mat: p.mat });
     }
+  }
+  /**
+   * Boxes of one model that overlap and share a face plane on the same side (a shelf board through an upright, a band
+   * round a crate) flicker there: the smaller one is pulled 2 mm in on that side. Colliders keep the authored sizes.
+   */
+  function apart(bs: [number[], number[], THREE.Color][]) {
+    const vol = (b: [number[], number[], unknown]) => (b[1][0] - b[0][0]) * (b[1][1] - b[0][1]) * (b[1][2] - b[0][2]);
+    for (let pass = 0; pass < 3; pass++) {
+      for (let i = 0; i < bs.length; i++) {
+        for (let j = i + 1; j < bs.length; j++) {
+          const [a, b] = vol(bs[i]) < vol(bs[j]) ? [bs[j], bs[i]] : [bs[i], bs[j]];
+          if (![0, 1, 2].every((k) => Math.min(a[1][k], b[1][k]) - Math.max(a[0][k], b[0][k]) > 1e-4)) continue;
+          for (let k = 0; k < 3; k++) {
+            if (Math.abs(a[0][k] - b[0][k]) < 1e-4) b[0][k] += 0.002;
+            if (Math.abs(a[1][k] - b[1][k]) < 1e-4) b[1][k] -= 0.002;
+          }
+        }
+      }
+    }
+    return bs;
   }
 
   /* ------------------------------------------------------------- CCTV cameras */
@@ -592,6 +701,7 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
   const trimMesh = new THREE.Mesh(trim.build(), vcMaterial());
   trimMesh.castShadow = true;
   trimMesh.receiveShadow = true;
+  trimMesh.name = 'house_trim';
   const roofMesh = new THREE.Mesh(roof.build(), vcMaterial());
   roofMesh.castShadow = true;
   roofMesh.receiveShadow = true;

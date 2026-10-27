@@ -58,6 +58,10 @@ export interface OpeningDef {
   at: number;
   w: number;
   kind: OpeningKind;
+  /** overrides of the kind's sill height / height above the wall's floor, and whether it can be barricaded */
+  y0?: number;
+  h?: number;
+  barricade?: boolean;
 }
 export interface SpanDef { from: number; to: number; tier: SurfaceTier }
 export interface WallDef {
@@ -78,9 +82,14 @@ export interface WallDef {
   h?: number;
 }
 /** non-axis-aligned exterior walls (bay window, NE chamfer) — always solid */
-export interface DiagWallDef { floor: FloorId; a: [number, number]; b: [number, number]; window?: { at: number; w: number } }
+export interface DiagWallDef { floor: FloorId; a: [number, number]; b: [number, number]; window?: { at: number; w: number; y0?: number; h?: number; barricade?: boolean } }
 
 export interface OpeningDims { y0: number; h: number; barricade: boolean; /** barricade starts this high (door bottom gap for drones / prone) */ gap: number }
+/** an opening's dimensions: its kind's, with the opening's own overrides */
+export function openingDims(o: { kind: OpeningKind; y0?: number; h?: number; barricade?: boolean }): OpeningDims {
+  const d = OPENING_DIMS[o.kind];
+  return { ...d, y0: o.y0 ?? d.y0, h: o.h ?? d.h, barricade: o.barricade ?? d.barricade };
+}
 export const OPENING_DIMS: Record<OpeningKind, OpeningDims> = {
   door: { y0: 0, h: 2.3, barricade: true, gap: 0.19 },
   exterior_door: { y0: 0, h: 2.35, barricade: true, gap: 0.19 },
@@ -106,6 +115,13 @@ const vent = (at: number): OpeningDef => ({ at: P(at), w: 0.45, kind: 'vent' });
 const shutter = (at: number, w: number): OpeningDef => ({ at: P(at), w: P(w), kind: 'shutter' });
 const openWin = (at: number, w: number): OpeningDef => ({ at: P(at), w: P(w), kind: 'open_window' });
 const S = (from: number, to: number, tier: SurfaceTier): SpanDef => ({ from: P(from), to: P(to), tier });
+/**
+ * The back stairwell's bay windows (three faces): at the 1F → 2F half landing, not at 1F — sill 2.0 m over 1F, so nobody on the
+ * ground outside is seen from inside or sees in — and a row of upper windows above them (2F), unboardable, through which 2F is
+ * seen from rappel or watchtower height.
+ */
+const BAY_LOW = { y0: 2.0, h: 1.15 };
+const BAY_HIGH = { y0: 0.35, h: 0.9, barricade: false };
 
 export const WALLS: WallDef[] = [
   /* ============================== BASEMENT (−3.5) ============================== */
@@ -152,7 +168,7 @@ export const WALLS: WallDef[] = [
   E(0, 'z', -7.95, -2.45, 0.55, [french(-1.4), french(-0.45)]), // living W french windows
   E(0, 'x', 0.55, -8.65, -7.95),
   E(0, 'z', -8.65, 0.55, 1.1),
-  E(0, 'z', -9.45, 1.75, 2.65), // back stairwell bay (no 1F window: the 1F → 2F half landing runs across it)
+  E(0, 'z', -9.45, 1.75, 2.65, [{ ...win(2.2, 0.8), ...BAY_LOW }]), // back stairwell bay: the half-landing window
   E(0, 'z', -8.65, 3.25, 3.75),
   E(0, 'x', 3.75, -8.65, -5.45),
   E(0, 'z', -5.45, 3.75, 4.85),
@@ -191,7 +207,7 @@ export const WALLS: WallDef[] = [
   E(1, 'z', -7.25, 3.75, 6.6, [win(5.1, 1.2)]), // kids W
   E(1, 'x', 3.75, -8.65, -7.25),
   E(1, 'z', -8.65, 3.25, 3.75),
-  E(1, 'z', -9.45, 1.75, 2.65), // (no 2F bay windows in the model)
+  E(1, 'z', -9.45, 1.75, 2.65, [{ ...win(2.2, 0.8), ...BAY_HIGH }]), // back stairwell bay: upper window
   E(1, 'z', -8.65, 0.55, 1.1),
   E(1, 'x', 0.55, -8.65, -7.95),
   E(1, 'z', -7.95, -2.45, 0.55),
@@ -219,10 +235,10 @@ export const WALLS: WallDef[] = [
 /** bay window + NE chamfer (the model's diagonal walls) */
 export const DIAG_WALLS: DiagWallDef[] = (
   [
-    ...([-1, 0, 1] as FloorId[]).flatMap((floor) => [
-      { floor, a: [-8.65, 1.1], b: [-9.45, 1.75] } as DiagWallDef,
-      { floor, a: [-9.45, 2.65], b: [-8.65, 3.25] } as DiagWallDef,
-    ]),
+    ...([-1, 0, 1] as FloorId[]).flatMap((floor) => {
+      const window = floor === 0 ? { at: 0.5, w: 0.8, ...BAY_LOW } : floor === 1 ? { at: 0.5, w: 0.8, ...BAY_HIGH } : undefined;
+      return [{ floor, a: [-8.65, 1.1], b: [-9.45, 1.75], window } as DiagWallDef, { floor, a: [-9.45, 2.65], b: [-8.65, 3.25], window } as DiagWallDef];
+    }),
     { floor: 0, a: [7.25, -5.15], b: [8.3, -4.1], window: { at: 0.5, w: 0.95 } },
     { floor: 1, a: [7.25, -5.15], b: [8.3, -4.1], window: { at: 0.5, w: 0.95 } },
   ] as DiagWallDef[]
