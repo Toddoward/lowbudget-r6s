@@ -119,7 +119,8 @@ export const PROPS: PropDef[] = [
   prop('King Bed', 1, 5.6, 3.3, [2.0, 0.62, 2.2], 'fabric', '#c9c2b2', 'bed'),
   prop('Nightstand', 1, 4.25, 4.4, [0.5, 0.55, 0.45], 'wood', '#4f3a26', 'box'),
   prop('Nightstand', 1, 6.95, 4.4, [0.5, 0.55, 0.45], 'wood', '#4f3a26', 'box'),
-  prop('Cupboard', 1, 3.25, 4.55, [1.4, 1.15, 0.55], 'wood', '#5a4330', 'counter'),
+  // (against the east wall: the south window opens onto the back porch roof)
+  prop('Cupboard', 1, 9.37, 2.6, [0.55, 1.15, 1.4], 'wood', '#5a4330', 'counter'),
   prop('Armchair', 1, 9.0, 0.0, [0.9, 0.9, 0.9], 'fabric', '#7a5a45', 'chair'),
   prop('Ammo Crate', 1, 9.2, 4.35, [0.75, 0.45, 0.45], 'wood', '#4b5a37', 'ammo'),
   // Walk-in Closet

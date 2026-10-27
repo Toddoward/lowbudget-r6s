@@ -343,8 +343,13 @@ export const FLOORS: FloorDef[] = [
   { id: 'roof_porch', y: 3.5, rect: R(-1.7, -7.0, 4.35, -5.5), tier: 'solid', kind: 'roof', label: 'Porch Roof' },
   // decks
   { id: 'porch_deck', y: 0, rect: R(-1.7, -7.0, 4.35, -4.9), tier: 'solid', kind: 'deck', label: 'Front Porch', t: 0.25 },
-  { id: 'back_deck', y: 0, rect: R(-7.25, 4.85, -1.8, 6.6), tier: 'solid', kind: 'deck', label: 'Back Porch', t: 0.25 },
-  { id: 'back_deck2', y: 0, rect: R(-1.8, 4.85, 2.05, 6.45), tier: 'solid', kind: 'deck', label: 'Back Yard Deck', t: 0.25 },
+  // the back deck along the whole south side (blueprint 1F): covered by the Kids' Room in the west, by the south porch
+  // roof east of it, steps down to the yard on the west and the south
+  { id: 'back_deck', y: 0, rect: R(-7.25, 4.85, -1.8, 6.7), tier: 'solid', kind: 'deck', label: 'Back Porch', t: 0.25 },
+  { id: 'back_deck_w', y: 0, rect: R(-7.25, 3.75, -5.45, 4.85), tier: 'solid', kind: 'deck', label: 'Back Porch', t: 0.25 },
+  { id: 'back_deck2', y: 0, rect: R(-1.8, 4.85, 5.15, 6.7), tier: 'solid', kind: 'deck', label: 'Back Porch', t: 0.25 },
+  // the south porch roof over it (blueprint 2F / roof): walkable, from the Kids' Room east window to the Master Bedroom's
+  { id: 'roof_porch_s', y: 3.5, rect: R(-1.8, 4.85, 5.15, 6.85), tier: 'solid', kind: 'roof', label: 'Back Porch Roof', t: 0.25 },
   // main roof (flat, low parapet)
   { id: 'roof_main_n', y: ROOF_Y, rect: R(-7.25, -7.4, -1.7, -5.5), tier: 'solid', kind: 'roof', label: 'Roof' },
   { id: 'roof_main_c', y: ROOF_Y, rect: R(-7.95, -5.5, 8.3, -2.45), tier: 'solid', kind: 'roof', label: 'Roof' },
@@ -417,6 +422,8 @@ export const MAP_BOUNDS = { x0: P(-32.4), x1: P(35.87), z0: P(-39.04), z1: P(29.
 /** house footprint (outer faces) — for exterior naming / suburb cut-outs */
 export const HOUSE_RECT = R(-9.6, -7.55, 9.85, 6.75);
 /** sunken garage driveway at basement level: the carport under the office (shutter B) and the apron at the foot of the datamap's Garage Entrance Ramp (shutter A) */
+/** the back deck's steps down to the yard (top at half the deck's height) */
+export const DECK_STEPS = [R(-7.6, 3.9, -7.25, 6.7), R(-7.6, 6.7, 5.15, 6.95)];
 export const DRIVEWAY = R(7.05, -4.95, 10.93, 3.89);
 /** the datamap's Garage Entrance Ramp (zone 9): climbs east from the apron to the road */
 export const GARAGE_RAMP = { x0: P(10.93), x1: P(14.13), z0: P(-4.11), z1: P(3.89), y0: -3.49, y1: -1.51 };
@@ -430,9 +437,10 @@ export function exteriorZoneName(x: number, y: number, z: number): string {
   const inHouse = x > HOUSE_RECT.x0 && x < HOUSE_RECT.x1 && z > HOUSE_RECT.z0 && z < HOUSE_RECT.z1;
   if (y > 6.6 && inHouse) return 'Roof';
   if (y > 2.9 && y < 4.6 && x > P(-1.8) && x < P(4.45) && z > P(-7.1) && z < P(-5.4)) return 'Porch Roof';
+  if (y > 2.9 && y < 4.6 && x > P(-1.8) && x < P(5.2) && z > P(4.8) && z < P(6.9)) return 'Back Porch Roof';
   if (y > -0.6 && y < 1.5) {
     if (x > P(-1.8) && x < P(4.45) && z > P(-7.1) && z < P(-4.8)) return 'Front Porch';
-    if (x > P(-7.4) && x < P(2.1) && z > P(4.8) && z < P(6.8)) return 'Back Porch';
+    if (x > P(-7.6) && x < P(5.2) && z > P(3.7) && z < P(7.0)) return 'Back Porch';
   }
   if (x > DRIVEWAY.x0 && x < DRIVEWAY.x1 && z > DRIVEWAY.z0 && z < DRIVEWAY.z1 && y < -2.5) return 'Garage Driveway';
   // everything else: the datamap's zone label at that spot

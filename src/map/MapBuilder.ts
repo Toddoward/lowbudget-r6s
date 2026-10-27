@@ -7,6 +7,7 @@ import { PAL, vcMaterial } from '../render/palette.ts';
 import {
   CCTVS, DIAG_WALLS, FLOORS, HOUSE_RECT, NW_STAIRWELL_PIT, FLOOR_LABEL, FLOOR_Y, GROUND_Y, HATCHES, LANDINGS, OPENING_DIMS, PANEL_MAX_W, ROOF_Y, ROOMS, SLAB_T, STAIRS, WALLS, WALL_H,
   exteriorZoneName, type FloorId, type OpeningKind, type RoomDef, type StairDef, type SurfaceTier, type WallDef,
+  DECK_STEPS,
 } from './houseLayout.ts';
 import { P } from './plan.ts';
 import { PROPS, type PropDef } from './houseProps.ts';
@@ -335,8 +336,13 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
     clip([P(x0), 0, porchZ - 0.07], [P(x1), 0.95, porchZ + 0.07]);
   }
   addStatic([P(-1.6), -0.3, P(-7.0)], [P(4.3), 0.0, porchZ + 0.1], PAL.woodFloor, 'wood', true);
-  // back porch posts under the kids' room overhang
-  for (const x of [-7.1, -4.3, -1.95]) addStatic([P(x) - 0.1, 0, P(6.45) - 0.1], [P(x) + 0.1, 3.2, P(6.45) + 0.1], PAL.solidExt, 'wood', true);
+  // back porch: posts under the kids' room overhang and along the south porch roof, steps down to the yard
+  // (14 cm posts, set back 2 cm from the overhang's edge)
+  for (const x of [-7.1, -4.3, -1.95]) addStatic([P(x) - 0.07, 0, P(6.6) - 0.16], [P(x) + 0.07, 3.2, P(6.6) - 0.02], PAL.solidExt, 'wood', true);
+  for (const x of [0.3, 2.3, 4.35]) addStatic([P(x) - 0.07, 0, P(6.6) - 0.16], [P(x) + 0.07, 3.25, P(6.6) - 0.02], PAL.solidExt, 'wood', true);
+  for (const r of DECK_STEPS) addStatic([r.x0, -0.7, r.z0], [r.x1, -0.18, r.z1], PAL.woodFloor, 'wood', true, PAL.woodDark, 1);
+  // the porch roofs' fascia (a lip at the edge, low enough to step over, a hand-hold for rappel)
+  for (const f of FLOORS.filter((q) => q.id === 'roof_porch_s')) trim.box([f.rect.x0, f.y - 0.3, f.rect.z1 - 0.05], [f.rect.x1, f.y + 0.06, f.rect.z1], PAL.solidExt);
   // NW basement stairs: guard rails around the stairwell at yard level (its walls are the cut in the terrain);
   // open at the top of the flight (north) and against the House (storage W wall)
   {
