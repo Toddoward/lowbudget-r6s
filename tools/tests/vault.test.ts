@@ -40,6 +40,7 @@ test('every 1F outer window offers a vault from each side with floor to stand on
       if (!s.probeVault()) bad.push(`${op.label} #${op.id} from the ${side > 0 ? '+' : '−'}normal side`);
     }
   }
-  assert.ok(checked >= 6, `only ${checked} window sides checked`);
+  // (the back-entrance bay window became the back stairwell's: 5 standable sides on the 1F outer windows that remain)
+  assert.ok(checked >= 5, `only ${checked} window sides checked`);
   assert.deepEqual(bad, []);
 });

@@ -152,7 +152,7 @@ export const WALLS: WallDef[] = [
   E(0, 'z', -7.95, -2.45, 0.55, [french(-1.4), french(-0.45)]), // living W french windows
   E(0, 'x', 0.55, -8.65, -7.95),
   E(0, 'z', -8.65, 0.55, 1.1),
-  E(0, 'z', -9.45, 1.75, 2.65, [win(2.2, 0.8)]), // back entrance bay window W
+  E(0, 'z', -9.45, 1.75, 2.65), // back stairwell bay (no 1F window: the 1F → 2F half landing runs across it)
   E(0, 'z', -8.65, 3.25, 3.75),
   E(0, 'x', 3.75, -8.65, -5.45),
   E(0, 'z', -5.45, 3.75, 4.85),
@@ -220,7 +220,7 @@ export const WALLS: WallDef[] = [
 export const DIAG_WALLS: DiagWallDef[] = (
   [
     ...([-1, 0, 1] as FloorId[]).flatMap((floor) => [
-      { floor, a: [-8.65, 1.1], b: [-9.45, 1.75], window: floor === 0 ? { at: 0.5, w: 0.8 } : undefined } as DiagWallDef,
+      { floor, a: [-8.65, 1.1], b: [-9.45, 1.75] } as DiagWallDef,
       { floor, a: [-9.45, 2.65], b: [-8.65, 3.25] } as DiagWallDef,
     ]),
     { floor: 0, a: [7.25, -5.15], b: [8.3, -4.1], window: { at: 0.5, w: 0.95 } },
@@ -262,15 +262,26 @@ export const STAIRS: StairDef[] = [
   { id: 'stairs_main_b', label: 'Lobby Stairs', rect: R(1.45, -3.95, 2.75, -1.2), axis: 'z', yMin: 1.75, yMax: 3.5 },
   // basement stairs: 1F lobby landing → B (westwards, under the 2F upper-hallway hatch)
   { id: 'stairs_basement', label: 'Basement Stairs', rect: R(-2.3, -0.85, 2.3, 0.5), axis: 'x', yMin: -3.5, yMax: 0 },
-  // side stairs: back entrance → B side stairs
-  { id: 'stairs_side', label: 'Side Stairs', rect: R(-8.4, 0.85, -3.75, 2.05), axis: 'x', yMin: -3.5, yMax: 0 },
+  // back stairs (the source model's back-entrance stairwell): a switchback stacked B → 1F → 2F in the west bay — on every
+  // floor the lower flight climbs west along the south half to a half landing in the bay, the upper flight climbs east
+  // along the north half to the next floor; both start from the east end (x −5.5), a wall runs between them
+  { id: 'stairs_back_b1', label: 'Back Stairs', rect: R(-7.95, 2.3, -5.5, 3.6), axis: 'x', yMin: -1.75, yMax: -3.5 },
+  { id: 'stairs_back_b2', label: 'Back Stairs', rect: R(-7.95, 0.75, -5.5, 2.2), axis: 'x', yMin: -1.75, yMax: 0 },
+  { id: 'stairs_back_11', label: 'Back Stairs', rect: R(-7.95, 2.3, -5.5, 3.6), axis: 'x', yMin: 1.75, yMax: 0 },
+  { id: 'stairs_back_12', label: 'Back Stairs', rect: R(-7.95, 0.75, -5.5, 2.2), axis: 'x', yMin: 1.75, yMax: 3.5 },
   // NW basement stairs (datamap zone 11): a flight down from the front yard, south to the pit at the storage door
   // (the datamap's 2.1 m flight is lengthened to 4.1 m: 40° instead of 58°, walkable and in step with the House's other stairs)
   { id: 'stairs_storage_ext', label: 'NW Basement Stairs', rect: R(-10.8, -12.11, -7.87, -8.0), axis: 'z', yMin: GROUND_Y, yMax: -3.5, exterior: true },
 ];
+/** the back stairs' half landing: across the west end of the flights and into the bay (two rects inside its octagon) */
+const BACK_LANDING = [R(-8.65, 0.75, -7.95, 3.6), R(-9.05, 1.45, -8.65, 2.95), R(-9.45, 1.75, -9.05, 2.65)];
 export const LANDINGS: { rect: Rect; y: number; label: string }[] = [
   { rect: R(1.45, -4.85, 4.15, -3.95), y: 1.75, label: 'Lobby Stairs Landing' },
+  ...BACK_LANDING.map((rect) => ({ rect, y: -1.75, label: 'Back Stairs Landing' })),
+  ...BACK_LANDING.map((rect) => ({ rect, y: 1.75, label: 'Back Stairs Landing' })),
 ];
+/** the back stairwell: open from the basement to the 2F ceiling (landings at the half levels) */
+export const BACK_STAIRWELL = R(-9.45, 0.55, -5.5, 3.75);
 /** the landing at the bottom of the NW basement stairs, up to the storage door (x −7.25) */
 export const NW_STAIRWELL_PIT = R(-10.8, -8.0, -7.25, -5.7);
 export const STAIR_HOLES = {
@@ -279,7 +290,6 @@ export const STAIR_HOLES = {
   main: R(1.4, -4.9, 2.8, -1.2),
   mainA: R(2.8, -4.9, 4.2, -3.0),
   basement: R(-1.75, -0.95, 2.3, 0.6),
-  side: R(-8.4, 0.85, -3.75, 2.05),
 };
 
 export interface HatchDef { id: string; label: string; rect: Rect; y: number; below: string; above: string }
@@ -316,15 +326,12 @@ export const FLOORS: FloorDef[] = [
   { id: 'wood_1f_office', y: 0, rect: R(4.3, -5.15, 8.3, -0.6), tier: 'semi', kind: 'wood', label: '1F Office Floor' },
   { id: 'wood_1f_dining', y: 0, rect: R(4.3, -0.6, 9.7, 4.85), tier: 'semi', kind: 'wood', label: '1F Dining Room Floor' },
   { id: 'wood_1f_kitchen', y: 0, rect: R(-3.15, 0.6, 4.3, 4.85), tier: 'semi', kind: 'wood', holes: [HATCHES[1].rect], label: '1F Kitchen Floor' },
-  { id: 'wood_1f_back', y: 0, rect: R(-8.65, 0.6, -3.15, 3.75), tier: 'semi', kind: 'wood', holes: [STAIR_HOLES.side], label: '1F Back Entrance Floor' },
+  { id: 'wood_1f_back', y: 0, rect: R(-5.5, 0.6, -3.15, 3.75), tier: 'semi', kind: 'wood', label: '1F Back Entrance Floor' },
   { id: 'wood_1f_back2', y: 0, rect: R(-5.45, 3.75, -3.15, 4.85), tier: 'semi', kind: 'wood', label: '1F Back Entrance Floor (S)' },
-  { id: 'bay_1f', y: 0, rect: R(-9.45, 1.1, -8.65, 3.25), tier: 'solid', kind: 'wood' },
   // 2F floor — wooden, mostly penetrable
   { id: 'wood_2f_bath', y: 3.5, rect: R(-7.25, -7.4, -1.7, -5.5), tier: 'semi', kind: 'wood', label: '2F Bathroom Floor' },
   { id: 'wood_2f_west', y: 3.5, rect: R(-7.25, -5.5, -3.15, -2.45), tier: 'semi', kind: 'wood', label: '2F West Hall Floor (N)' },
-  { id: 'wood_2f_west2', y: 3.5, rect: R(-7.95, -2.45, -3.15, 2.2), tier: 'semi', kind: 'wood', label: '2F West Hall Floor' },
-  { id: 'wood_2f_west3', y: 3.5, rect: R(-8.65, 2.2, -5.55, 3.75), tier: 'semi', kind: 'wood', label: '2F West Hall Floor (S)' },
-  { id: 'bay_2f', y: 3.5, rect: R(-9.45, 1.1, -8.65, 3.25), tier: 'solid', kind: 'wood' },
+  { id: 'wood_2f_west2', y: 3.5, rect: R(-7.95, -2.45, -3.15, 2.2), tier: 'semi', kind: 'wood', holes: [R(-7.95, 0.55, -5.5, 2.2)], label: '2F West Hall Floor' },
   { id: 'wood_2f_hall', y: 3.5, rect: R(-3.15, -5.5, 4.35, 0.55), tier: 'semi', kind: 'wood', holes: [STAIR_HOLES.main, STAIR_HOLES.mainA, HATCHES[2].rect], label: '2F Upper Hallway Floor' },
   { id: 'wood_2f_hall_s', y: 3.5, rect: R(-3.15, 0.55, 1.25, 2.2), tier: 'semi', kind: 'wood', label: '2F Upper Hallway Floor (S)' },
   { id: 'wood_2f_workshop', y: 3.5, rect: R(4.35, -5.15, 8.3, -0.6), tier: 'semi', kind: 'wood', label: '2F Workshop Floor' },
@@ -376,10 +383,11 @@ export const ROOMS: RoomDef[] = ([
   { id: 'office', name: 'Office', floor: 0, rects: [R(4.3, -5.15, 8.3, -0.6)], spot: [6.2, -4.15] },
   { id: 'dining', name: 'Dining Room', floor: 0, rects: [R(4.3, -0.6, 9.7, 4.85)], spot: [8.5, 3.35] },
   { id: 'kitchen', name: 'Kitchen', floor: 0, rects: [R(-3.15, 0.6, 4.3, 4.85)], spot: [0.6, 3.7] },
-  { id: 'backentry', name: 'Back Entrance', floor: 0, rects: [R(-8.65, 0.6, -3.15, 3.75), R(-5.45, 3.75, -3.15, 4.85), R(-9.45, 1.1, -8.65, 3.25)], spot: [-4.75, 3.0] },
+  { id: 'backentry', name: 'Back Entrance', floor: 0, rects: [R(-5.5, 0.6, -3.15, 3.75), R(-5.45, 3.75, -3.15, 4.85)], spot: [-4.3, 3.0] },
+  { id: 'backstairs', name: 'Back Stairs', floor: 0, transit: true, rects: [R(-8.65, 0.6, -5.5, 3.75), R(-9.45, 1.1, -8.65, 3.25)], spot: [-5.62, 2.95] },
   // 2F
   { id: 'bathroom', name: 'Bathroom', floor: 1, rects: [R(-7.25, -7.4, -1.7, -5.5)], spot: [-5.6, -6.5] },
-  { id: 'westhall', name: 'West Hall', floor: 1, rects: [R(-7.25, -5.5, -3.15, -2.45), R(-7.95, -2.45, -3.15, 2.2), R(-8.65, 2.2, -5.55, 3.75), R(-9.45, 1.1, -8.65, 3.25)], spot: [-5.4, -1.0] },
+  { id: 'westhall', name: 'West Hall', floor: 1, rects: [R(-7.25, -5.5, -3.15, -2.45), R(-7.95, -2.45, -3.15, 0.55), R(-5.5, 0.55, -3.15, 2.2)], spot: [-5.4, -1.0] },
   { id: 'hallway2', name: 'Upper Hallway', floor: 1, rects: [R(-1.7, -5.5, 4.35, 0.55), R(-3.15, -2.5, -1.7, 0.55), R(-3.15, 0.55, 1.25, 2.2), R(-3.15, -5.5, -1.7, -2.5), R(4.35, -0.6, 5.85, 0.55)], spot: [-0.6, -3.2] },
   { id: 'workshop', name: 'Workshop', floor: 1, rects: [R(4.35, -5.15, 8.3, -0.6)], spot: [6.4, -3.45] },
   { id: 'master', name: 'Master Bedroom', floor: 1, rects: [R(1.25, 0.55, 9.7, 4.85), R(5.85, -0.6, 9.7, 0.55)], spot: [3.75, 3.0] },

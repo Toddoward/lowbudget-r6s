@@ -53,9 +53,9 @@ export const PROPS: PropDef[] = [
   prop('Folding Table', -1, 0.95, 1.2, [1.6, 0.9, 0.9], 'wood', '#8a7350', 'table'),
   prop('Laundry Shelf', -1, 1.6, 2.6, [0.5, 1.8, 0.8], 'wood', '#6d5a40', 'shelf'),
   prop('Laundry Basket', -1, -2.0, 0.85, [0.6, 0.45, 0.45], 'fabric', '#b9b2a4', 'box'),
-  // Side Stairs: ammo crate under the stairs
-  prop('Ammo Crate', -1, -7.8, 3.15, [0.75, 0.45, 0.45], 'wood', '#4b5a37', 'ammo'),
-  prop('Boxes', -1, -6.5, 3.35, [0.7, 0.7, 0.7], 'wood', '#9b7f57', 'box'),
+  // Back stairs (B): ammo crate and boxes by the laundry wall, clear of the flight's foot (x −5.5 … −4.5, south half)
+  prop('Ammo Crate', -1, -3.95, 1.0, [0.45, 0.45, 0.75], 'wood', '#4b5a37', 'ammo'),
+  prop('Boxes', -1, -5.0, 0.95, [0.7, 0.7, 0.7], 'wood', '#9b7f57', 'box'),
   // Back Hallway
   prop('Water Heater', -1, 1.4, 6.0, [0.55, 1.7, 0.55], 'metal', '#c9c6bd', 'cylinder'),
   prop('Boxes', -1, -4.8, 6.0, [0.9, 0.7, 0.7], 'wood', '#9b7f57', 'box'),
@@ -92,8 +92,9 @@ export const PROPS: PropDef[] = [
   prop('Stove', 0, 0.6, 4.55, [0.75, 0.92, 0.6], 'metal', '#2c2f33', 'appliance'),
   prop('Counter', 0, 1.9, 4.55, [1.8, 0.92, 0.6], 'concrete', '#d9d4c8', 'counter'),
   // Back Entrance
-  prop('Shoe Bench', 0, -7.6, 3.45, [1.2, 0.5, 0.4], 'wood', '#5a4330', 'bench'),
-  prop('Umbrella Stand', 0, -8.3, 0.9, [0.3, 0.7, 0.3], 'metal', '#2c2f33', 'cylinder'),
+  // (the west half is the back stairwell now: the bench stands against the kitchen wall, the stand by the back door)
+  prop('Shoe Bench', 0, -3.42, 2.2, [0.4, 0.5, 1.2], 'wood', '#5a4330', 'bench'),
+  prop('Umbrella Stand', 0, -5.2, 4.6, [0.3, 0.7, 0.3], 'metal', '#2c2f33', 'cylinder'),
   // Front porch
   prop('Porch Bench', 0, -1.4, -6.6, [0.5, 0.5, 1.4], 'wood', '#6b4f33', 'bench'),
   prop('Planter', 0, 3.8, -6.7, [0.6, 0.7, 0.6], 'concrete', '#7a6a58', 'box'),
@@ -105,7 +106,7 @@ export const PROPS: PropDef[] = [
   prop('Toilet', 1, -3.4, -7.05, [0.45, 0.75, 0.65], 'concrete', '#f2f0ea', 'appliance'),
   // West Hall
   prop('Dresser', 1, -7.0, -1.0, [0.5, 1.1, 1.5], 'wood', '#5a4330', 'counter'),
-  prop('Bench', 1, -6.6, 3.45, [1.4, 0.45, 0.45], 'wood', '#6b4f33', 'bench'),
+  prop('Bench', 1, -7.55, -1.0, [0.45, 0.45, 1.4], 'wood', '#6b4f33', 'bench'),
   prop('Plant', 1, -7.6, 0.2, [0.45, 1.2, 0.45], 'fabric', '#3f5a2e', 'cylinder'),
   // Upper Hallway
   prop('Hall Table', 1, -0.5, -5.1, [1.2, 0.8, 0.4], 'wood', '#4f3a26', 'table'),

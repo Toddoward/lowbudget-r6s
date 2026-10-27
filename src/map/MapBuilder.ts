@@ -416,9 +416,8 @@ export function buildHouse(physics: Physics, destruction: DestructionSystem, sce
   railZ(2.8, -3.95, -1.2, 0); // between the two flights (1F)
   clip([P(1.42), 0, P(-3.95)], [P(2.78), 1.6, P(-1.2)]); // nobody walks under the upper flight
   railZ(1.41, -4.85, -1.2, 0, 1.0); // lobby side
-  // side stairs well (1F)
-  railX(-8.4, -3.75, 2.06, 0);
-  railZ(-8.41, 0.85, 2.05, 0);
+  // back stairs: the wall between the climbing and the descending half of the switchback, B floor to a parapet on 2F
+  addStatic([P(-7.95), FLOOR_Y[-1], P(2.25) - 0.06], [P(-5.5), FLOOR_Y[1] + 1.0, P(2.25) + 0.06], PAL.solidWall, 'concrete', false, PAL.solidWall, 1);
 
   /* ------------------------------------------------------------- props */
   const propBatch = new BoxBatch();
