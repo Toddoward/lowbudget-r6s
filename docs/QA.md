@@ -64,6 +64,8 @@ Manual: look along the 2F west wall, soft walls next to hard walls and the hatch
 | # | Problem | Fix | Verified by | Status |
 |---|---|---|---|---|
 | 6.1 | Inverted rappel: W/S reversed | controls follow the view: inverted, W descends, S climbs, A/D mirror | `rules.test.ts` | ✅ |
+| 6.2 | Inverted rappel: the mouse was inverted on both axes | mouse look follows the view too (`viewLook`): right turns toward screen-right, up toward screen-up | `rules.test.ts` (the game's camera, projected before / after; fails on the old code) | ✅ |
+| 6.3 | Slopes and stairs slowed walking to ~55 %, crouch / prone could stall | grounded motion follows the surface (lift from the ground normal), pressed into it along the normal | `locomotion.test.ts` (15° / 33° slopes, 18 cm steps, every stance ≥ 90 % / 85 % of the flat; downhill stays grounded) | ✅ |
 
 ## 7. Rules: destruction, missions, round state
 
@@ -71,6 +73,7 @@ Manual: look along the 2F west wall, soft walls next to hard walls and the hatch
 |---|---|---|---|---|
 | 7.1 | Soft walls & hatches vanished under punches / bullets | the wooden stud frame stays after melee and bullets (bullets pass between studs, bodies don't); only explosives, sledge, shotgun and breach charges break it | `destruction.test.ts` | ✅ |
 | 7.2 | Terrorist Hunt had Secure Area and no defense mission | attack: Elimination, Bomb (plant the defuser, White Masks rush and cut it, progress is kept, two bombs or elimination wins), Hostage Rescue; defense: Hostage Protection (White Masks grab the hostage and run for an extraction) | `missions.test.ts` (rules + bots from all 10 rooms reach a planted defuser on the real map) | ✅ |
+| 7.4 | TH: every enemy dead did not end Hostage Rescue; the round ended when the player died even with a defuser running | the match decides, not the player: every White Mask down wins (Elimination, Bomb before a plant, Rescue); a running defuser holds the round until it completes or is cut (not enemies dying, not operators dying, not the timer); the camera watches the defuser | `missions.test.ts`; E2E state cycles: to do (`docs/HANDOFF.md` §4.3) | 🟡 |
 | 7.3 | Round state was silent | banner + SFX for defuser planted / cut / resumed, bomb defused, hostage picked up / taken / dropped / down, enemies left, round won / lost; HUD progress bar for the defuser | `missions.test.ts` (announcement keys); manual: listen | 🟡 |
 
 ## 8. Drone, ping, scan
@@ -92,7 +95,9 @@ Manual: look along the 2F west wall, soft walls next to hard walls and the hatch
 | 9.2 | No ADS with the shield | RMB swings the shield out to the left (turned 65°, still covers the left flank) and aims the pistol past its edge; one-handed hipfire is wider | `shield.test.ts` (collider front / aside / back against rays) | ✅ |
 | 9.3 | Extend / flash regardless of where the shield is | only with the shield in front; no shooting while extended | `shield.test.ts` | ✅ |
 | 9.4 | First person: no shield | shield in view (front: lower left · ADS: out of view to the left · extended: across the view with an open viewport slit · back: gone), left hand on the handle; the plate is built round a real slit (see-through in 1P and 3P) | manual: screenshots of the four poses | 🟡 |
-| 9.5 | Peers saw the shield only in front | pose synced (`sb` + ADS), rig and collider follow it | code | 🟡 |
+| 9.5 | Peers saw the shield only in front | pose synced (`sb` + ADS + `sr` sprint), rig and collider follow it | code | 🟡 |
+| 9.6 | The shield was drawn lower-left while its collider stopped rounds in front | one placement (`Soldier.shieldPlace`) for collider, 3P and 1P: in front the viewport slit is on the eye line (crosshair in it); sprinting it is carried on the left and covers only the left; 1P warped to the world fov | `shield.test.ts` (3P plate = collider; 1P screen IoU > 0.9; rounds front / sprint); browser: front ✅, sprint pose to re-check (`HANDOFF.md` §4.1) | 🟡 |
+| 9.7 | Third-person arms bent behind the back while the gun pointed forward | upper arm + forearm with two-bone IK onto the grip / handguard / shield handle; ADS, sprint low-ready, reload; crouch leans forward | `rig.test.ts` (hands within 3 cm of their holds, in front of the shoulders, gun along the aim, every stance / pitch) | ✅ |
 
 ## 10. Interactions, first person, corpses
 
