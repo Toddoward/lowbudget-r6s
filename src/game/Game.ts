@@ -863,7 +863,7 @@ export class Game {
       id: s.id, t: performance.now(), p: [r2(s.pos.x), r2(s.pos.y), r2(s.pos.z)], v: [r2(s.vel.x), r2(s.vel.y), r2(s.vel.z)],
       yaw: r3(s.yaw), pitch: r3(s.pitch), st: s.mode === 'rappel' ? (s.inverted ? 4 : 3) : s.stance, lean: r2(s.lean), w: s.slot, hp: Math.round(s.hp), alive: s.alive, ads: s.ads > 0.5,
       dr: this.drone && s === this.player && this.view === 'drone' ? [r2(this.drone.pos.x), r2(this.drone.pos.y), r2(this.drone.pos.z)] : undefined,
-      sx: s.shieldExtended || undefined, sb: s.shieldBack || undefined, mt: s.mounted ? true : undefined,
+      sx: s.shieldExtended || undefined, sb: s.shieldBack || undefined, sr: s.sprinting || undefined, mt: s.mounted ? true : undefined,
     });
     if (this.player) snaps.push(mk(this.player));
     for (const s of this.slots) snaps.push(mk(s.soldier));
@@ -986,7 +986,8 @@ export class Game {
         w.phase = 'action';
         this.phaseEnds = w.time + 360;
         this.endDronePhase();
-      } else if (w.phase === 'action' && w.time >= this.phaseEnds) {
+      } else if (w.phase === 'action' && w.time >= this.phaseEnds && !w.objectives.defuserHolds) {
+        // (a running defuser extends the round until it completes or is cut)
         // Hostage Protection: holding out is the job
         if (w.objectives.mission === 'protect') this.endTH(true, 'Hostage protected');
         else this.endTH(false, 'Time expired');
@@ -1064,7 +1065,7 @@ export class Game {
       }
       w.objectives.checkElimination(alive);
       const operatorsAlive = (p?.alive ? 1 : 0) + this.slots.filter((s) => s.soldier.alive).length;
-      if (operatorsAlive === 0) this.endTH(false, 'All operators down');
+      w.objectives.checkOperators(operatorsAlive);
     }
     // --- net
     this.snapT -= dt;
@@ -1088,7 +1089,11 @@ export class Game {
         rig.setDead(!s.alive, s.stance === Stance.Prone || s.lastHurtDir.dot(fwd) > 0.2, THREE.MathUtils.clamp(s.lastHurtDir.dot(new THREE.Vector3(fwd.z, 0, -fwd.x)) * 2, -1, 1));
       }
       rig.setShieldPose(s.shieldPose);
-      rig.pose(dt, s.mode === 'rappel' ? Stance.Rappel : s.stance, s.pitch, s.lean, Math.hypot(s.vel.x, s.vel.z), s.mode === 'rappel' && s.inverted);
+      // the third-person hold follows what is in hand, aiming, sprinting and reloading — as the first-person view does
+      const wid = s.weapon?.def.id ?? null;
+      if (rig.weaponId !== wid) rig.setWeapon(wid);
+      const reload = s.reloading ? 1 - s.reloadT / Math.max(0.1, s.reloadDur) : -1;
+      rig.pose(dt, s.mode === 'rappel' ? Stance.Rappel : s.stance, s.pitch, s.lean, Math.hypot(s.vel.x, s.vel.z), s.mode === 'rappel' && s.inverted, { ads: s.ads, sprint: s.sprinting, reload });
     }
     // camera
     for (const r of this.remotes.values()) r.rig.root.visible = this.world.deployed(r);
@@ -1126,8 +1131,11 @@ export class Game {
           this.camera.fov = this.fov;
           spectating = `SPECTATING ${r.name}`;
         } else {
-          this.camera.position.lerp(p.pos.clone().add(new THREE.Vector3(2.5, 3, 2.5)), Math.min(1, dt * 2));
-          this.camera.lookAt(p.pos);
+          // nobody left to watch through: the planted defuser (the round runs on until it completes or is cut), else the body
+          const focus = this.world.objectives.defuser?.pos ?? p.pos;
+          this.camera.position.lerp(focus.clone().add(new THREE.Vector3(2.5, 3, 2.5)), Math.min(1, dt * 2));
+          this.camera.lookAt(focus);
+          if (this.world.objectives.defuser) spectating = t('hud.watchDefuser');
         }
       }
     }
@@ -1163,6 +1171,7 @@ export class Game {
       const inside = cp.x > HOUSE_RECT.x0 && cp.x < HOUSE_RECT.x1 && cp.z > HOUSE_RECT.z0 && cp.z < HOUSE_RECT.z1 && cp.y < ROOF_Y - 0.2;
       const dim = inside ? (this.lighting.tod === 'day' ? 0.6 : 0.45) : this.lighting.tod === 'day' ? 1 : 0.5;
       const sprint = Math.hypot(camSoldier.vel.x, camSoldier.vel.z) > 4.5;
+      this.vm.worldFov = this.camera.fov;
       this.vm.update(dt, camSoldier, this.lookDelta, this.firedThisFrame && camSoldier === p, sprint, this.camera.aspect, dim);
       this.renderer.autoClear = false;
       this.renderer.clearDepth();

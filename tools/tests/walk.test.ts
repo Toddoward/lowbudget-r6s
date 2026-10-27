@@ -10,10 +10,12 @@ import { DestructionSystem } from '../../src/world/Destruction.ts';
 import { buildHouse } from '../../src/map/MapBuilder.ts';
 import { buildOutdoor } from '../../src/map/Outdoor.ts';
 import { decodeHouseDatamap512Headless } from '../../src/map/houseDatamap.ts';
-import { FLOOR_Y, FLOORS, MAP_BOUNDS, ROOMS, SPAWN_ZONES, STAIRS } from '../../src/map/houseLayout.ts';
+import { FLOOR_Y, FLOORS, HOUSE_RECT, MAP_BOUNDS, ROOMS, SPAWN_ZONES, STAIRS } from '../../src/map/houseLayout.ts';
 import { NavGraph } from '../../src/ai/NavGraph.ts';
 import { BODY_R, buildWalkGrid, clearWidth, gridDistance, lineWalk, MAX_LAYERS, moves, nearestFit, reach, surfaceAt, surfacePos } from '../../src/map/walkGrid.ts';
 import { SITES } from '../../shared/constants.ts';
+import { PROPS } from '../../src/map/houseProps.ts';
+import { terrain } from '../../src/map/terrain.ts';
 
 const ph = await Physics.create();
 const destruction = new DestructionSystem(ph);
@@ -145,6 +147,67 @@ test('every doorway / archway is wide enough to walk through upright, and both s
     for (const side of [-0.7, 0.7]) {
       const p = op.center.clone().addScaledVector(op.normal, side);
       if (reachedNear(p.x, op.floorY, p.z, 0.4) < 0) bad.push(`${op.label}: side ${side > 0 ? '+' : '−'} not reached upright at ${fmt(p.setY(op.floorY))}`);
+    }
+  }
+  assert.deepEqual(bad, []);
+});
+
+test('door to door inside the House: every indoor side of every doorway reaches every other upright without going outdoors', () => {
+  const PASS = new Set(['door', 'exterior_door', 'arch', 'french']);
+  const inside = (st: number) => { const [x, , z] = surfacePos(grid, st); return x > HOUSE_RECT.x0 && x < HOUSE_RECT.x1 && z > HOUSE_RECT.z0 && z < HOUSE_RECT.z1; };
+  const spots: { label: string; s: number; at: number[] }[] = [];
+  for (const op of house.openings) {
+    if (!PASS.has(op.kind) || op.run === 'd') continue;
+    for (const [i, side] of [[0, -0.7], [1, 0.7]] as const) {
+      if (!op.rooms[i]) continue; // the outdoor side of an outer door
+      const p = op.center.clone().addScaledVector(op.normal, side);
+      spots.push({ label: `${op.label} (${op.rooms[i]} side)`, s: reachedNear(p.x, op.floorY, p.z, 0.3), at: [p.x, op.floorY, p.z] });
+    }
+  }
+  assert.ok(spots.length > 40, `${spots.length} door sides`);
+  const missing = spots.filter((d) => d.s < 0).map((d) => `${d.label}: no standing spot at ${fmt(d.at)}`);
+  assert.deepEqual(missing, []);
+  // walk (upright, steps and stairs, short drops) from one door side, never leaving the House's footprint
+  const seen = new Uint8Array(grid.fit.length);
+  const q = [spots[0].s];
+  seen[spots[0].s] = 1;
+  while (q.length) for (const t of moves(grid, q.pop()!, 1)) if (!seen[t] && inside(t)) { seen[t] = 1; q.push(t); }
+  assert.deepEqual(spots.filter((d) => !seen[d.s]).map((d) => `${d.label} at ${fmt(d.at)}`), [], `from ${spots[0].label}`);
+});
+
+test('nothing to get stuck on at the spawns: every walkable spot within 3.5 m of a spawn centre is standing room, reached upright', () => {
+  const T = terrain();
+  const bad: string[] = [];
+  for (const z of SPAWN_ZONES) {
+    const [cx, , cz] = z.center;
+    for (let dx = -3.5; dx <= 3.5; dx += 0.5) {
+      for (let dz = -3.5; dz <= 3.5; dz += 0.5) {
+        if (Math.hypot(dx, dz) > 3.5) continue;
+        const x = cx + dx, zz = cz + dz;
+        // open ground only: not the river, a pit, or the top of a wall or kerb
+        const s = T.surface(x, zz);
+        if (T.hole(x, zz) || s === 'riverbed' || s === 'stone') continue;
+        if (reachedNear(x, T.y(x, zz), zz, 0.15) < 0) bad.push(`${z.id}: (${x.toFixed(1)}, ${T.y(x, zz).toFixed(2)}, ${zz.toFixed(1)})`);
+      }
+    }
+  }
+  assert.deepEqual(bad, []);
+});
+
+test('the garage car is walked round: a lane at least 0.8 m wide along every side', () => {
+  const bad: string[] = [];
+  for (const car of PROPS.filter((p) => p.style === 'car')) {
+    const hx = car.size[0] / 2, hz = car.size[2] / 2; // (sizes are the footprint on the map, turned or not)
+    const y = FLOOR_Y[car.floor];
+    // three spots along each side, a body radius and 0.8 m out from the bodywork
+    for (const out of [BODY_R + 0.05, 0.8]) {
+      for (const f of [-0.8, 0, 0.8]) {
+        const spots: [string, number, number][] = [
+          ['north', car.x + f * hx, car.z - hz - out], ['south', car.x + f * hx, car.z + hz + out],
+          ['west', car.x - hx - out, car.z + f * hz], ['east', car.x + hx + out, car.z + f * hz],
+        ];
+        for (const [side, x, z] of spots) if (reachedNear(x, y, z, 0.1) < 0) bad.push(`${side} side, ${out.toFixed(2)} m out: ${fmt([x, y, z])}`);
+      }
     }
   }
   assert.deepEqual(bad, []);

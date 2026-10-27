@@ -62,12 +62,57 @@ test('Bomb (TH): plant a defuser, it runs DEFUSE_TIME; White Masks on it cut it;
   assert.deepEqual(results, [[true, 'Bombs disarmed']]);
 });
 
-test('Bomb (TH): eliminating every White Mask also wins', async () => {
+test('Bomb (TH): before a plant, eliminating every White Mask wins', async () => {
   const { o, results } = await setup('bomb');
   o.checkElimination(2);
   assert.equal(results.length, 0);
   o.checkElimination(0);
   assert.deepEqual(results, [[true, 'All hostiles eliminated']]);
+});
+
+test('Bomb (TH): once the defuser is planted only it decides — not the White Masks dying, not the operators dying', async () => {
+  // every White Mask dead after the plant: the round runs on until the defuser completes
+  const a = await setup('bomb');
+  const me = soldierAt('self', 'attack', a.o.bombs[0].pos);
+  a.w.actors.set('self', me);
+  a.o.candidate(me)!.run();
+  a.o.checkElimination(0);
+  a.o.checkOperators(0);
+  assert.equal(a.results.length, 0, 'planted: neither side is out of the round');
+  a.step(DEFUSE_TIME + 0.2);
+  assert.equal(a.o.defuser, null, 'the first bomb is done');
+  a.o.checkElimination(0);
+  assert.deepEqual(a.results, [[true, 'All hostiles eliminated']], 'no defuser running, no White Masks left: won');
+  // every operator dead after the plant: the White Masks have to cut it
+  const b = await setup('bomb');
+  const me2 = soldierAt('self', 'attack', b.o.bombs[0].pos);
+  b.w.actors.set('self', me2);
+  b.o.candidate(me2)!.run();
+  b.o.checkOperators(0);
+  b.step(5);
+  b.o.checkOperators(0);
+  assert.equal(b.results.length, 0, 'the player is dead but the defuser is still working');
+  const goal = b.o.botGoal('tango0')!;
+  for (let t = 0; t < DISABLE_TIME + 0.2; t += 0.1) goal.work!(0.1);
+  b.o.checkOperators(0);
+  assert.deepEqual(b.results, [[false, 'All operators down']], 'cut with no operator left to replant: lost');
+  // no plant: the operators dying ends it at once
+  const c = await setup('bomb');
+  c.o.checkOperators(1);
+  assert.equal(c.results.length, 0);
+  c.o.checkOperators(0);
+  assert.deepEqual(c.results, [[false, 'All operators down']]);
+});
+
+test('Elimination / Hostage Rescue (TH): every White Mask down wins; every operator down loses', async () => {
+  for (const m of ['elimination', 'hostage'] as const) {
+    const a = await setup(m);
+    a.o.checkElimination(0);
+    assert.deepEqual(a.results, [[true, 'All hostiles eliminated']], m);
+    const b = await setup(m);
+    b.o.checkOperators(0);
+    assert.deepEqual(b.results, [[false, 'All operators down']], m);
+  }
 });
 
 test('Hostage Protection: White Masks take the hostage after GRAB_TIME and win at an extraction; the defender wins on elimination', async () => {
@@ -104,9 +149,10 @@ test('Hostage Protection: elimination is the defender\'s win; a dead hostage is 
   const a = await setup('protect');
   a.o.checkElimination(0);
   assert.deepEqual(a.results, [[false, 'All hostiles eliminated']], 'attackers lost = defender won');
+  const d = await setup('protect');
+  d.o.checkOperators(0);
+  assert.deepEqual(d.results, [[true, 'All operators down']], 'every defender down = the White Masks won');
   const r = await setup('hostage');
-  r.o.checkElimination(0);
-  assert.equal(r.results.length, 0, 'rescue: the hostage still has to get out');
   r.w.onKill.forEach((k) => k({ killer: 'self', victim: 'hostage', head: false, weapon: '' }));
   assert.deepEqual(r.results, [[false, 'Hostage killed']]);
 });
