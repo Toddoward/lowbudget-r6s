@@ -415,10 +415,19 @@ export class Objectives {
   }
 
   /** TH: no White Masks left — a win in every mission but a rescue (the hostage still has to get out) */
+  /** TH: a running defuser holds the round — only its completion or the White Masks cutting it decide it */
+  get defuserHolds() { return this.mode === 'th' && this.mission === 'bomb' && !!this.defuser; }
+
+  /** TH: every White Mask down (the attackers' win in every mission but Hostage Protection, where they are the attackers) */
   checkElimination(enemiesAlive: number) {
-    if (enemiesAlive !== 0 || this.done) return;
-    if (this.mission === 'elimination' || this.mission === 'bomb') this.finish(true, 'All hostiles eliminated');
-    else if (this.mission === 'protect') this.finish(false, 'All hostiles eliminated');
+    if (enemiesAlive !== 0 || this.done || this.defuserHolds) return;
+    this.finish(this.mission !== 'protect', 'All hostiles eliminated');
+  }
+
+  /** TH: every operator down — the round is decided by the match, not by the player: a running defuser still has to be cut */
+  checkOperators(operatorsAlive: number) {
+    if (operatorsAlive !== 0 || this.done || this.defuserHolds) return;
+    this.finish(this.mission === 'protect', 'All operators down');
   }
 
   get finished() { return this.done; }

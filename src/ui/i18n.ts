@@ -224,6 +224,7 @@ const D: Record<string, Entry> = {
   'hud.xray': { ko: 'X-RAY', en: 'X-RAY' },
   'hud.spotted': { ko: '적 발견!', en: 'SPOTTED' },
   'hud.spottedOp': { ko: '적 발견: {0}', en: 'SPOTTED: {0}' },
+  'hud.watchDefuser': { ko: '관전: 해체기 — 완료되거나 해제될 때까지 라운드 진행', en: 'WATCHING THE DEFUSER — the round runs until it completes or is cut' },
   'hud.scanning': { ko: '식별 중', en: 'IDENTIFYING' },
   'hud.whiteMask': { ko: '화이트 마스크', en: 'White Mask' },
   'hud.ping': { ko: '여기', en: 'HERE' },

@@ -82,6 +82,18 @@ export function rappelAxes(moveF: number, moveR: number, inverted: boolean): { u
   return inverted ? { up: -moveF, side: -moveR } : { up: moveF, side: moveR };
 }
 
+/** Mouse look follows the view the same way: with the camera rolled 180°, moving the mouse right turns toward screen-right (the world's left) and up toward screen-up (the ground) */
+/** a surface is walked on (not pushed against) up to the controller's 52° climb limit */
+const WALKABLE_NY = Math.cos((52 * Math.PI) / 180);
+/** height gained moving (dx, dz) along a surface with this outward normal */
+export function groundRise(n: { x: number; y: number; z: number }, dx: number, dz: number) {
+  return -(n.x * dx + n.z * dz) / n.y;
+}
+
+export function viewLook(dYaw: number, dPitch: number, rolled: boolean): { dYaw: number; dPitch: number } {
+  return rolled ? { dYaw: -dYaw, dPitch: -dPitch } : { dYaw, dPitch };
+}
+
 export class Soldier implements Actor {
   readonly id: string;
   name: string;
@@ -98,6 +110,8 @@ export class Soldier implements Actor {
   stance = Stance.Stand;
   lean = 0;
   inverted = false;
+  /** outward normal of the ground under the feet after the last move (null in the air) */
+  private groundN: THREE.Vector3 | null = null;
   weapons: WeaponState[] = [];
   slot = 0;
   ads = 0;
@@ -317,8 +331,9 @@ export class Soldier implements Actor {
     if (!this.alive) { this.mode = 'dead'; return; }
 
     // look
-    this.yaw += inp.lookDYaw;
-    this.pitch = THREE.MathUtils.clamp(this.pitch + inp.lookDPitch, -1.45, 1.45);
+    const look = viewLook(inp.lookDYaw, inp.lookDPitch, this.mode === 'rappel' && this.inverted);
+    this.yaw += look.dYaw;
+    this.pitch = THREE.MathUtils.clamp(this.pitch + look.dPitch, -1.45, 1.45);
     if (this.mode === 'rappel' && this.rappel && !this.inverted) {
       // keep facing roughly into the wall (±85°)
       const wallYaw = Math.atan2(this.rappel.n.x, this.rappel.n.z);
@@ -391,6 +406,10 @@ export class Soldier implements Actor {
     this.vel.y = this.grounded ? -1.5 : this.vel.y - 18 * dt;
     this.vel.y = Math.max(this.vel.y, -30);
     const desired = this.vel.clone().multiplyScalar(dt);
+    // on the ground the legs carry the body along the surface — up a slope or a stair ramp the body is lifted and the
+    // pace over the ground is the pace on the flat (pushing a flat vector into the hill made the controller slide it away)
+    // (kept in contact by pressing into the surface along its normal: a vertical press would slide down the slope)
+    if (this.grounded && this.groundN) desired.setY(groundRise(this.groundN, desired.x, desired.z)).addScaledVector(this.groundN, -0.4 * dt);
     this.moveCollide(desired, true);
     // eye height smoothing + head bob
     this.eyeH += (EYE[this.stance] - this.eyeH) * Math.min(1, dt * 10);
@@ -416,10 +435,22 @@ export class Soldier implements Actor {
     const filter = groups(0xffff, G_WORLD | G_CHAR | G_CLIP);
     this.controller.computeColliderMovement(this.collider, { x: desired.x, y: desired.y, z: desired.z }, undefined, filter);
     const m = this.controller.computedMovement();
+    // the walkable surface touched on this move (the one asking for the most lift if several)
+    let gn: THREE.Vector3 | null = null;
+    for (let i = 0, n = this.controller.numComputedCollisions(); i < n; i++) {
+      const c = this.controller.computedCollision(i);
+      if (!c || c.normal1.y < WALKABLE_NY) continue;
+      if (!gn || groundRise(c.normal1, desired.x, desired.z) > groundRise(gn, desired.x, desired.z)) gn = new THREE.Vector3(c.normal1.x, c.normal1.y, c.normal1.z);
+    }
     this.pos.x += m.x;
     this.pos.y += m.y;
     this.pos.z += m.z;
     this.grounded = gravity ? this.controller.computedGrounded() : false;
+    if (this.grounded && !gn) {
+      const hit = this.world.physics.raycast(this.pos.clone().setY(this.pos.y + 0.3), new THREE.Vector3(0, -1, 0), 0.6, G_WORLD | G_CLIP);
+      if (hit && hit.normal.y >= WALKABLE_NY) gn = hit.normal.clone();
+    }
+    this.groundN = this.grounded ? gn : null;
     if (gravity && this.grounded && this.vel.y < 0) this.vel.y = -1.5;
     if (gravity && !this.grounded && m.y > desired.y + 1e-4 && desired.y > 0) this.vel.y = 0; // bonked ceiling
     this.syncCollider();

@@ -986,7 +986,8 @@ export class Game {
         w.phase = 'action';
         this.phaseEnds = w.time + 360;
         this.endDronePhase();
-      } else if (w.phase === 'action' && w.time >= this.phaseEnds) {
+      } else if (w.phase === 'action' && w.time >= this.phaseEnds && !w.objectives.defuserHolds) {
+        // (a running defuser extends the round until it completes or is cut)
         // Hostage Protection: holding out is the job
         if (w.objectives.mission === 'protect') this.endTH(true, 'Hostage protected');
         else this.endTH(false, 'Time expired');
@@ -1064,7 +1065,7 @@ export class Game {
       }
       w.objectives.checkElimination(alive);
       const operatorsAlive = (p?.alive ? 1 : 0) + this.slots.filter((s) => s.soldier.alive).length;
-      if (operatorsAlive === 0) this.endTH(false, 'All operators down');
+      w.objectives.checkOperators(operatorsAlive);
     }
     // --- net
     this.snapT -= dt;
@@ -1126,8 +1127,11 @@ export class Game {
           this.camera.fov = this.fov;
           spectating = `SPECTATING ${r.name}`;
         } else {
-          this.camera.position.lerp(p.pos.clone().add(new THREE.Vector3(2.5, 3, 2.5)), Math.min(1, dt * 2));
-          this.camera.lookAt(p.pos);
+          // nobody left to watch through: the planted defuser (the round runs on until it completes or is cut), else the body
+          const focus = this.world.objectives.defuser?.pos ?? p.pos;
+          this.camera.position.lerp(focus.clone().add(new THREE.Vector3(2.5, 3, 2.5)), Math.min(1, dt * 2));
+          this.camera.lookAt(focus);
+          if (this.world.objectives.defuser) spectating = t('hud.watchDefuser');
         }
       }
     }
