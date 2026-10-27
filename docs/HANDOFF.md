@@ -45,11 +45,11 @@ Original message was in Korean; this is a faithful itemisation. Status: ✅ done
 | R1 | Build the map properly (Blender / the GLB & .blend given), not voxel boxes. If the SVG/datamap data is garbage, infer depth from the top-view image yourself (e.g. an image-to-depth model from Hugging Face) | ⬜ §6 |
 | R2 | Terrain elevations are wrong; everything outdoors is voxel blocks you can't walk on | ⬜ §6 |
 | R3 | No props in spawn zones (players get stuck in the APC). Verify with BFS / nav | ⬜ §6.4 |
-| R4 | Many places still can't be walked door → door | ⬜ §5.6 |
+| R4 | Many places still can't be walked door → door | ✅ `walk.test.ts` door to door inside the House (every indoor side of every doorway reaches every other upright, never leaving the footprint) |
 | R5 | Back entrance: 1F → basement stairs exist but **1F → 2F stairs are missing**; follow the stairs of the GLB / .blend | ✅ `7a23245` |
-| R6 | Indoor props are mis-sized and block players; rebuild from the uploaded blueprints, basement to roof | ⬜ §5.5 |
+| R6 | Indoor props are mis-sized and block players; rebuild from the uploaded blueprints, basement to roof | ✅ real-world sizes at the 1.3× plan (sofa 2.6 m, king bed 2.0 × 2.2 m, sedan 4.6 × 1.9 m); `walk.test.ts`: every room entered upright with no sealed pockets, every doorway clear, door to door inside |
 | R7 | Kitchen back-door **deck runs long** (as in the blueprint) with a **roof along it**, so on 2F you can walk between the Kid's Bedroom and Master Bedroom windows over that roof | ✅ `932b666` (`vault.test.ts`: Kids → porch roof → Master) |
-| R8 | Basement garage: walkable space on all four sides of the car | ⬜ §5.5 |
+| R8 | Basement garage: walkable space on all four sides of the car | ✅ `walk.test.ts`: a lane ≥ 0.8 m (plus a body radius) reached upright along every side |
 | R9 | House plan is too small: keep the storey height, enlarge the plan | ✅ `66f0843` |
 | R10 | Corners look "worm-eaten" (the overlap trimming for Z-fighting) and Z-fighting is still there — fix both | ✅ R10 commit (`zfight.test.ts`, QA §3.5) |
 | R11 | Model the level terrain from the high-res top view (depth model or anything that works) | ⬜ §6 |
