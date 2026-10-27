@@ -4,8 +4,9 @@
 > 레펠 시점, 경사·계단 이동, 방패, 3인칭 팔, 집 재구성(평면 ×1.3, 뒷계단·베이 창, 남쪽 데크·지붕, 경사 지붕, 모서리·Z-fight,
 > 로비 L자 계단, 문↔문 연결, 차고 차량 통로), 야외 지형(합의한 높이로 만든 매끄러운 지면 — 박스 없음, 차고 진입로는 도로와
 > 같은 높이, 앞마당 2단 테라스와 현관 7계단, 스폰 주변 장애물 제거)입니다. 단위·그래프 테스트, 브라우저 e2e·시나리오
-> (온라인 재접속 포함)가 모두 통과하며, 작업은 PR #10(→ `develop`)으로 올렸습니다. 이미지→깊이 모델은 이 환경의 네트워크
-> 정책이 huggingface.co를 막고 있어(403) 쓰지 못했습니다(§6.5). 남은 것: PR #10 CI 통과 후 병합 → `develop` → `main` 릴리스.
+> (온라인 재접속 포함)가 모두 통과했고, PR #10(→ `develop`)과 릴리스 PR #11(`develop` → `main`)을 병합해 배포했습니다
+> (`r6s-temu.pages.dev`의 번들이 로컬 프로덕션 빌드와 해시까지 같음을 확인). 이미지→깊이 모델은 이 환경의 네트워크 정책이
+> huggingface.co를 막고 있어(403) 쓰지 못했습니다(§6.5) — 도메인을 허용하면 보조 검증으로만 쓰면 됩니다. 남은 필수 작업은 없습니다.
 
 ---
 
@@ -13,9 +14,9 @@
 
 | What | Command / place |
 |---|---|
-| Repo (worktree) | `/home/user/r6s-fewshot`, branch **`claude/adoring-bohr-esh1fj`** (pushed; based on `develop` @ `2aa762c`) |
+| Repo (worktree) | `/home/user/r6s-fewshot`, branch **`claude/adoring-bohr-esh1fj`** (restart it from the latest `develop` for new work; everything below is merged) |
 | Last commits | `0dac658` S6 round-state scenarios · `664dced` terrain · `27048e1` walk tests · `cd3e686` lobby L-stairs · `15731df` corners / Z-fighting · `41835fe` roof · `932b666` south deck · `7a23245` back stairs · `66f0843` plan ×1.3 · `7c9acb4` shields + 3P rig · `1439fe7` TH rules, rappel look, slopes |
-| Release flow | PR `claude/adoring-bohr-esh1fj` → `develop` (CI: typecheck, unit, build, browser e2e + scenarios; deploys `develop.r6s-temu.pages.dev`), then release PR `develop` → `main` (deploys `r6s-temu.pages.dev`). **PR #10** (`claude/adoring-bohr-esh1fj` → `develop`) is open for this work. |
+| Release flow | PR `claude/adoring-bohr-esh1fj` → `develop` (CI: typecheck, unit, build, browser e2e + scenarios; deploys `develop.r6s-temu.pages.dev`), then release PR `develop` → `main` (deploys `r6s-temu.pages.dev`). This work: **PR #10** → `develop` (merged, `64e84a1`), release **PR #11** → `main` (merged, `8a6c239`); production serves `assets/index-D2TxpRcH.js`, byte-identical to a local `npm run build` of that tree (QA build on `develop`: `index-CLcsf9tA.js`, also identical). |
 | Unit / graph tests | `npm test` (all `tools/tests/*.test.ts`; 105 pass at `0dac658`) · single file: `npx tsx --test tools/tests/<name>.test.ts` |
 | Typecheck | `npx tsc --noEmit -p .` |
 | QA build + preview | `VITE_QA=1 npx vite build --outDir dist-qa` then `npx vite preview --outDir dist-qa --port 4173 --strictPort` (run in background) |
