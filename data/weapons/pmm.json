@@ -1,0 +1,25 @@
+{
+  "$schema": "../schema/weapon.schema.json",
+  "id": "pmm",
+  "name": "PMM",
+  "class": "Pistol",
+  "order": 12,
+  "damage": { "base": 61, "falloffStart": 12, "falloffEnd": 25, "min": 0.5 },
+  "fire": { "rpm": 380, "mode": "semi" },
+  "ammo": { "mag": 8, "reserve": 48, "reload": 1.7, "reloadEmpty": 2.1 },
+  "spread": { "hip": 1.5, "ads": 0.55 },
+  "recoil": { "vertical": 1.1, "horizontal": 0.3, "recover": 9 },
+  "penetration": { "budget": 1, "wallDamage": 0.8 },
+  "optic": "iron",
+  "model": {
+    "eyeRelief": 0.2,
+    "anchors": {
+      "sight": [0, 0.0905, 0.03],
+      "lens": [0, 0.0905, -0.153],
+      "muzzle": [0, 0.055, -0.19],
+      "grip": [0, -0.03, 0],
+      "fore": [0, -0.03, 0]
+    },
+    "procedural": { "layout": "pistol", "body": "#2a2b2e", "accent": "#3a3022", "length": 0.18 }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "$schema": "../schema/operator.schema.json",
+  "id": "sledge",
+  "name": "Sledge",
+  "order": 0,
+  "team": "attack",
+  "unit": "SAS",
+  "roles": ["breacher"],
+  "armor": 2,
+  "speed": 2,
+  "loadout": {
+    "primary": "l85a2",
+    "secondary": "p226",
+    "gadget": "hammer",
+    "gadgetName": "Tactical Breaching Hammer",
+    "gadgetCount": 25,
+    "universal": "breach",
+    "universalCount": 2
+  },
+  "description": {
+    "en": "Smashes soft walls, floors, hatches and barricades from up close. Silent-ish, no setup.",
+    "ko": "근거리에서 망치로 소프트월·바닥·해치·바리케이드를 부숩니다. 설치 시간이 없습니다."
+  },
+  "look": { "headgear": "balaclava", "cloth": "#5d6046", "accent": "#3b3d2e" },
+  "model": {}
+}

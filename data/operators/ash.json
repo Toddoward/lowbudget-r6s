@@ -1,0 +1,26 @@
+{
+  "$schema": "../schema/operator.schema.json",
+  "id": "ash",
+  "name": "Ash",
+  "order": 1,
+  "team": "attack",
+  "unit": "FBI SWAT",
+  "roles": ["breacher", "fragger"],
+  "armor": 1,
+  "speed": 3,
+  "loadout": {
+    "primary": "r4c",
+    "secondary": "usg57",
+    "gadget": "ash_round",
+    "gadgetName": "M120 CREM Breaching Round",
+    "gadgetCount": 2,
+    "universal": "breach",
+    "universalCount": 2
+  },
+  "description": {
+    "en": "Launches remote breaching rounds that stick and detonate after 1.5 s — opens soft walls, barricades and hatches at range.",
+    "ko": "원격 브리칭탄을 쏴서 1.5초 후 터뜨립니다. 멀리서 소프트월·바리케이드·해치를 엽니다."
+  },
+  "look": { "headgear": "cap", "cloth": "#5b5a4a", "accent": "#8a6b47" },
+  "model": {}
+}

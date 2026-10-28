@@ -18,7 +18,8 @@
     "deploy": "npm run build && npm run deploy:worker && npm run deploy:pages",
     "test:e2e": "node tools/tests/e2e.mjs",
     "test:scenarios": "node tools/tests/e2e-scenarios.mjs",
-    "agent:example": "node tools/agents/webmcp-playwright-agent.mjs"
+    "agent:example": "node tools/agents/webmcp-playwright-agent.mjs",
+    "editor": "vite --open /editor/"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",
@@ -28,9 +29,16 @@
     "@cloudflare/workers-types": "^5.20261025.1",
     "@types/node": "^22.20.5",
     "@types/three": "^0.186.0",
+    "ajv": "^8.20.0",
     "playwright": "^1.63.0",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
     "wrangler": "^4.152.0"
+  },
+  "imports": {
+    "#data-files": {
+      "browser": "./src/data/files.vite.ts",
+      "default": "./src/data/files.node.ts"
+    }
   }
 }

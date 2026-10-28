@@ -1,0 +1,9 @@
+{
+  "$schema": "../schema/gadget.schema.json",
+  "id": "jammer",
+  "name": "GC90 Signal Disruptor",
+  "class": "place",
+  "placeTime": 0.4,
+  "radius": 2.5,
+  "model": {}
+}

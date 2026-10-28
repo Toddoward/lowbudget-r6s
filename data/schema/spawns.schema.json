@@ -1,0 +1,137 @@
+{
+ "type": "object",
+ "title": "스폰·카메라",
+ "properties": {
+  "$schema": {
+   "type": "string",
+   "title": "스키마"
+  },
+  "spawns": {
+   "type": "array",
+   "title": "공격 스폰",
+   "items": {
+    "type": "object",
+    "title": "스폰",
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "ID",
+      "enum": [
+       "construction",
+       "docks",
+       "apc",
+       "sidestreet"
+      ]
+     },
+     "label": {
+      "type": "string",
+      "title": "표시 이름"
+     },
+     "center": {
+      "type": "array",
+      "title": "중심 [x, y, z]",
+      "items": {
+       "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3
+     },
+     "radius": {
+      "type": "number",
+      "title": "반경 (m)"
+     },
+     "extract": {
+      "type": "object",
+      "title": "사각형 (m)",
+      "properties": {
+       "x0": {
+        "type": "number",
+        "title": "서쪽 x"
+       },
+       "z0": {
+        "type": "number",
+        "title": "북쪽 z"
+       },
+       "x1": {
+        "type": "number",
+        "title": "동쪽 x"
+       },
+       "z1": {
+        "type": "number",
+        "title": "남쪽 z"
+       }
+      },
+      "additionalProperties": false,
+      "description": "월드 좌표 (m): +X 동쪽, +Z 남쪽",
+      "required": [
+       "x0",
+       "z0",
+       "x1",
+       "z1"
+      ]
+     }
+    },
+    "additionalProperties": false,
+    "required": [
+     "id",
+     "label",
+     "center",
+     "radius",
+     "extract"
+    ]
+   }
+  },
+  "cameras": {
+   "type": "array",
+   "title": "CCTV",
+   "items": {
+    "type": "object",
+    "title": "카메라",
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "ID"
+     },
+     "label": {
+      "type": "string",
+      "title": "표시 이름"
+     },
+     "pos": {
+      "type": "array",
+      "title": "위치 [x, y, z]",
+      "items": {
+       "type": "number"
+      },
+      "description": "바깥 카메라는 y가 지면 위 높이",
+      "minItems": 3,
+      "maxItems": 3
+     },
+     "yawDeg": {
+      "type": "number",
+      "title": "방향 (°)"
+     },
+     "exterior": {
+      "type": "boolean",
+      "title": "바깥 카메라"
+     }
+    },
+    "additionalProperties": false,
+    "required": [
+     "id",
+     "label",
+     "pos",
+     "yawDeg",
+     "exterior"
+    ]
+   }
+  }
+ },
+ "additionalProperties": false,
+ "description": "data/maps/house/spawns.json",
+ "required": [
+  "spawns",
+  "cameras"
+ ],
+ "$id": "spawns",
+ "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

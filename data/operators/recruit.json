@@ -1,0 +1,22 @@
+{
+  "$schema": "../schema/operator.schema.json",
+  "id": "recruit",
+  "name": "Recruit",
+  "order": 18,
+  "team": "attack",
+  "unit": "Recruit",
+  "armor": 2,
+  "speed": 2,
+  "loadout": {
+    "primary": "r4c",
+    "secondary": "p226",
+    "gadget": "none",
+    "gadgetName": "—",
+    "gadgetCount": 0,
+    "universal": "breach",
+    "universalCount": 2
+  },
+  "description": { "en": "Generic." },
+  "look": { "headgear": "helmet_goggles", "cloth": "#5a5a50", "accent": "#333" },
+  "model": {}
+}

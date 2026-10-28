@@ -1,0 +1,11 @@
+{
+  "$schema": "../schema/gadget.schema.json",
+  "id": "ash_round",
+  "name": "M120 CREM Breaching Round",
+  "class": "tool",
+  "speed": 38,
+  "gravity": 0.15,
+  "fuse": 1.5,
+  "blast": { "radius": 2.2, "damage": 55 },
+  "model": {}
+}

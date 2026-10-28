@@ -1,5 +1,6 @@
 import { box, cone, cyl, sph, type AssetSpec, type PartSpec } from './spec.ts';
 import type { OperatorDef } from '../game/operators.ts';
+import { dataFile } from '../data/index.ts';
 
 /**
  * Low-poly operator rig: bones hips/torso/head/armL/armR (upper arms)/foreL/foreR/legL/legR, each in
@@ -10,9 +11,10 @@ import type { OperatorDef } from '../game/operators.ts';
 const SKIN = '#c49a7a';
 const BOOT = '#1d1c1a';
 const GLOVE = '#26241f';
-/** shoulder → elbow, elbow → centre of the hand (m) */
-export const ARM_UPPER = 0.3;
-export const ARM_FORE = 0.31;
+/** shoulder → elbow, elbow → centre of the hand (m): data/rig/skeleton.json */
+const SK = dataFile<{ armUpper: number; armFore: number }>('rig/skeleton.json');
+export const ARM_UPPER = SK.armUpper;
+export const ARM_FORE = SK.armFore;
 
 function headgear(kind: string, accent: string): PartSpec[] {
   const H = 'head';

@@ -1,0 +1,27 @@
+{
+  "$schema": "../schema/operator.schema.json",
+  "id": "blitz",
+  "name": "Blitz",
+  "order": 12,
+  "team": "attack",
+  "unit": "GSG 9",
+  "roles": ["shield", "fragger"],
+  "armor": 2,
+  "speed": 2,
+  "loadout": {
+    "primary": "p12",
+    "secondary": "p12",
+    "gadget": "flash_shield",
+    "gadgetName": "G52-Tactical Flash Shield",
+    "gadgetCount": 5,
+    "universal": "breach",
+    "universalCount": 1,
+    "shield": true
+  },
+  "description": {
+    "en": "Flash shield + pistol (always in hand). [1] slings the shield on the back / raises it; RMB swings it aside to aim; [G] blinds every enemy in a 60° cone up to 6 m (5 charges, shield in front).",
+    "ko": "플래시 방패 + 권총(항상 손에). [1]로 방패를 등에 메거나 앞으로 들고, 우클릭은 방패를 옆으로 돌려 조준합니다. [G]로 전방 60°, 6 m 안의 적을 눈부시게 합니다 (5회, 방패를 앞에 들었을 때)."
+  },
+  "look": { "headgear": "helmet_goggles", "cloth": "#45483e", "accent": "#2b2d27" },
+  "model": {}
+}

@@ -354,12 +354,17 @@ await step('intel · ping: spotting an enemy marks it for the team (HUD marker)'
   await A.evaluate(() => window.qa.parkBots());
 });
 await step('vault: an unbarricaded window offers vault (Space)', async () => {
+  // (every ground-floor candidate is tried: earlier steps' breaches and blasts land on random walls and can take a
+  // window's sill or frame with them)
   const ok = await A.evaluate(() => {
     const g = window.r6game;
-    const w = g.house.openings.find((o) => o.kind === 'window' && o.exterior && o.barricadeKind === 'none' && o.run !== 'd' && Math.abs(o.center.y - 1.65) < 0.6);
-    if (!w) return 'no window';
-    window.qa.faceOpening(w, 0.75);
-    return g.player.probeVault() ? 'ok' : 'no plan';
+    const ws = g.house.openings.filter((o) => o.kind === 'window' && o.exterior && o.barricadeKind === 'none' && o.run !== 'd' && Math.abs(o.center.y - 1.65) < 0.6);
+    if (!ws.length) return 'no window';
+    for (const w of ws) {
+      window.qa.faceOpening(w, 0.75);
+      if (g.player.probeVault()) return 'ok';
+    }
+    return `no plan at windows ${ws.map((w) => w.id).join(', ')}`;
   });
   assert.equal(ok, 'ok');
 });

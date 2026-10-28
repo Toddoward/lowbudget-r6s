@@ -1,0 +1,9 @@
+{
+  "$schema": "../schema/gadget.schema.json",
+  "id": "breach",
+  "name": "Breach Charge",
+  "class": "place",
+  "placeTime": 0.6,
+  "blast": { "radius": 2.6, "damage": 75 },
+  "model": {}
+}

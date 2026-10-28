@@ -1,0 +1,25 @@
+{
+  "$schema": "../schema/weapon.schema.json",
+  "id": "l85a2",
+  "name": "L85A2",
+  "class": "AR",
+  "order": 0,
+  "damage": { "base": 47, "falloffStart": 25, "falloffEnd": 45, "min": 0.6 },
+  "fire": { "rpm": 670, "mode": "auto" },
+  "ammo": { "mag": 30, "reserve": 150, "reload": 2.4, "reloadEmpty": 3.1 },
+  "spread": { "hip": 2.3, "ads": 0.25 },
+  "recoil": { "vertical": 0.55, "horizontal": 0.22, "recover": 7 },
+  "penetration": { "budget": 2, "wallDamage": 1 },
+  "optic": "acog",
+  "model": {
+    "glb": "handmade/weapon_l85a2.glb",
+    "anchors": {
+      "sight": [0, 0.172, 0.066],
+      "lens": [0, 0.172, -0.062],
+      "muzzle": [0, 0.078, -0.569],
+      "grip": [0, -0.03, 0],
+      "fore": [0, 0.03, -0.325]
+    },
+    "procedural": { "layout": "bullpup", "body": "#2c2f2a", "accent": "#3a3d36", "length": 0.75 }
+  }
+}

@@ -1,0 +1,807 @@
+{
+  "$schema": "../../schema/props.schema.json",
+  "props": [
+    {
+      "group": "Every prop keeps the clearance zones in src/map/clearance.ts free (doorways ±1.2 m, stair ends, hatches) — enforced by tools/tests/props.test.ts and the walk E2E. Basement: Storage (shelving along the walls, aisle to both doors)",
+      "type": "Metal Shelves",
+      "floor": -1,
+      "x": -7.085,
+      "z": -9.139,
+      "size": [1.2, 2, 0.5],
+      "mat": "metal",
+      "color": "#7d8186",
+      "style": "rack"
+    },
+    {
+      "type": "Metal Shelves",
+      "floor": -1,
+      "x": -3.25,
+      "z": -9.23,
+      "size": [1.4, 2, 0.5],
+      "mat": "metal",
+      "color": "#7d8186",
+      "style": "rack"
+    },
+    {
+      "type": "Metal Shelves",
+      "floor": -1,
+      "x": -2.6,
+      "z": -7.28,
+      "size": [0.5, 2, 1.4],
+      "mat": "metal",
+      "color": "#7d8186",
+      "style": "rack"
+    },
+    {
+      "type": "Boxes",
+      "floor": -1,
+      "x": -4.745,
+      "z": -9.035,
+      "size": [0.8, 0.8, 0.8],
+      "mat": "wood",
+      "color": "#9b7f57",
+      "style": "box"
+    },
+    {
+      "type": "Boxes",
+      "floor": -1,
+      "x": -8.58,
+      "z": -6.695,
+      "size": [0.9, 0.6, 0.6],
+      "mat": "wood",
+      "color": "#9b7f57",
+      "style": "box"
+    },
+    {
+      "group": "Training Room: bench press, punching bags, mats",
+      "type": "Bench Press",
+      "floor": -1,
+      "x": -7.28,
+      "z": -4.68,
+      "size": [0.7, 0.55, 1.7],
+      "mat": "metal",
+      "color": "#2c2f33",
+      "style": "bench"
+    },
+    {
+      "type": "Weight Rack",
+      "floor": -1,
+      "x": -0.52,
+      "z": -5.59,
+      "size": [1.4, 1.2, 0.5],
+      "mat": "metal",
+      "color": "#3a3d42",
+      "style": "rack"
+    },
+    {
+      "type": "Punching Bag",
+      "floor": -1,
+      "x": -2.08,
+      "z": -2.73,
+      "size": [0.4, 1.1, 0.4],
+      "mat": "fabric",
+      "color": "#7b2f2b",
+      "style": "bag",
+      "lift": 0.85
+    },
+    {
+      "type": "Punching Bag",
+      "floor": -1,
+      "x": -8.58,
+      "z": -2.08,
+      "size": [0.4, 1.1, 0.4],
+      "mat": "fabric",
+      "color": "#7b2f2b",
+      "style": "bag",
+      "lift": 0.85
+    },
+    {
+      "type": "Floor Mat",
+      "floor": -1,
+      "x": -5.2,
+      "z": -2.47,
+      "size": [2.4, 0.04, 1.6],
+      "mat": "fabric",
+      "color": "#2f4f6a"
+    },
+    {
+      "type": "Treadmill",
+      "floor": -1,
+      "x": -9.23,
+      "z": -4.94,
+      "size": [0.8, 1.2, 1.8],
+      "mat": "metal",
+      "color": "#2c2f33",
+      "style": "appliance"
+    },
+    {
+      "group": "Garage: black sedan nosed at shutter B + white boat on a trailer (the two big hard covers)",
+      "type": "Sedan",
+      "floor": -1,
+      "x": 4.42,
+      "z": -3.38,
+      "size": [4.6, 1.45, 1.9],
+      "mat": "vehicle",
+      "color": "#141619",
+      "style": "car",
+      "rot90": true
+    },
+    {
+      "type": "Shelves",
+      "floor": -1,
+      "x": 1.82,
+      "z": -5.72,
+      "size": [1.6, 2, 0.5],
+      "mat": "metal",
+      "color": "#7d8186",
+      "style": "rack"
+    },
+    {
+      "type": "Workbench",
+      "floor": -1,
+      "x": 10.4,
+      "z": 5.785,
+      "size": [2, 0.9, 0.7],
+      "mat": "wood",
+      "color": "#6b4f33",
+      "style": "desk"
+    },
+    {
+      "type": "Oil Drums",
+      "floor": -1,
+      "x": 3.12,
+      "z": 1.56,
+      "size": [0.6, 0.9, 0.6],
+      "mat": "metal",
+      "color": "#3e5a7a",
+      "style": "cylinder"
+    },
+    {
+      "group": "Laundry Room: washer, dryer, folding table, shelf",
+      "type": "Washer",
+      "floor": -1,
+      "x": -3.965,
+      "z": 1.56,
+      "size": [0.65, 0.9, 0.65],
+      "mat": "metal",
+      "color": "#e8e8e4",
+      "style": "appliance"
+    },
+    {
+      "type": "Dryer",
+      "floor": -1,
+      "x": -3.965,
+      "z": 2.535,
+      "size": [0.65, 0.9, 0.65],
+      "mat": "metal",
+      "color": "#dcdcd6",
+      "style": "appliance"
+    },
+    {
+      "type": "Folding Table",
+      "floor": -1,
+      "x": 1.235,
+      "z": 1.56,
+      "size": [1.6, 0.9, 0.9],
+      "mat": "wood",
+      "color": "#8a7350",
+      "style": "table"
+    },
+    {
+      "type": "Laundry Shelf",
+      "floor": -1,
+      "x": 2.08,
+      "z": 3.38,
+      "size": [0.5, 1.8, 0.8],
+      "mat": "wood",
+      "color": "#6d5a40",
+      "style": "shelf"
+    },
+    {
+      "type": "Laundry Basket",
+      "floor": -1,
+      "x": -2.6,
+      "z": 1.105,
+      "size": [0.6, 0.45, 0.45],
+      "mat": "fabric",
+      "color": "#b9b2a4",
+      "style": "box"
+    },
+    {
+      "group": "Back stairs (B): ammo crate and boxes by the laundry wall, clear of the flight's foot (x −5.5 … −4.5, south half)",
+      "type": "Ammo Crate",
+      "floor": -1,
+      "x": -5.135,
+      "z": 1.3,
+      "size": [0.45, 0.45, 0.75],
+      "mat": "wood",
+      "color": "#4b5a37",
+      "style": "ammo"
+    },
+    {
+      "type": "Boxes",
+      "floor": -1,
+      "x": -6.5,
+      "z": 1.235,
+      "size": [0.7, 0.7, 0.7],
+      "mat": "wood",
+      "color": "#9b7f57",
+      "style": "box"
+    },
+    {
+      "group": "Back Hallway",
+      "type": "Water Heater",
+      "floor": -1,
+      "x": 1.82,
+      "z": 7.8,
+      "size": [0.55, 1.7, 0.55],
+      "mat": "metal",
+      "color": "#c9c6bd",
+      "style": "cylinder"
+    },
+    {
+      "type": "Boxes",
+      "floor": -1,
+      "x": -6.24,
+      "z": 7.8,
+      "size": [0.9, 0.7, 0.7],
+      "mat": "wood",
+      "color": "#9b7f57",
+      "style": "box"
+    },
+    {
+      "type": "Bike",
+      "floor": -1,
+      "x": -3.38,
+      "z": 7.93,
+      "size": [1.6, 0.9, 0.3],
+      "mat": "metal",
+      "color": "#8a2d2d"
+    },
+    {
+      "group": "1F: Living Room (sofa + side sofa facing the TV, path to the arch and both french windows)",
+      "type": "Sofa",
+      "floor": 0,
+      "x": -7.02,
+      "z": -1.56,
+      "size": [2.6, 0.85, 0.95],
+      "mat": "fabric",
+      "color": "#5a6a7a",
+      "style": "sofa"
+    },
+    {
+      "type": "Sofa",
+      "floor": 0,
+      "x": -6.76,
+      "z": -4.16,
+      "size": [1.9, 0.85, 0.95],
+      "mat": "fabric",
+      "color": "#5a6a7a",
+      "style": "sofa"
+    },
+    {
+      "type": "Coffee Table",
+      "floor": 0,
+      "x": -6.76,
+      "z": -2.6,
+      "size": [1.2, 0.45, 0.65],
+      "mat": "wood",
+      "color": "#5a4330",
+      "style": "table"
+    },
+    {
+      "type": "TV Stand",
+      "floor": 0,
+      "x": -6.63,
+      "z": -6.5,
+      "size": [2, 0.55, 0.45],
+      "mat": "wood",
+      "color": "#3a2c20",
+      "style": "counter"
+    },
+    {
+      "type": "TV",
+      "floor": 0,
+      "x": -6.63,
+      "z": -6.565,
+      "size": [1.4, 0.8, 0.08],
+      "mat": "metal",
+      "color": "#111214",
+      "lift": 0.55
+    },
+    {
+      "type": "Armchair",
+      "floor": 0,
+      "x": -3.38,
+      "z": -8.32,
+      "size": [0.9, 0.9, 0.9],
+      "mat": "fabric",
+      "color": "#7a5a45",
+      "style": "chair"
+    },
+    {
+      "type": "Bookshelf",
+      "floor": 0,
+      "x": -9.035,
+      "z": -8.32,
+      "size": [0.4, 2, 1.4],
+      "mat": "wood",
+      "color": "#5a4330",
+      "style": "shelf"
+    },
+    {
+      "group": "Lobby",
+      "type": "Console Table",
+      "floor": 0,
+      "x": -1.95,
+      "z": -2.08,
+      "size": [0.4, 0.85, 1.2],
+      "mat": "wood",
+      "color": "#4f3a26",
+      "style": "table"
+    },
+    {
+      "group": "Office (desk + bookcases)",
+      "type": "Desk",
+      "floor": 0,
+      "x": 7.93,
+      "z": -4.03,
+      "size": [1.7, 0.76, 0.85],
+      "mat": "wood",
+      "color": "#5a4330",
+      "style": "desk"
+    },
+    {
+      "type": "Office Chair",
+      "floor": 0,
+      "x": 7.93,
+      "z": -2.925,
+      "size": [0.6, 1, 0.6],
+      "mat": "fabric",
+      "color": "#1f2124",
+      "style": "chair"
+    },
+    {
+      "type": "Bookcase",
+      "floor": 0,
+      "x": 6.045,
+      "z": -4.68,
+      "size": [0.45, 2.1, 1.6],
+      "mat": "wood",
+      "color": "#4f3a26",
+      "style": "shelf"
+    },
+    {
+      "type": "Bookcase",
+      "floor": 0,
+      "x": 10.049,
+      "z": -2.21,
+      "size": [0.45, 2.1, 1.4],
+      "mat": "wood",
+      "color": "#4f3a26",
+      "style": "shelf"
+    },
+    {
+      "type": "Filing Cabinet",
+      "floor": 0,
+      "x": 7.28,
+      "z": -6.175,
+      "size": [0.5, 1.3, 0.6],
+      "mat": "metal",
+      "color": "#6b6f75",
+      "style": "appliance"
+    },
+    {
+      "group": "Dining Room: four-seat table (clear of the arch and the master-bedroom hatch above) + ammo crate",
+      "type": "Dining Table",
+      "floor": 0,
+      "x": 8.58,
+      "z": 3.38,
+      "size": [2, 0.78, 1.15],
+      "mat": "wood",
+      "color": "#6b4a2b",
+      "style": "table"
+    },
+    {
+      "type": "Chair",
+      "floor": 0,
+      "x": 7.93,
+      "z": 2.015,
+      "size": [0.48, 0.95, 0.48],
+      "mat": "wood",
+      "color": "#4f3a26",
+      "style": "chair"
+    },
+    {
+      "type": "Chair",
+      "floor": 0,
+      "x": 7.93,
+      "z": 4.745,
+      "size": [0.48, 0.95, 0.48],
+      "mat": "wood",
+      "color": "#4f3a26",
+      "style": "chair"
+    },
+    {
+      "type": "Chair",
+      "floor": 0,
+      "x": 9.23,
+      "z": 2.015,
+      "size": [0.48, 0.95, 0.48],
+      "mat": "wood",
+      "color": "#4f3a26",
+      "style": "chair"
+    },
+    {
+      "type": "Chair",
+      "floor": 0,
+      "x": 9.23,
+      "z": 4.745,
+      "size": [0.48, 0.95, 0.48],
+      "mat": "wood",
+      "color": "#4f3a26",
+      "style": "chair"
+    },
+    {
+      "type": "Sideboard",
+      "floor": 0,
+      "x": 7.93,
+      "z": 5.85,
+      "size": [1.8, 0.9, 0.5],
+      "mat": "wood",
+      "color": "#4f3a26",
+      "style": "counter"
+    },
+    {
+      "type": "Ammo Crate",
+      "floor": 0,
+      "x": 11.96,
+      "z": 5.59,
+      "size": [0.75, 0.45, 0.45],
+      "mat": "wood",
+      "color": "#4b5a37",
+      "style": "ammo"
+    },
+    {
+      "group": "Kitchen: island, counters + stove + fridge along the south wall (clear of the kitchen|dining drone vent)",
+      "type": "Kitchen Island",
+      "floor": 0,
+      "x": 0.78,
+      "z": 3.38,
+      "size": [2.2, 0.92, 1],
+      "mat": "concrete",
+      "color": "#d9d4c8",
+      "style": "counter"
+    },
+    {
+      "type": "Fridge",
+      "floor": 0,
+      "x": 4.16,
+      "z": 5.785,
+      "size": [0.8, 1.9, 0.7],
+      "mat": "metal",
+      "color": "#c9cbcd",
+      "style": "appliance"
+    },
+    {
+      "type": "Counter",
+      "floor": 0,
+      "x": -0.78,
+      "z": 5.915,
+      "size": [1.6, 0.92, 0.6],
+      "mat": "concrete",
+      "color": "#d9d4c8",
+      "style": "counter"
+    },
+    {
+      "type": "Stove",
+      "floor": 0,
+      "x": 0.78,
+      "z": 5.915,
+      "size": [0.75, 0.92, 0.6],
+      "mat": "metal",
+      "color": "#2c2f33",
+      "style": "appliance"
+    },
+    {
+      "type": "Counter",
+      "floor": 0,
+      "x": 2.47,
+      "z": 5.915,
+      "size": [1.8, 0.92, 0.6],
+      "mat": "concrete",
+      "color": "#d9d4c8",
+      "style": "counter"
+    },
+    {
+      "group": "Back Entrance (the west half is the back stairwell now: the bench stands against the kitchen wall, the stand by the back door)",
+      "type": "Shoe Bench",
+      "floor": 0,
+      "x": -4.446,
+      "z": 2.86,
+      "size": [0.4, 0.5, 1.2],
+      "mat": "wood",
+      "color": "#5a4330",
+      "style": "bench"
+    },
+    {
+      "type": "Umbrella Stand",
+      "floor": 0,
+      "x": -6.76,
+      "z": 5.98,
+      "size": [0.3, 0.7, 0.3],
+      "mat": "metal",
+      "color": "#2c2f33",
+      "style": "cylinder"
+    },
+    {
+      "group": "Front porch",
+      "type": "Porch Bench",
+      "floor": 0,
+      "x": -1.82,
+      "z": -8.58,
+      "size": [0.5, 0.5, 1.4],
+      "mat": "wood",
+      "color": "#6b4f33",
+      "style": "bench"
+    },
+    {
+      "type": "Planter",
+      "floor": 0,
+      "x": 4.94,
+      "z": -8.71,
+      "size": [0.6, 0.7, 0.6],
+      "mat": "concrete",
+      "color": "#7a6a58",
+      "style": "box"
+    },
+    {
+      "group": "2F: Bathroom (shower booth = bulletproof partitions, in the NE corner)",
+      "type": "Shower Booth",
+      "floor": 1,
+      "x": -3.055,
+      "z": -8.775,
+      "size": [1.25, 2.2, 1.3],
+      "mat": "concrete",
+      "color": "#e8e4da",
+      "style": "shower"
+    },
+    {
+      "type": "Bathtub",
+      "floor": 1,
+      "x": -8.905,
+      "z": -8.385,
+      "size": [0.8, 0.6, 1.7],
+      "mat": "concrete",
+      "color": "#efece4",
+      "style": "tub"
+    },
+    {
+      "type": "Vanity Sink",
+      "floor": 1,
+      "x": -5.72,
+      "z": -9.23,
+      "size": [1.2, 0.86, 0.5],
+      "mat": "concrete",
+      "color": "#d9d4c8",
+      "style": "counter"
+    },
+    {
+      "type": "Toilet",
+      "floor": 1,
+      "x": -4.42,
+      "z": -9.165,
+      "size": [0.45, 0.75, 0.65],
+      "mat": "concrete",
+      "color": "#f2f0ea",
+      "style": "appliance"
+    },
+    {
+      "group": "West Hall",
+      "type": "Dresser",
+      "floor": 1,
+      "x": -9.1,
+      "z": -1.3,
+      "size": [0.5, 1.1, 1.5],
+      "mat": "wood",
+      "color": "#5a4330",
+      "style": "counter"
+    },
+    {
+      "type": "Bench",
+      "floor": 1,
+      "x": -9.815,
+      "z": -1.3,
+      "size": [0.45, 0.45, 1.4],
+      "mat": "wood",
+      "color": "#6b4f33",
+      "style": "bench"
+    },
+    {
+      "type": "Plant",
+      "floor": 1,
+      "x": -9.88,
+      "z": 0.26,
+      "size": [0.45, 1.2, 0.45],
+      "mat": "fabric",
+      "color": "#3f5a2e",
+      "style": "cylinder"
+    },
+    {
+      "group": "Upper Hallway",
+      "type": "Hall Table",
+      "floor": 1,
+      "x": -0.65,
+      "z": -6.63,
+      "size": [1.2, 0.8, 0.4],
+      "mat": "wood",
+      "color": "#4f3a26",
+      "style": "table"
+    },
+    {
+      "group": "Workshop: workbench, tool shelf, table saw, ammo crate",
+      "type": "Workbench",
+      "floor": 1,
+      "x": 7.8,
+      "z": -6.045,
+      "size": [2.2, 0.95, 0.8],
+      "mat": "wood",
+      "color": "#6b4f33",
+      "style": "desk"
+    },
+    {
+      "type": "Tool Shelf",
+      "floor": 1,
+      "x": 10.4,
+      "z": -3.9,
+      "size": [0.5, 1.9, 1.4],
+      "mat": "metal",
+      "color": "#5d6268",
+      "style": "rack"
+    },
+    {
+      "type": "Table Saw",
+      "floor": 1,
+      "x": 8.06,
+      "z": -3.12,
+      "size": [1.1, 0.9, 0.8],
+      "mat": "metal",
+      "color": "#3e5a7a",
+      "style": "appliance"
+    },
+    {
+      "type": "Ammo Crate",
+      "floor": 1,
+      "x": 10.14,
+      "z": -1.235,
+      "size": [0.75, 0.45, 0.45],
+      "mat": "wood",
+      "color": "#4b5a37",
+      "style": "ammo"
+    },
+    {
+      "group": "Master Bedroom: king bed, nightstands, cupboard, ammo crate",
+      "type": "King Bed",
+      "floor": 1,
+      "x": 7.28,
+      "z": 4.29,
+      "size": [2, 0.62, 2.2],
+      "mat": "fabric",
+      "color": "#c9c2b2",
+      "style": "bed"
+    },
+    {
+      "type": "Nightstand",
+      "floor": 1,
+      "x": 5.525,
+      "z": 5.72,
+      "size": [0.5, 0.55, 0.45],
+      "mat": "wood",
+      "color": "#4f3a26",
+      "style": "box"
+    },
+    {
+      "type": "Nightstand",
+      "floor": 1,
+      "x": 9.035,
+      "z": 5.72,
+      "size": [0.5, 0.55, 0.45],
+      "mat": "wood",
+      "color": "#4f3a26",
+      "style": "box"
+    },
+    {
+      "group": "(against the east wall: the south window opens onto the back porch roof)",
+      "type": "Cupboard",
+      "floor": 1,
+      "x": 12.181,
+      "z": 3.38,
+      "size": [0.55, 1.15, 1.4],
+      "mat": "wood",
+      "color": "#5a4330",
+      "style": "counter"
+    },
+    {
+      "type": "Armchair",
+      "floor": 1,
+      "x": 11.7,
+      "z": 0,
+      "size": [0.9, 0.9, 0.9],
+      "mat": "fabric",
+      "color": "#7a5a45",
+      "style": "chair"
+    },
+    {
+      "type": "Ammo Crate",
+      "floor": 1,
+      "x": 11.96,
+      "z": 5.655,
+      "size": [0.75, 0.45, 0.45],
+      "mat": "wood",
+      "color": "#4b5a37",
+      "style": "ammo"
+    },
+    {
+      "group": "Walk-in Closet",
+      "type": "Clothes Rack",
+      "floor": 1,
+      "x": -1.885,
+      "z": 4.55,
+      "size": [0.5, 1.8, 2],
+      "mat": "fabric",
+      "color": "#6a5a7a",
+      "style": "rack"
+    },
+    {
+      "type": "Clothes Rack",
+      "floor": 1,
+      "x": 0.39,
+      "z": 5.915,
+      "size": [1.6, 1.8, 0.45],
+      "mat": "fabric",
+      "color": "#7a5a5a",
+      "style": "rack"
+    },
+    {
+      "group": "Kids' Room: crib, toy shelf, small desk",
+      "type": "Crib",
+      "floor": 1,
+      "x": -8.32,
+      "z": 5.72,
+      "size": [1.3, 1, 0.7],
+      "mat": "wood",
+      "color": "#e0d6c2",
+      "style": "bunk"
+    },
+    {
+      "type": "Toy Shelf",
+      "floor": 1,
+      "x": -3.185,
+      "z": 8.19,
+      "size": [1.2, 1.2, 0.4],
+      "mat": "wood",
+      "color": "#c25b4a",
+      "style": "shelf"
+    },
+    {
+      "type": "Kids Desk",
+      "floor": 1,
+      "x": -5.72,
+      "z": 7.8,
+      "size": [1, 0.65, 0.6],
+      "mat": "wood",
+      "color": "#6aa0c8",
+      "style": "desk"
+    },
+    {
+      "type": "Toy Box",
+      "floor": 1,
+      "x": -6.5,
+      "z": 3.315,
+      "size": [0.7, 0.5, 0.5],
+      "mat": "wood",
+      "color": "#d9b23a",
+      "style": "box"
+    }
+  ]
+}

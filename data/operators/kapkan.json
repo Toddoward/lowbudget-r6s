@@ -1,0 +1,26 @@
+{
+  "$schema": "../schema/operator.schema.json",
+  "id": "kapkan",
+  "name": "Kapkan",
+  "order": 14,
+  "team": "defend",
+  "unit": "Spetsnaz",
+  "roles": ["trapper"],
+  "armor": 2,
+  "speed": 2,
+  "loadout": {
+    "primary": "vsn9",
+    "secondary": "pmm",
+    "gadget": "edd",
+    "gadgetName": "Entry Denial Device",
+    "gadgetCount": 3,
+    "universal": "barricade",
+    "universalCount": 99
+  },
+  "description": {
+    "en": "Hold [G] at a door or window frame: a laser tripwire that explodes on the first attacker through.",
+    "ko": "문·창틀을 보고 [G] 길게: 처음 지나가는 공격자에게 터지는 레이저 트랩을 설치합니다."
+  },
+  "look": { "headgear": "ushanka", "cloth": "#3b3f35", "accent": "#262920" },
+  "model": {}
+}

@@ -1,0 +1,26 @@
+{
+  "$schema": "../schema/operator.schema.json",
+  "id": "tachanka",
+  "name": "Tachanka",
+  "order": 15,
+  "team": "defend",
+  "unit": "Spetsnaz",
+  "roles": ["anchor"],
+  "armor": 3,
+  "speed": 1,
+  "loadout": {
+    "primary": "vsn9",
+    "secondary": "pmm",
+    "gadget": "turret",
+    "gadgetName": "RP-46 Mounted LMG",
+    "gadgetCount": 1,
+    "universal": "barricade",
+    "universalCount": 99
+  },
+  "description": {
+    "en": "Hold [G] to set up a shielded LMG, then [F] behind it to mount. Hard-hitting, slow to turn.",
+    "ko": "[G] 길게: 방패 달린 기관총을 설치하고 뒤에서 [F]로 거치합니다. 위력은 강하지만 회전이 느립니다."
+  },
+  "look": { "headgear": "tachanka_helmet", "cloth": "#3a4134", "accent": "#22261f" },
+  "model": {}
+}

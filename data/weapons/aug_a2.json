@@ -1,0 +1,24 @@
+{
+  "$schema": "../schema/weapon.schema.json",
+  "id": "aug_a2",
+  "name": "AUG A2",
+  "class": "AR",
+  "order": 14,
+  "damage": { "base": 42, "falloffStart": 25, "falloffEnd": 42, "min": 0.6 },
+  "fire": { "rpm": 720, "mode": "auto" },
+  "ammo": { "mag": 30, "reserve": 150, "reload": 2.4, "reloadEmpty": 3 },
+  "spread": { "hip": 2.2, "ads": 0.24 },
+  "recoil": { "vertical": 0.5, "horizontal": 0.2, "recover": 7.5 },
+  "penetration": { "budget": 2, "wallDamage": 1 },
+  "optic": "holo",
+  "model": {
+    "anchors": {
+      "sight": [0, 0.172, 0.04],
+      "lens": [0, 0.172, -0.035],
+      "muzzle": [0, 0.065, -0.77],
+      "grip": [0, -0.03, 0],
+      "fore": [0, 0.03, -0.325]
+    },
+    "procedural": { "layout": "bullpup", "body": "#3b4134", "accent": "#2a2d26", "length": 0.72 }
+  }
+}

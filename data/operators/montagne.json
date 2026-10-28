@@ -1,0 +1,27 @@
+{
+  "$schema": "../schema/operator.schema.json",
+  "id": "montagne",
+  "name": "Montagne",
+  "order": 11,
+  "team": "attack",
+  "unit": "GIGN",
+  "roles": ["shield", "support"],
+  "armor": 3,
+  "speed": 1,
+  "loadout": {
+    "primary": "p9",
+    "secondary": "p9",
+    "gadget": "shield_ext",
+    "gadgetName": "Le Roc Extendable Shield",
+    "gadgetCount": 1,
+    "universal": "breach",
+    "universalCount": 1,
+    "shield": true
+  },
+  "description": {
+    "en": "Ballistic shield + pistol (always in hand). [1] slings the shield on the back / raises it; RMB swings it aside to aim past its edge; [G] extends it over the whole body (no shooting while extended).",
+    "ko": "방패 + 권총(항상 손에). [1]로 방패를 등에 메거나 앞으로 들고, 우클릭은 방패를 옆으로 돌려 가장자리로 조준합니다. [G]로 방패를 펼치면 전신을 가리지만 사격할 수 없습니다."
+  },
+  "look": { "headgear": "montagne_helmet", "cloth": "#3a4250", "accent": "#20252c" },
+  "model": {}
+}

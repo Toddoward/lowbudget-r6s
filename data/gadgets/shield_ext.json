@@ -1,0 +1,7 @@
+{
+  "$schema": "../schema/gadget.schema.json",
+  "id": "shield_ext",
+  "name": "Le Roc Extendable Shield",
+  "class": "active",
+  "model": {}
+}

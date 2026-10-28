@@ -1,0 +1,31 @@
+{
+  "$schema": "../schema/weapon.schema.json",
+  "id": "mp7",
+  "name": "MP7",
+  "class": "SMG",
+  "order": 9,
+  "damage": { "base": 32, "falloffStart": 12, "falloffEnd": 25, "min": 0.55 },
+  "fire": { "rpm": 1000, "mode": "auto" },
+  "ammo": { "mag": 30, "reserve": 180, "reload": 2, "reloadEmpty": 2.6 },
+  "spread": { "hip": 1.7, "ads": 0.45 },
+  "recoil": { "vertical": 0.4, "horizontal": 0.3, "recover": 8.5 },
+  "penetration": { "budget": 1, "wallDamage": 0.75 },
+  "optic": "reflex",
+  "model": {
+    "anchors": {
+      "sight": [0, 0.162, -0.12],
+      "lens": [0, 0.162, -0.162],
+      "muzzle": [0, 0.065, -0.58],
+      "grip": [0, -0.03, 0],
+      "fore": [0, 0.03, -0.29]
+    },
+    "procedural": {
+      "layout": "smg",
+      "body": "#1e1f21",
+      "accent": "#272829",
+      "length": 0.38,
+      "suppressor": true,
+      "foldStock": true
+    }
+  }
+}

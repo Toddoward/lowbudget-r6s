@@ -1,0 +1,17 @@
+{
+ "type": "object",
+ "title": "3인칭 애니메이션",
+ "description": "data/rig/animation.json — 자세 전환, 걷기, 앉기·엎드리기, 달리기, 레펠, 손 위치, 재장전, 사망 (m, rad)",
+ "additionalProperties": {
+  "type": "object"
+ },
+ "properties": {
+  "$schema": {
+   "type": "string",
+   "title": "스키마",
+   "description": "VS Code / 에디터용 스키마 경로"
+  }
+ },
+ "$id": "animation",
+ "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

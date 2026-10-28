@@ -1,0 +1,26 @@
+{
+  "$schema": "../schema/operator.schema.json",
+  "id": "smoke",
+  "name": "Smoke",
+  "order": 5,
+  "team": "defend",
+  "unit": "SAS",
+  "roles": ["support", "anchor"],
+  "armor": 2,
+  "speed": 2,
+  "loadout": {
+    "primary": "fmg9",
+    "secondary": "p226",
+    "gadget": "gas",
+    "gadgetName": "Remote Gas Grenade",
+    "gadgetCount": 3,
+    "universal": "barricade",
+    "universalCount": 99
+  },
+  "description": {
+    "en": "Throw, then detonate remotely [G]: toxic cloud (r 3 m, 10 s) that denies plants and pushes.",
+    "ko": "던진 뒤 [G]로 원격 기폭: 3 m, 10초 독가스로 진입·설치를 막습니다."
+  },
+  "look": { "headgear": "gasmask_hood", "cloth": "#2f3640", "accent": "#4b5260" },
+  "model": {}
+}

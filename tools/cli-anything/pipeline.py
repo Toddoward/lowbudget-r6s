@@ -250,6 +250,15 @@ def main() -> None:
     if not SPECS.exists():
         sys.exit("no specs — run `npm run assets:spec` first")
     specs = sorted(SPECS.glob("*.json"))
+    # hand-made models (linked from the data: `model.glb` in data/weapons|operators|gadgets) are never rebaked
+    manifest_path = OUT / "manifest.json"
+    old_assets = json.loads(manifest_path.read_text()).get("assets", {}) if manifest_path.exists() else {}
+    handmade = set()
+    for d, prefix in (("weapons", "weapon"), ("operators", "operator"), ("gadgets", "gadget")):
+        for f in (ROOT / "data" / d).glob("*.json"):
+            if json.loads(f.read_text()).get("model", {}).get("glb"):
+                handmade.add(f"{prefix}_{f.stem}")
+    specs = [s for s in specs if s.stem not in handmade]
     if args.only:
         pref = tuple(p.strip() for p in args.only.split(","))
         specs = [s for s in specs if s.stem.startswith(pref)]
@@ -295,10 +304,7 @@ def main() -> None:
                         failed.append(f"{futs[fu]['id']}: {e}")
         else:
             results = prepared
-    manifest_path = OUT / "manifest.json"
-    manifest = {"generator": "cli-anything-blender (HKUDS/CLI-Anything) + Blender glTF exporter", "generatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "assets": {}}
-    if manifest_path.exists() and args.only:
-        manifest["assets"] = json.loads(manifest_path.read_text()).get("assets", {})
+    manifest = {"generator": "cli-anything-blender (HKUDS/CLI-Anything) + Blender glTF exporter", "generatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "assets": dict(old_assets) if args.only else {}}
     for r in sorted(results, key=lambda x: x["id"]):
         if r.get("glb"):
             manifest["assets"][r["id"]] = {"file": r["glb"], "category": r["category"], "parts": r["parts"], "bytes": r["bytes"]}

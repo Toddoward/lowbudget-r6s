@@ -1,0 +1,8 @@
+{
+  "$schema": "../schema/gadget.schema.json",
+  "id": "castle",
+  "name": "Armor Panel",
+  "class": "place",
+  "placeTime": 1.5,
+  "model": {}
+}

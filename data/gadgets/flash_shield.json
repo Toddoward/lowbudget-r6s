@@ -1,0 +1,11 @@
+{
+  "$schema": "../schema/gadget.schema.json",
+  "id": "flash_shield",
+  "name": "G52-Tactical Flash Shield",
+  "class": "active",
+  "cooldown": 1.2,
+  "range": 6.5,
+  "cone": 32,
+  "blind": { "facing": 4, "away": 1.5 },
+  "model": {}
+}

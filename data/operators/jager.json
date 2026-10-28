@@ -1,0 +1,26 @@
+{
+  "$schema": "../schema/operator.schema.json",
+  "id": "jager",
+  "name": "Jäger",
+  "order": 9,
+  "team": "defend",
+  "unit": "GSG 9",
+  "roles": ["antiGadget"],
+  "armor": 2,
+  "speed": 2,
+  "loadout": {
+    "primary": "416c",
+    "secondary": "p12",
+    "gadget": "ads",
+    "gadgetName": "ADS-MK IV \"Magpie\"",
+    "gadgetCount": 3,
+    "universal": "barricade",
+    "universalCount": 99
+  },
+  "description": {
+    "en": "Active Defense System: shoots down 2 thrown/launched projectiles each (grenades, Ash rounds, cluster bomblets).",
+    "ko": "ADS: 던지거나 쏜 투사체(수류탄·애쉬탄·집속탄)를 2개씩 요격합니다."
+  },
+  "look": { "headgear": "helmet_headset", "cloth": "#30363c", "accent": "#4a4f45" },
+  "model": {}
+}

@@ -1,0 +1,199 @@
+{
+ "type": "object",
+ "title": "오퍼레이터",
+ "properties": {
+  "$schema": {
+   "type": "string",
+   "title": "스키마",
+   "description": "VS Code / 에디터용 스키마 경로"
+  },
+  "id": {
+   "type": "string",
+   "title": "ID"
+  },
+  "name": {
+   "type": "string",
+   "title": "표시 이름"
+  },
+  "order": {
+   "type": "integer",
+   "title": "메뉴 순서"
+  },
+  "team": {
+   "type": "string",
+   "title": "진영",
+   "enum": [
+    "attack",
+    "defend",
+    "terrorist",
+    "hostage"
+   ]
+  },
+  "unit": {
+   "type": "string",
+   "title": "소속"
+  },
+  "roles": {
+   "type": "array",
+   "title": "역할",
+   "items": {
+    "type": "string",
+    "enum": [
+     "breacher",
+     "hardBreacher",
+     "support",
+     "intel",
+     "fragger",
+     "anchor",
+     "trapper",
+     "antiGadget",
+     "shield",
+     "flank"
+    ]
+   }
+  },
+  "armor": {
+   "type": "integer",
+   "title": "아머 (1~3)",
+   "minimum": 1,
+   "maximum": 3
+  },
+  "speed": {
+   "type": "integer",
+   "title": "스피드 (1~3)",
+   "minimum": 1,
+   "maximum": 3
+  },
+  "loadout": {
+   "type": "object",
+   "title": "장비",
+   "properties": {
+    "primary": {
+     "type": "string",
+     "title": "주무기",
+     "description": "data/weapons의 ID"
+    },
+    "secondary": {
+     "type": "string",
+     "title": "보조무기",
+     "description": "data/weapons의 ID"
+    },
+    "gadget": {
+     "type": "string",
+     "title": "고유 가젯",
+     "description": "data/gadgets의 ID (없으면 none)"
+    },
+    "gadgetName": {
+     "type": "string",
+     "title": "가젯 이름"
+    },
+    "gadgetCount": {
+     "type": "integer",
+     "title": "가젯 개수"
+    },
+    "universal": {
+     "type": "string",
+     "title": "공용 가젯",
+     "enum": [
+      "breach",
+      "barricade",
+      "none"
+     ]
+    },
+    "universalCount": {
+     "type": "integer",
+     "title": "공용 가젯 개수"
+    },
+    "shield": {
+     "type": "boolean",
+     "title": "방패 소지"
+    }
+   },
+   "additionalProperties": false,
+   "required": [
+    "primary",
+    "secondary",
+    "gadget",
+    "gadgetName",
+    "gadgetCount",
+    "universal",
+    "universalCount"
+   ]
+  },
+  "description": {
+   "type": "object",
+   "title": "설명",
+   "properties": {
+    "en": {
+     "type": "string",
+     "title": "영어"
+    },
+    "ko": {
+     "type": "string",
+     "title": "한국어"
+    }
+   },
+   "additionalProperties": false,
+   "required": [
+    "en"
+   ]
+  },
+  "look": {
+   "type": "object",
+   "title": "외형 (절차적 모델)",
+   "properties": {
+    "headgear": {
+     "type": "string",
+     "title": "머리 장비"
+    },
+    "cloth": {
+     "type": "string",
+     "title": "옷 색",
+     "description": "#rrggbb 또는 #rgb",
+     "pattern": "^#([0-9a-fA-F]{3}){1,2}$"
+    },
+    "accent": {
+     "type": "string",
+     "title": "보조 색",
+     "description": "#rrggbb 또는 #rgb",
+     "pattern": "^#([0-9a-fA-F]{3}){1,2}$"
+    }
+   },
+   "additionalProperties": false,
+   "required": [
+    "headgear",
+    "cloth",
+    "accent"
+   ]
+  },
+  "model": {
+   "type": "object",
+   "title": "모델",
+   "properties": {
+    "glb": {
+     "type": "string",
+     "title": "GLB 파일",
+     "description": "public/assets/models/ 기준. 뼈대별 노드: hips torso head armL armR foreL foreR legL legR"
+    }
+   },
+   "additionalProperties": false,
+   "required": []
+  }
+ },
+ "additionalProperties": false,
+ "description": "data/operators/<id>.json — 스탯, 장비, 설명, 외형, 모델",
+ "required": [
+  "id",
+  "name",
+  "team",
+  "unit",
+  "armor",
+  "speed",
+  "loadout",
+  "description",
+  "look",
+  "model"
+ ],
+ "$id": "operator",
+ "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

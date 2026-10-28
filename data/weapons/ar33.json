@@ -1,0 +1,24 @@
+{
+  "$schema": "../schema/weapon.schema.json",
+  "id": "ar33",
+  "name": "AR33",
+  "class": "AR",
+  "order": 3,
+  "damage": { "base": 41, "falloffStart": 25, "falloffEnd": 42, "min": 0.6 },
+  "fire": { "rpm": 749, "mode": "auto" },
+  "ammo": { "mag": 25, "reserve": 150, "reload": 2.3, "reloadEmpty": 2.9 },
+  "spread": { "hip": 2.3, "ads": 0.26 },
+  "recoil": { "vertical": 0.5, "horizontal": 0.22, "recover": 7.5 },
+  "penetration": { "budget": 2, "wallDamage": 1 },
+  "optic": "reflex",
+  "model": {
+    "anchors": {
+      "sight": [0, 0.162, -0.12],
+      "lens": [0, 0.162, -0.162],
+      "muzzle": [0, 0.065, -0.77],
+      "grip": [0, -0.03, 0],
+      "fore": [0, 0.03, -0.395]
+    },
+    "procedural": { "layout": "ar", "body": "#2b2c2f", "accent": "#232427", "length": 0.72 }
+  }
+}

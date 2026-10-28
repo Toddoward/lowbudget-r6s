@@ -1,0 +1,26 @@
+{
+  "$schema": "../schema/operator.schema.json",
+  "id": "fuze",
+  "name": "Fuze",
+  "order": 4,
+  "team": "attack",
+  "unit": "Spetsnaz",
+  "roles": ["fragger", "support"],
+  "armor": 3,
+  "speed": 1,
+  "loadout": {
+    "primary": "ak12",
+    "secondary": "pmm",
+    "gadget": "cluster",
+    "gadgetName": "APM-6 Cluster Charge",
+    "gadgetCount": 3,
+    "universal": "breach",
+    "universalCount": 1
+  },
+  "description": {
+    "en": "Plant on a soft wall/floor: fires 5 grenades into the room behind. WARNING: kills hostages too.",
+    "ko": "소프트월·바닥에 붙이면 뒤쪽 방으로 수류탄 5발을 쏩니다. 인질도 죽을 수 있습니다!"
+  },
+  "look": { "headgear": "altyn", "cloth": "#4f5546", "accent": "#2e3329" },
+  "model": {}
+}

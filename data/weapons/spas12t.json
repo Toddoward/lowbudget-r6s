@@ -1,0 +1,24 @@
+{
+  "$schema": "../schema/weapon.schema.json",
+  "id": "spas12t",
+  "name": "SPAS-12 (White Masks)",
+  "class": "Shotgun",
+  "order": 20,
+  "damage": { "base": 22, "pellets": 8, "falloffStart": 5, "falloffEnd": 15, "min": 0.3 },
+  "fire": { "rpm": 70, "mode": "semi" },
+  "ammo": { "mag": 7, "reserve": 600, "reload": 3.5, "reloadEmpty": 4 },
+  "spread": { "hip": 4.5, "ads": 3.2 },
+  "recoil": { "vertical": 2.4, "horizontal": 0.6, "recover": 5 },
+  "penetration": { "budget": 1, "wallDamage": 0.6 },
+  "optic": "iron",
+  "model": {
+    "anchors": {
+      "sight": [0, 0.157, -0.06],
+      "lens": [0, 0.157, -0.51],
+      "muzzle": [0, 0.065, -0.9],
+      "grip": [0, -0.03, 0],
+      "fore": [0, 0.03, -0.395]
+    },
+    "procedural": { "layout": "shotgun", "body": "#232323", "accent": "#2f2f2f", "length": 0.85 }
+  }
+}

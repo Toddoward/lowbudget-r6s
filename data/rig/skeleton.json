@@ -1,0 +1,11 @@
+{
+  "$schema": "../schema/skeleton.schema.json",
+  "hips": [0, 0.95, 0],
+  "head": [0, 0.5, 0],
+  "shoulderL": [-0.21, 0.45, 0],
+  "shoulderR": [0.21, 0.45, 0],
+  "armUpper": 0.3,
+  "armFore": 0.31,
+  "legL": [-0.09, -0.02, 0],
+  "legR": [0.09, -0.02, 0]
+}

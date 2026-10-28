@@ -1,0 +1,10 @@
+{
+  "$schema": "../schema/gadget.schema.json",
+  "id": "emp",
+  "name": "EG Mk0-EMP Grenade",
+  "class": "throw",
+  "speed": 13,
+  "fuse": 2,
+  "radius": 5,
+  "model": {}
+}

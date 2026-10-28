@@ -27,7 +27,7 @@ import { Objectives, type Mission } from './Objectives.ts';
 import { Soldier, emptyInput, type SoldierInput } from './Soldier.ts';
 import { OPERATORS } from './operators.ts';
 import { lookTarget, PING_RANGE, Scanner, SPOT_SECS } from './Spotting.ts';
-import { WEAPONS } from './weapons.ts';
+import { WEAPONS, adsFovOf } from './weapons.ts';
 import { Stance, type Side } from './types.ts';
 import { NavGraph } from '../ai/NavGraph.ts';
 import { Bot, DIFFICULTY, type BotDifficulty } from '../ai/Bot.ts';
@@ -1139,11 +1139,14 @@ export class Game {
         }
       }
     }
+    this.input.zoomSens = 1;
     if (camSoldier && !inDrone && !inCam) {
       this.camera.position.copy(camSoldier.eye());
       this.camera.rotation.set(camSoldier.pitch + camSoldier.recoilP, camSoldier.yaw + camSoldier.recoilY, camSoldier.cameraRoll, 'YXZ');
-      const adsFov = camSoldier.weapon ? camSoldier.weapon.def.adsFov : this.fov;
-      this.camera.fov = THREE.MathUtils.lerp(this.fov, Math.min(this.fov, adsFov + 20), camSoldier.ads);
+      const adsFov = camSoldier.weapon ? adsFovOf(this.fov, camSoldier.weapon.def.style.optic) : this.fov;
+      this.camera.fov = THREE.MathUtils.lerp(this.fov, adsFov, camSoldier.ads);
+      // the look follows the magnification: the same mouse travel moves the view by the same share of the screen
+      this.input.zoomSens = camSoldier === this.player ? Math.tan((this.camera.fov * Math.PI) / 360) / Math.tan((this.fov * Math.PI) / 360) : 1;
     }
     if (this.freeCam) { this.applyFreeCam(); camSoldier = null; }
     this.camera.updateProjectionMatrix();

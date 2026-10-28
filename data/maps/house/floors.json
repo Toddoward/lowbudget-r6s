@@ -1,0 +1,403 @@
+{
+  "$schema": "../../schema/floors.schema.json",
+  "floors": [
+    {
+      "group": "basement floor (ground-bearing concrete)",
+      "id": "slab_b_a",
+      "y": -3.5,
+      "rect": { "x0": -9.425, "z0": -9.62, "x1": 9.36, "z1": -0.78 },
+      "tier": "solid",
+      "kind": "concrete"
+    },
+    {
+      "id": "slab_b_w",
+      "y": -3.5,
+      "rect": { "x0": -10.335, "z0": -3.185, "x1": -9.425, "z1": -0.78 },
+      "tier": "solid",
+      "kind": "concrete",
+      "note": "training room's west strip"
+    },
+    {
+      "id": "slab_b_b",
+      "y": -3.5,
+      "rect": { "x0": -12.285, "z0": -0.78, "x1": 12.61, "z1": 4.81 },
+      "tier": "solid",
+      "kind": "concrete"
+    },
+    {
+      "id": "slab_b_c",
+      "y": -3.5,
+      "rect": { "x0": -7.085, "z0": 4.81, "x1": 2.665, "z1": 8.385 },
+      "tier": "solid",
+      "kind": "concrete"
+    },
+    {
+      "id": "slab_b_d",
+      "y": -3.5,
+      "rect": { "x0": 2.665, "z0": 4.81, "x1": 12.61, "z1": 6.305 },
+      "tier": "solid",
+      "kind": "concrete"
+    },
+    {
+      "id": "pit_storage",
+      "y": -3.5,
+      "rect": { "x0": -14.04, "z0": -10.4, "x1": -9.425, "z1": -7.41 },
+      "tier": "solid",
+      "kind": "concrete",
+      "label": "NW Basement Stairs"
+    },
+    {
+      "group": "1F floor — wooden joists (semi-breach): shoot down into the basement",
+      "id": "wood_1f_nw",
+      "y": 0,
+      "rect": { "x0": -9.425, "z0": -9.62, "x1": -2.275, "z1": -3.185 },
+      "tier": "semi",
+      "kind": "wood",
+      "holes": ["hatch_living"],
+      "label": "1F Living Room Floor"
+    },
+    {
+      "id": "wood_1f_w",
+      "y": 0,
+      "rect": { "x0": -10.335, "z0": -3.185, "x1": -2.275, "z1": 0.78 },
+      "tier": "semi",
+      "kind": "wood",
+      "label": "1F Living Room Floor (S)"
+    },
+    {
+      "id": "wood_1f_lobby",
+      "y": 0,
+      "rect": { "x0": -2.275, "z0": -6.37, "x1": 5.59, "z1": -1.235 },
+      "tier": "semi",
+      "kind": "wood",
+      "label": "1F Lobby Floor"
+    },
+    {
+      "id": "wood_1f_landing",
+      "y": 0,
+      "rect": { "x0": 2.99, "z0": -1.235, "x1": 5.59, "z1": 0.78 },
+      "tier": "semi",
+      "kind": "wood",
+      "label": "1F Lobby Landing Floor"
+    },
+    {
+      "id": "wood_1f_office",
+      "y": 0,
+      "rect": { "x0": 5.59, "z0": -6.695, "x1": 10.79, "z1": -0.78 },
+      "tier": "semi",
+      "kind": "wood",
+      "label": "1F Office Floor"
+    },
+    {
+      "id": "wood_1f_dining",
+      "y": 0,
+      "rect": { "x0": 5.59, "z0": -0.78, "x1": 12.61, "z1": 6.305 },
+      "tier": "semi",
+      "kind": "wood",
+      "label": "1F Dining Room Floor"
+    },
+    {
+      "id": "wood_1f_kitchen",
+      "y": 0,
+      "rect": { "x0": -4.095, "z0": 0.78, "x1": 5.59, "z1": 6.305 },
+      "tier": "semi",
+      "kind": "wood",
+      "holes": ["hatch_kitchen"],
+      "label": "1F Kitchen Floor"
+    },
+    {
+      "id": "wood_1f_back",
+      "y": 0,
+      "rect": { "x0": -7.15, "z0": 0.78, "x1": -4.095, "z1": 4.875 },
+      "tier": "semi",
+      "kind": "wood",
+      "label": "1F Back Entrance Floor"
+    },
+    {
+      "id": "wood_1f_back2",
+      "y": 0,
+      "rect": { "x0": -7.085, "z0": 4.875, "x1": -4.095, "z1": 6.305 },
+      "tier": "semi",
+      "kind": "wood",
+      "label": "1F Back Entrance Floor (S)"
+    },
+    {
+      "group": "2F floor — wooden, mostly penetrable",
+      "id": "wood_2f_bath",
+      "y": 3.5,
+      "rect": { "x0": -9.425, "z0": -9.62, "x1": -2.21, "z1": -7.15 },
+      "tier": "semi",
+      "kind": "wood",
+      "label": "2F Bathroom Floor"
+    },
+    {
+      "id": "wood_2f_west",
+      "y": 3.5,
+      "rect": { "x0": -9.425, "z0": -7.15, "x1": -4.095, "z1": -3.185 },
+      "tier": "semi",
+      "kind": "wood",
+      "label": "2F West Hall Floor (N)"
+    },
+    {
+      "id": "wood_2f_west2",
+      "y": 3.5,
+      "rect": { "x0": -10.335, "z0": -3.185, "x1": -4.095, "z1": 2.86 },
+      "tier": "semi",
+      "kind": "wood",
+      "holes": [{ "x0": -10.335, "z0": 0.715, "x1": -7.15, "z1": 2.86 }],
+      "label": "2F West Hall Floor"
+    },
+    {
+      "id": "wood_2f_hall",
+      "y": 3.5,
+      "rect": { "x0": -4.095, "z0": -7.15, "x1": 5.655, "z1": 0.715 },
+      "tier": "semi",
+      "kind": "wood",
+      "holes": ["stairs:main", "hatch_hallway"],
+      "label": "2F Upper Hallway Floor"
+    },
+    {
+      "id": "wood_2f_hall_s",
+      "y": 3.5,
+      "rect": { "x0": -4.095, "z0": 0.715, "x1": 1.625, "z1": 2.86 },
+      "tier": "semi",
+      "kind": "wood",
+      "label": "2F Upper Hallway Floor (S)"
+    },
+    {
+      "id": "wood_2f_workshop",
+      "y": 3.5,
+      "rect": { "x0": 5.655, "z0": -6.695, "x1": 10.79, "z1": -0.78 },
+      "tier": "semi",
+      "kind": "wood",
+      "label": "2F Workshop Floor"
+    },
+    {
+      "id": "wood_2f_master",
+      "y": 3.5,
+      "rect": { "x0": 1.625, "z0": -0.78, "x1": 12.61, "z1": 6.305 },
+      "tier": "semi",
+      "kind": "wood",
+      "holes": ["hatch_master", { "x0": 1.625, "z0": -0.78, "x1": 5.655, "z1": 0.715 }],
+      "label": "2F Master Bedroom Floor"
+    },
+    {
+      "id": "wood_2f_closet",
+      "y": 3.5,
+      "rect": { "x0": -2.34, "z0": 2.86, "x1": 1.625, "z1": 6.305 },
+      "tier": "semi",
+      "kind": "wood",
+      "label": "2F Walk-in Closet Floor"
+    },
+    {
+      "id": "wood_2f_kids",
+      "y": 3.5,
+      "rect": { "x0": -7.215, "z0": 2.86, "x1": -2.34, "z1": 4.875 },
+      "tier": "semi",
+      "kind": "wood",
+      "label": "2F Kids' Room Floor (N)"
+    },
+    {
+      "id": "wood_2f_kids2",
+      "y": 3.5,
+      "rect": { "x0": -9.425, "z0": 4.875, "x1": -2.34, "z1": 8.58 },
+      "tier": "semi",
+      "kind": "wood",
+      "label": "2F Kids' Room Floor"
+    },
+    {
+      "group": "front porch roof (walkable: bathroom window, open window, rappel)",
+      "id": "roof_porch",
+      "y": 3.5,
+      "rect": { "x0": -2.21, "z0": -9.1, "x1": 5.655, "z1": -7.15 },
+      "tier": "solid",
+      "kind": "roof",
+      "label": "Porch Roof"
+    },
+    {
+      "group": "decks",
+      "id": "porch_deck",
+      "y": 0,
+      "rect": { "x0": -2.21, "z0": -9.1, "x1": 5.655, "z1": -6.37 },
+      "tier": "solid",
+      "kind": "deck",
+      "label": "Front Porch",
+      "t": 0.25
+    },
+    {
+      "group": "the porch's east end runs on along the office front, to its drone vent (the yard is 1.2 m down: a drone gets in from here)",
+      "id": "porch_deck_e",
+      "y": 0,
+      "rect": { "x0": 5.655, "z0": -9.1, "x1": 6.89, "z1": -6.845 },
+      "tier": "solid",
+      "kind": "deck",
+      "label": "Front Porch",
+      "t": 0.25
+    },
+    {
+      "group": "the back deck along the whole south side (blueprint 1F): covered by the Kids' Room in the west, by the south porch roof east of it, steps down to the yard on the west and the south",
+      "id": "back_deck",
+      "y": 0,
+      "rect": { "x0": -9.425, "z0": 6.305, "x1": -2.34, "z1": 8.71 },
+      "tier": "solid",
+      "kind": "deck",
+      "label": "Back Porch",
+      "t": 0.25
+    },
+    {
+      "id": "back_deck_w",
+      "y": 0,
+      "rect": { "x0": -9.425, "z0": 4.875, "x1": -7.085, "z1": 6.305 },
+      "tier": "solid",
+      "kind": "deck",
+      "label": "Back Porch",
+      "t": 0.25
+    },
+    {
+      "id": "back_deck2",
+      "y": 0,
+      "rect": { "x0": -2.34, "z0": 6.305, "x1": 6.695, "z1": 8.71 },
+      "tier": "solid",
+      "kind": "deck",
+      "label": "Back Porch",
+      "t": 0.25
+    },
+    {
+      "group": "the south porch roof over it (blueprint 2F / roof): walkable, from the Kids' Room east window to the Master Bedroom's",
+      "id": "roof_porch_s",
+      "y": 3.5,
+      "rect": { "x0": -2.34, "z0": 6.305, "x1": 6.695, "z1": 8.905 },
+      "tier": "solid",
+      "kind": "roof",
+      "label": "Back Porch Roof",
+      "t": 0.25
+    },
+    {
+      "group": "main roof (flat, low parapet)",
+      "id": "roof_main_n",
+      "y": 7,
+      "rect": { "x0": -9.425, "z0": -9.62, "x1": -2.21, "z1": -7.15 },
+      "tier": "solid",
+      "kind": "roof",
+      "label": "Roof"
+    },
+    {
+      "id": "roof_main_c",
+      "y": 7,
+      "rect": { "x0": -10.335, "z0": -7.15, "x1": 10.79, "z1": -3.185 },
+      "tier": "solid",
+      "kind": "roof",
+      "label": "Roof"
+    },
+    {
+      "id": "roof_main_c2",
+      "y": 7,
+      "rect": { "x0": -10.335, "z0": -3.185, "x1": 10.79, "z1": -0.78 },
+      "tier": "solid",
+      "kind": "roof",
+      "label": "Roof"
+    },
+    {
+      "id": "roof_main_c3",
+      "y": 7,
+      "rect": { "x0": -10.335, "z0": -0.78, "x1": 12.61, "z1": 0.715 },
+      "tier": "solid",
+      "kind": "roof",
+      "label": "Roof"
+    },
+    {
+      "id": "roof_main_s",
+      "y": 7,
+      "rect": { "x0": -11.245, "z0": 0.715, "x1": 12.61, "z1": 4.875 },
+      "tier": "solid",
+      "kind": "roof",
+      "label": "Roof"
+    },
+    {
+      "id": "roof_main_s2",
+      "y": 7,
+      "rect": { "x0": -9.425, "z0": 4.875, "x1": 12.61, "z1": 6.305 },
+      "tier": "solid",
+      "kind": "roof",
+      "label": "Roof"
+    },
+    {
+      "id": "roof_main_kids",
+      "y": 7,
+      "rect": { "x0": -9.425, "z0": 6.305, "x1": -2.34, "z1": 8.58 },
+      "tier": "solid",
+      "kind": "roof",
+      "label": "Roof"
+    },
+    {
+      "id": "roof_bay",
+      "y": 7,
+      "rect": { "x0": -12.285, "z0": 1.43, "x1": -11.245, "z1": 4.225 },
+      "tier": "solid",
+      "kind": "roof",
+      "label": "Roof"
+    }
+  ],
+  "roofs": [
+    {
+      "id": "roof_main",
+      "rect": { "x0": -10.335, "z0": -7.15, "x1": 10.79, "z1": 6.305 },
+      "ridge": "flat",
+      "rise": 2.3
+    },
+    {
+      "id": "roof_nw",
+      "rect": { "x0": -9.425, "z0": -9.62, "x1": -2.21, "z1": -3.9 },
+      "ridge": "hip"
+    },
+    {
+      "id": "roof_kids",
+      "rect": { "x0": -9.425, "z0": 3.055, "x1": -2.34, "z1": 8.58 },
+      "ridge": "hip"
+    },
+    {
+      "id": "roof_east",
+      "rect": { "x0": 7.8, "z0": -0.78, "x1": 12.61, "z1": 6.305 },
+      "ridge": "hip"
+    },
+    {
+      "id": "roof_bay",
+      "rect": { "x0": -12.285, "z0": 1.43, "x1": -8.45, "z1": 4.225 },
+      "ridge": "hip"
+    }
+  ],
+  "hatches": [
+    {
+      "id": "hatch_living",
+      "label": "Living Room → Training Room Hatch",
+      "rect": { "x0": -5.265, "z0": -4.94, "x1": -3.965, "z1": -3.64 },
+      "y": 0,
+      "below": "training",
+      "above": "living"
+    },
+    {
+      "id": "hatch_kitchen",
+      "label": "Kitchen → Laundry Hatch",
+      "rect": { "x0": -3.12, "z0": 1.885, "x1": -1.82, "z1": 3.185 },
+      "y": 0,
+      "below": "laundry",
+      "above": "kitchen"
+    },
+    {
+      "id": "hatch_hallway",
+      "label": "Upper Hallway → Basement Stairs Hatch",
+      "rect": { "x0": 0.13, "z0": -0.91, "x1": 1.43, "z1": 0.39 },
+      "y": 3.5,
+      "below": "bstairs",
+      "above": "hallway2"
+    },
+    {
+      "id": "hatch_master",
+      "label": "Master Bedroom → Dining Room Hatch",
+      "rect": { "x0": 10.27, "z0": 1.625, "x1": 11.57, "z1": 2.925 },
+      "y": 3.5,
+      "below": "dining",
+      "above": "master"
+    }
+  ]
+}

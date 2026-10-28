@@ -1,0 +1,10 @@
+{
+  "$schema": "../schema/optic.schema.json",
+  "id": "acog",
+  "name": "ACOG",
+  "zoom": 2.5,
+  "eyeRelief": 0.06,
+  "viewmodelFov": 34,
+  "reticle": { "texture": "acog", "angle": 0.05 },
+  "lens": { "shape": "circle", "size": [0.042, 0.042], "tint": "#2a4a3a", "tintOpacity": 0.18 }
+}
