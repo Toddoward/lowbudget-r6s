@@ -56,8 +56,6 @@ export const WEAPONS: Record<string, WeaponDef> = {
   ak47t: W({ id: 'ak47t', name: 'AK-47 (White Masks)', cls: 'AR', damage: 41, rpm: 600, mode: 'auto', mag: 30, reserve: 600, reload: 2.6, reloadEmpty: 3.2, falloff: [25, 40], minDamage: 0.6, hipSpread: 2.6, adsSpread: 0.4, recoil: { v: 0.7, h: 0.35, recover: 6 }, adsFov: 55, style: { layout: 'ak', body: '#2a2a2a', accent: '#6b4a2b', length: 0.85, optic: 'iron', curvedMag: true } }),
   spas12t: W({ id: 'spas12t', name: 'SPAS-12 (White Masks)', cls: 'Shotgun', damage: 22, rpm: 70, mode: 'semi', mag: 7, reserve: 600, reload: 3.5, reloadEmpty: 4, falloff: [5, 15], minDamage: 0.3, hipSpread: 4.5, adsSpread: 3.2, recoil: { v: 2.4, h: 0.6, recover: 5 }, pellets: 8, pen: 1, wallDmg: 0.6, adsFov: 60, style: { layout: 'shotgun', body: '#232323', accent: '#2f2f2f', length: 0.85, optic: 'iron' } }),
 };
-// the same L85A2 with the hand-made model whose lens caps (body_glow) are empty — Thatcher carries it so both models can be compared
-WEAPONS.l85a2_noglow = { ...WEAPONS.l85a2, id: 'l85a2_noglow' };
 
 const specCache = new Map<string, AssetSpec>();
 export function weaponSpec(id: string): AssetSpec {

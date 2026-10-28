@@ -7,7 +7,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { HANDMADE_ANCHORS } from '../../src/assets/handmade.ts';
-import { WEAPONS, weaponSpec } from '../../src/game/weapons.ts';
+import { weaponSpec } from '../../src/game/weapons.ts';
 import { OPERATORS } from '../../src/game/operators.ts';
 
 const DIR = 'public/assets/models/';
@@ -27,7 +27,7 @@ async function meshes(file: string): Promise<Record<string, THREE.Mesh>> {
 }
 
 test('every hand-made manifest entry has its file, and every hand-made anchor set has its entry', () => {
-  assert.ok(handmade.length >= 2);
+  assert.ok(handmade.length >= 1);
   for (const [id, a] of handmade) {
     assert.ok(a.file.startsWith('handmade/') && existsSync(`${DIR}${a.file}`), `${id}: ${a.file}`);
     assert.equal(readFileSync(`${DIR}${a.file}`).length, a.bytes, `${id}: manifest bytes`);
@@ -48,19 +48,18 @@ test('the hand-made GLBs load as the game loads them: no compression, transforms
   }
 });
 
-test('L85A2: the plain model carries lens caps (body_glow, drawn in 3P only), the *_noglow one none', async () => {
-  const withCaps = await meshes(manifest.weapon_l85a2.file);
-  const without = await meshes(manifest.weapon_l85a2_noglow.file);
-  assert.ok(withCaps.body_glow, 'body_glow in weapon_l85a2');
-  assert.equal(without.body_glow, undefined, 'no body_glow geometry in weapon_l85a2_noglow');
-  // the caps close the sight axis: that's why the first-person view hides *_glow parts
-  const a = HANDMADE_ANCHORS.weapon_l85a2;
-  const rc = new THREE.Raycaster(new THREE.Vector3(0, a.sight![1], a.lens![2] - 0.1), new THREE.Vector3(0, 0, 1), 0, 1);
-  assert.ok(rc.intersectObject(withCaps.body_glow, false).length > 0, 'caps on the sight axis');
+test('hand-made gun models carry their lens caps (body_glow: drawn in 3P only), and the caps close the sight axis — why 1P hides them', async () => {
+  for (const [id, a] of handmade.filter(([, a]) => a.category === 'weapon')) {
+    const parts = await meshes(a.file);
+    assert.ok(parts.body_glow && parts.body_glow.geometry.getAttribute('position').count > 0, `${id}: body_glow geometry`);
+    const an = HANDMADE_ANCHORS[id];
+    const rc = new THREE.Raycaster(new THREE.Vector3(0, an.sight![1], an.lens![2] - 0.1), new THREE.Vector3(0, 0, 1), 0, an.sight![2] - an.lens![2] + 0.2);
+    assert.ok(rc.intersectObject(parts.body_glow, false).length > 0, `${id}: caps on the sight axis`);
+  }
 });
 
 test('L85A2 anchors sit on the model: a free sight line through the scope, the lens stencil inside the tube, the muzzle at the barrel end', async () => {
-  for (const id of ['l85a2', 'l85a2_noglow']) {
+  for (const id of ['l85a2']) {
     const spec = weaponSpec(id);
     assert.deepEqual(spec.anchors!.sight, HANDMADE_ANCHORS[spec.id].sight, `${id}: hand-made anchors override the procedural ones`);
     const { body } = await meshes(manifest[spec.id].file);
@@ -91,10 +90,7 @@ test('L85A2 anchors sit on the model: a free sight line through the scope, the l
   }
 });
 
-test('Sledge carries the plain L85A2, Thatcher the one without lens caps (same weapon otherwise)', () => {
+test('Sledge carries the hand-made L85A2', () => {
   assert.equal(OPERATORS.sledge.primary, 'l85a2');
-  assert.equal(OPERATORS.thatcher.primary, 'l85a2_noglow');
-  const { id: _a, ...a } = WEAPONS.l85a2;
-  const { id: _b, ...b } = WEAPONS.l85a2_noglow;
-  assert.deepEqual(a, b);
+  assert.ok(manifest[weaponSpec('l85a2').id].handmade);
 });

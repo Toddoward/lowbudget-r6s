@@ -566,12 +566,6 @@
    "handmade": true,
    "bytes": 112336
   },
-  "weapon_l85a2_noglow": {
-   "file": "handmade/weapon_l85a2_noglow.glb",
-   "category": "weapon",
-   "handmade": true,
-   "bytes": 108128
-  },
   "weapon_mp5k": {
    "file": "weapon_mp5k.glb",
    "category": "weapon",
