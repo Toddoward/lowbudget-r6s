@@ -38,7 +38,7 @@ export async function preloadGlbAssets(categories = ['weapon', 'operator', 'gadg
     await Promise.all(entries.map(async ([id, a]) => {
       try {
         const gltf = await loader.loadAsync(`${base}${a.file}`);
-        cache.set(id, gltf.scene);
+        cache.set(id, bake(gltf.scene));
       } catch (err) {
         console.warn(`[assets] ${a.file} failed, using procedural mesh`, err);
       }
@@ -49,10 +49,51 @@ export async function preloadGlbAssets(categories = ['weapon', 'operator', 'gadg
   }
 }
 
+/**
+ * A GLB part's name as the game knows it: Blender's ".001" dropped, a model prefix dropped (`l85_body` → `body`,
+ * `l85_body_glow` → `body_glow`, `sledge_armL` → `armL`), `.L` / `_L` side suffixes → `L`.
+ */
+const PARTS = ['body_glow', 'body', 'mag', 'hips', 'spine', 'chest', 'head', 'armL', 'armR', 'foreL', 'foreR', 'handL', 'handR', 'thighL', 'thighR', 'legL', 'legR', 'torso'];
+export function partName(raw: string): string {
+  const n = raw.replace(/\.\d{3}$/, '').replace(/[._ ](L|R)$/, '$1');
+  for (const p of [...PARTS].sort((a, b) => b.length - a.length)) {
+    if (n === p || n.endsWith(`_${p}`) || n.endsWith(`_${p}_glow`.replace('_glow_glow', '_glow'))) return n.endsWith('_glow') && !p.endsWith('_glow') ? `${p}_glow` : p;
+    if (n.endsWith(`${p}_glow`)) return `${p}_glow`;
+  }
+  return n;
+}
+/** anchor names a model can carry as empties (Blender: Empty objects, exported with the meshes) */
+export const ANCHOR_NAMES = ['sight', 'lens', 'muzzle', 'grip', 'fore'] as const;
+/** a loaded model with every mesh's node transforms baked into its geometry (so un-applied transforms don't matter) */
+function bake(scene: THREE.Object3D): THREE.Object3D {
+  scene.updateMatrixWorld(true);
+  scene.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh || (m as unknown as THREE.SkinnedMesh).isSkinnedMesh) return;
+    m.geometry = m.geometry.clone().applyMatrix4(m.matrixWorld);
+    m.userData.baked = true;
+  });
+  return scene;
+}
+/** the model's anchors from its empties (`sight`, `lens` …, prefixes allowed), world positions in the model's frame */
+export function glbAnchors(id: string): Partial<Record<(typeof ANCHOR_NAMES)[number], [number, number, number]>> {
+  const src = cache.get(id);
+  const out: Partial<Record<(typeof ANCHOR_NAMES)[number], [number, number, number]>> = {};
+  if (!src) return out;
+  src.updateMatrixWorld(true);
+  src.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh) return;
+    const n = o.name.replace(/\.\d{3}$/, '');
+    const a = ANCHOR_NAMES.find((k) => n === k || n.endsWith(`_${k}`));
+    if (a) { const p = o.getWorldPosition(new THREE.Vector3()); out[a] = [p.x, p.y, p.z].map((v) => Math.round(v * 1e4) / 1e4) as [number, number, number]; }
+  });
+  return out;
+}
+
 /** load (or replace) one model in the cache — the editor, after importing a GLB */
 export async function loadGlb(id: string, url: string): Promise<void> {
   const gltf = await new GLTFLoader().loadAsync(url);
-  cache.set(id, gltf.scene);
+  cache.set(id, bake(gltf.scene));
 }
 /** forget a model (the editor unlinked it): the procedural mesh is used again */
 export function dropGlb(id: string) { cache.delete(id); }
@@ -68,7 +109,8 @@ export function glbBones(id: string): Map<string, THREE.Mesh> | null {
     if (!m.isMesh) return;
     const mesh = new THREE.Mesh(m.geometry, m.material);
     const hasColor = !!m.geometry.getAttribute('color');
-    const glow = m.name.endsWith('_glow');
+    const name = partName(m.name);
+    const glow = name.endsWith('_glow');
     if (glow) mesh.material = new THREE.MeshBasicMaterial({ vertexColors: hasColor, color: hasColor ? 0xffffff : (m.material as THREE.MeshStandardMaterial).color, toneMapped: false });
     else if (hasColor) mesh.material = vcMaterial();
     else {
@@ -78,7 +120,7 @@ export function glbBones(id: string): Map<string, THREE.Mesh> | null {
     }
     mesh.castShadow = !glow;
     mesh.receiveShadow = !glow;
-    const bone = m.name.replace(/_glow$/, '').replace(/^body$/, '');
+    const bone = name.replace(/_glow$/, '').replace(/^body$/, '');
     mesh.name = glow ? `${bone}_glow` : bone || id;
     if (glow) glows.push(mesh);
     else out.set(bone, mesh);

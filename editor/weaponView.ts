@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Ctx, EditorView } from './main.ts';
 import { files, uploadModel } from './store.ts';
 import { buildAsset } from '../src/assets/build.ts';
-import { loadGlb } from '../src/assets/library.ts';
+import { glbAnchors, loadGlb } from '../src/assets/library.ts';
 import { adsFovOf, OPTICS, weaponSpec, WEAPONS, type OpticDef } from '../src/game/weapons.ts';
 import { OPERATORS } from '../src/game/operators.ts';
 import { Rig } from '../src/render/Rig.ts';
@@ -174,6 +174,10 @@ export class WeaponView implements EditorView {
       if (!a) continue;
       v.addHandle({ id: k, at: new THREE.Vector3(...a), color, label, onMove: (p) => { this.file().model.anchors[k] = round(p); this.ctx.changed(this.path.startsWith('weapons/') ? this.path : `weapons/${this.id}.json`); } });
     }
+    // outliner: every part of the model (hide what's in the way) and the anchors
+    const parts: { label: string; obj: THREE.Object3D }[] = [];
+    model.traverse((o) => { if ((o as THREE.Mesh).isMesh) parts.push({ label: o.name || '(이름 없음)', obj: o }); });
+    v.setOutliner([...parts, { label: '앵커', get: () => v.handlesVisible, set: (x) => v.setHandlesVisible(x) }]);
     // the inset: the 1P view, drawn like the game
     const gun = model.clone(true);
     gun.traverse((o) => { if (o.name.endsWith('_glow')) o.visible = false; });
@@ -252,12 +256,21 @@ export class WeaponView implements EditorView {
     g.restore();
   }
 
+  /** anchors from the GLB's empties into the data; returns which were found */
+  private readAnchors(): string[] {
+    const found = glbAnchors(`weapon_${this.id}`);
+    const anchors = this.file().model.anchors;
+    for (const [k, v] of Object.entries(found)) anchors[k] = v as V3;
+    return Object.keys(found);
+  }
+
   refresh() {
     if (!this.model) return;
     if (this.mode === '3p') { this.build(); return; }
     for (const [k] of ANCHORS) {
       const a = this.file().model.anchors[k];
-      if (a && this.ctx.view3d.selected !== k) this.ctx.view3d.moveHandle(k, new THREE.Vector3(...a));
+      // (the selected one too — typed numbers move it; only a drag in progress owns its position)
+      if (a && !this.ctx.view3d.gizmo.dragging) this.ctx.view3d.moveHandle(k, new THREE.Vector3(...a));
     }
     this.place();
   }
@@ -267,7 +280,7 @@ export class WeaponView implements EditorView {
     const f = this.file();
     const help = document.createElement('div');
     help.className = 'help';
-    help.textContent = `모델: ${f.model.glb ? `public/assets/models/${f.model.glb}` : '절차적 모델 (GLB 없음)'}\n규칙: 노드 body · mag (탄창, 재장전 시 움직임) · body_glow (렌즈 캡: 3인칭에서만 보임). 트랜스폼 적용(Ctrl+A), +Y Up, Draco 끔, 버텍스 컬러.`;
+    help.textContent = `모델: ${f.model.glb ? `public/assets/models/${f.model.glb}` : '절차적 모델 (GLB 없음)'}\n규칙: 오브젝트 body · mag (탄창, 재장전 시 움직임) · body_glow (렌즈 캡: 3인칭에서만 보임) — 접두사 허용 (l85_body). 앵커는 같은 이름의 Empty로 (sight · lens · muzzle · grip · fore, 같이 선택해서 내보내기). +Y Up, Draco 끔, 버텍스 컬러.`;
     const drop = document.createElement('div');
     drop.className = 'drop';
     drop.textContent = '여기에 .glb를 끌어다 놓거나 클릭해서 이 총의 모델로 가져오기';
@@ -282,9 +295,11 @@ export class WeaponView implements EditorView {
         f.model.glb = glb;
         this.bust++;
         await loadGlb(`weapon_${this.id}`, `/assets/models/${glb}?v=${this.bust}`);
+        const got = this.readAnchors();
         this.ctx.changed(`weapons/${this.id}.json`);
         this.build();
         this.ctx.inspect();
+        drop.textContent = got.length ? `가져왔습니다 · 앵커 ${got.join(', ')}를 GLB의 Empty에서 읽었습니다` : '가져왔습니다 (GLB에 앵커 Empty가 없어 기존 앵커를 유지합니다)';
       } catch (e) { drop.textContent = `실패: ${(e as Error).message}`; }
     };
     drop.onclick = () => input.click();
@@ -292,7 +307,11 @@ export class WeaponView implements EditorView {
     drop.ondragover = (e) => { e.preventDefault(); drop.classList.add('over'); };
     drop.ondragleave = () => drop.classList.remove('over');
     drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove('over'); const file = e.dataTransfer?.files[0]; if (file) take(file); };
-    box.append(help, drop, input);
+    const reread = document.createElement('button');
+    reread.textContent = 'GLB의 Empty에서 앵커 다시 읽기';
+    reread.title = 'Blender에서 sight · lens · muzzle · grip · fore 이름의 Empty (접두사 허용: l85_sight)를 같이 내보내면 그 위치가 앵커가 됩니다';
+    reread.onclick = () => { const got = this.readAnchors(); if (got.length) { this.ctx.changed(`weapons/${this.id}.json`); this.refresh(); this.ctx.inspect(); } else alert('이 총의 GLB에 앵커 Empty가 없습니다 (sight · lens · muzzle · grip · fore)'); };
+    box.append(help, drop, input, reread);
     if (!this.path.startsWith('weapons/')) {
       const go = document.createElement('button');
       go.textContent = `이 총(${this.id}) 파일 열기`;

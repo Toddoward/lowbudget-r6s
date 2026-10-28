@@ -13,9 +13,11 @@
 import type { Plugin, ViteDevServer } from 'vite';
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { formatJson } from '../../src/data/format.ts';
 
-const ROOT = resolve(dirname(new URL(import.meta.url).pathname), '../..');
+// (fileURLToPath, not URL.pathname: on Windows the pathname is "/C:/…", which resolves to a path that doesn't exist)
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const DATA = join(ROOT, 'data');
 const HANDMADE = join(ROOT, 'public/assets/models/handmade');
 
@@ -53,7 +55,7 @@ export function editorApi(): Plugin {
             selfWrites.add(file);
             writeFileSync(file, formatJson(json));
             server.ws.send({ type: 'custom', event: 'r6:data', data: { path: p } });
-            return send(200, { ok: true, path: p });
+            return send(200, { ok: true, path: p, file });
           }
           if (req.method === 'PUT' && url.startsWith('/__editor/model/')) {
             const name = url.slice('/__editor/model/'.length);
@@ -73,8 +75,10 @@ export function editorApi(): Plugin {
     },
     // data files: no module hot update (the editor keeps its state); game tabs reload on the r6:data event
     handleHotUpdate(ctx) {
-      if (ctx.file.startsWith(DATA + sep) || ctx.file.startsWith(DATA + '/')) {
-        if (!selfWrites.delete(ctx.file)) server.ws.send({ type: 'custom', event: 'r6:data', data: { path: relative(DATA, ctx.file) } });
+      // (Vite reports forward slashes on every OS)
+      const file = resolve(ctx.file);
+      if (file.startsWith(DATA + sep)) {
+        if (!selfWrites.delete(file)) server.ws.send({ type: 'custom', event: 'r6:data', data: { path: relative(DATA, file).split(sep).join('/') } });
         return [];
       }
     },

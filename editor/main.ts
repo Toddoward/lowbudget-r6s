@@ -30,7 +30,8 @@ export interface EditorView {
   /** the data changed (form edit, undo): rebuild what depends on it */
   refresh(): void;
   /** the inspector's subject: the selected element's object + schema, or null for the whole file */
-  selection?(): { title: string; file?: string; obj: Record<string, unknown>; schema?: Schema; remove?: () => void } | null;
+  /** `path`: the data file the element lives in (edits mark that file, not the open one); `where`: shown under the title */
+  selection?(): { title: string; path: string; where?: string; obj: Record<string, unknown>; schema?: Schema; remove?: () => void } | null;
   /** extra inspector content (actions, help) above the form */
   panel?(): HTMLElement | null;
 }
@@ -39,7 +40,7 @@ const $ = (id: string) => document.getElementById(id)!;
 const tree = $('tree'), inspector = $('inspector'), status = $('status');
 const plan = $('plan') as HTMLCanvasElement;
 const view3d = new View3D($('view'));
-(window as unknown as { editor: unknown }).editor = { view3d }; // (debugging from the console)
+
 let current: string | null = null;
 let view: EditorView | null = null;
 
@@ -52,6 +53,7 @@ const ctx: Ctx = {
 const views = {
   weapon: new WeaponView(ctx), rig: new RigView(ctx), plan: new PlanView(ctx), gadget: new GadgetView(ctx),
 };
+(window as unknown as { editor: unknown }).editor = { view3d, views }; // (the console and tools/tests/editor-check.mjs)
 const viewFor = (path: string): EditorView => (path.startsWith('maps/') ? views.plan : path.startsWith('operators/') || path === 'rig/skeleton.json' || path === 'rig/animation.json' ? views.rig : path.startsWith('gadgets/') ? views.gadget : views.weapon);
 
 /** an edit landed in `path`: undo history, tables rebuilt, "unsaved" marks */
@@ -124,7 +126,7 @@ function renderInspector() {
   h2.textContent = sel ? sel.title : String(files[current].name ?? current);
   const p = document.createElement('div');
   p.className = 'path';
-  p.textContent = `data/${sel?.file ?? current}`;
+  p.textContent = `data/${sel ? sel.where ?? sel.path : current}`;
   inspector.append(h2, p);
   const extra = view?.panel?.();
   if (extra) inspector.append(extra);
@@ -132,10 +134,10 @@ function renderInspector() {
     if (sel.remove) {
       const del = document.createElement('button');
       del.textContent = '🗑 이 요소 삭제';
-      del.onclick = () => { sel.remove!(); ctx.changed(); renderInspector(); };
+      del.onclick = () => { sel.remove!(); ctx.changed(sel.path); renderInspector(); };
       inspector.append(del);
     }
-    inspector.append(buildForm(sel.obj, sel.schema, () => ctx.changed(), { open: 3 }));
+    inspector.append(buildForm(sel.obj, sel.schema, () => ctx.changed(sel.path), { open: 3 }));
   } else {
     inspector.append(buildForm(files[current], schemaOf(current), () => ctx.changed()));
   }
@@ -160,8 +162,9 @@ function open(path: string) {
 async function saveAll() {
   const d = dirtyPaths();
   try {
-    for (const p of d) await save(p);
-    status.textContent = d.length ? `저장했습니다: ${d.join(', ')}` : '바뀐 것이 없습니다';
+    const where: string[] = [];
+    for (const p of d) where.push(await save(p));
+    status.textContent = d.length ? `저장했습니다 (${d.length}개): ${where.join(' · ')}` : '바뀐 것이 없습니다';
     status.classList.remove('dirty');
     for (const el of tree.querySelectorAll<HTMLElement>('.file')) el.classList.toggle('dirty', isDirty(el.dataset.path!));
   } catch (e) {
@@ -180,6 +183,25 @@ function doUndo() {
 
 // a link / the address bar names a file (#weapons/l85a2.json)
 addEventListener('hashchange', () => { const p = decodeURIComponent(location.hash.slice(1)); if (p !== current && p in files) open(p); });
+// panel widths: drag the splitters (double-click folds a panel); remembered per browser
+function splitter(id: string, varName: '--left' | '--right', sign: 1 | -1, def: number) {
+  const el = $(id);
+  const key = `r6.editor${varName}`;
+  const set = (w: number) => { document.body.style.setProperty(varName, `${Math.round(w)}px`); try { localStorage.setItem(key, String(Math.round(w))); } catch { /* private mode */ } };
+  let w = def;
+  try { w = Number(localStorage.getItem(key)) || def; } catch { /* private mode */ }
+  set(w);
+  el.onpointerdown = (e) => {
+    el.setPointerCapture(e.pointerId);
+    el.classList.add('drag');
+    const x0 = e.clientX, w0 = parseFloat(getComputedStyle(document.body).getPropertyValue(varName));
+    el.onpointermove = (m) => set(Math.min(innerWidth * 0.6, Math.max(0, w0 + sign * (m.clientX - x0))));
+    el.onpointerup = () => { el.onpointermove = null; el.classList.remove('drag'); view3d.resize(); views.plan.draw(); };
+  };
+  el.ondblclick = () => { const cur = parseFloat(getComputedStyle(document.body).getPropertyValue(varName)); set(cur < 40 ? def : 0); view3d.resize(); views.plan.draw(); };
+}
+splitter('split-left', '--left', 1, 230);
+splitter('split-right', '--right', -1, 420);
 $('save').onclick = saveAll;
 $('undo').onclick = doUndo;
 addEventListener('keydown', (e) => {

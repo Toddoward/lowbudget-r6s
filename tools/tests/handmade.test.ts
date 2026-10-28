@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OPTICS, WEAPONS } from '../../src/game/weapons.ts';
 import { OPERATORS } from '../../src/game/operators.ts';
-import { linkedModels } from '../../src/assets/library.ts';
+import { linkedModels, partName } from '../../src/assets/library.ts';
 
 const DIR = 'public/assets/models/';
 const links = Object.entries(linkedModels());
@@ -22,7 +22,8 @@ async function meshes(file: string): Promise<Record<string, THREE.Mesh>> {
   const buf = readFileSync(`${DIR}${file}`);
   const gltf = await new GLTFLoader().parseAsync(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer, '');
   const out: Record<string, THREE.Mesh> = {};
-  gltf.scene.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { (m.material as THREE.Material).side = THREE.DoubleSide; out[m.name] = m; } });
+  gltf.scene.updateMatrixWorld(true);
+  gltf.scene.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { (m.material as THREE.Material).side = THREE.DoubleSide; out[partName(m.name)] = m; } });
   return out;
 }
 
@@ -31,14 +32,15 @@ test('every model the data links exists under public/assets/models/', () => {
   for (const [id, file] of links) assert.ok(existsSync(`${DIR}${file}`), `${id}: ${file}`);
 });
 
-test('the linked GLBs load as the game loads them: no compression, transforms applied, named parts, vertex colours', () => {
+test('the linked GLBs load as the game loads them: no compression, named parts (a model prefix allowed), vertex colours', () => {
   for (const [id, file] of links) {
     const j = gltfJson(readFileSync(`${DIR}${file}`));
     assert.equal(j.extensionsUsed, undefined, `${id}: extensions (Draco …) the loader can't read`);
-    for (const n of j.nodes) for (const k of ['translation', 'rotation', 'scale', 'matrix']) assert.equal(n[k], undefined, `${id}: node ${n.name} has ${k} (apply transforms: the game drops node transforms)`);
     if (id.startsWith('weapon_')) {
-      for (const n of j.nodes) assert.ok(['body', 'body_glow', 'mag'].includes(n.name), `${id}: unexpected part ${n.name}`);
-      assert.deepEqual(j.nodes.filter((n: { mesh?: number; name: string }) => n.mesh !== undefined && n.name !== 'body_glow').map((n: { name: string }) => n.name).sort(), ['body', 'mag'], `${id}: body + mag`);
+      // meshes are body / body_glow / mag (l85_body …); other nodes are anchor empties
+      const meshes = j.nodes.filter((n: { mesh?: number }) => n.mesh !== undefined).map((n: { name: string }) => partName(n.name));
+      for (const n of meshes) assert.ok(['body', 'body_glow', 'mag'].includes(n), `${id}: unexpected part ${n}`);
+      assert.deepEqual(meshes.filter((n: string) => n !== 'body_glow').sort(), ['body', 'mag'], `${id}: body + mag`);
     }
     for (const m of j.meshes) for (const p of m.primitives) assert.ok('COLOR_0' in p.attributes, `${id}: ${m.name} vertex colours`);
   }
@@ -87,4 +89,9 @@ test('hand-made guns: anchors sit on the model — a free sight line, the lens s
 test('Sledge carries the hand-made L85A2', () => {
   assert.equal(OPERATORS.sledge.primary, 'l85a2');
   assert.equal(WEAPONS.l85a2.model.glb, 'handmade/weapon_l85a2.glb');
+});
+
+test('part names: Blender suffixes and a model prefix are dropped, side suffixes folded (l85_body → body, arm.L → armL)', () => {
+  const cases: [string, string][] = [['l85_body', 'body'], ['l85_body_glow', 'body_glow'], ['l85_mag', 'mag'], ['body.001', 'body'], ['sledge_armL', 'armL'], ['arm.L', 'armL'], ['thigh_R', 'thighR'], ['l85_handL', 'handL'], ['Empty', 'Empty']];
+  for (const [raw, want] of cases) assert.equal(partName(raw), want, raw);
 });
