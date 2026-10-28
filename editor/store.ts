@@ -55,10 +55,13 @@ export function undo(): string | null {
   return h.path;
 }
 
-export async function save(path: string): Promise<void> {
+/** write one file; returns where it landed on disk */
+export async function save(path: string): Promise<string> {
   const res = await fetch(`/__editor/data/${path}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(files[path]) });
-  if (!res.ok) throw new Error((await res.json()).error ?? res.statusText);
+  const j = await res.json().catch(() => ({ error: res.statusText }));
+  if (!res.ok) throw new Error(j.error ?? res.statusText);
   onDisk.set(path, JSON.stringify(files[path]));
+  return j.file as string;
 }
 
 /** a new data file (duplicated entity): added to the loaded data, written on save */

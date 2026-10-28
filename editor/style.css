@@ -1,7 +1,11 @@
 :root { --bg: #15181c; --panel: #1d2126; --line: #2e353d; --text: #d7dde3; --dim: #8b96a1; --accent: #5aa9e6; --warn: #e6a95a; }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px/1.4 system-ui, "Segoe UI", "Malgun Gothic", sans-serif; }
-body { display: grid; grid-template: 40px 1fr / 230px 1fr 380px; grid-template-areas: "head head head" "tree main insp"; overflow: hidden; }
+body { --left: 230px; --right: 420px; display: grid; grid-template: 40px 1fr / var(--left) 5px 1fr 5px var(--right); grid-template-areas: "head head head head head" "tree sl main sr insp"; overflow: hidden; }
+.split { background: var(--line); cursor: col-resize; }
+.split:hover, .split.drag { background: var(--accent); }
+#split-left { grid-area: sl; }
+#split-right { grid-area: sr; }
 header { grid-area: head; display: flex; align-items: center; gap: 10px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
 header .spacer { flex: 1; }
 header a, button { color: var(--text); background: #2a3138; border: 1px solid #3a434c; border-radius: 4px; padding: 3px 9px; cursor: pointer; text-decoration: none; font: inherit; }
@@ -28,22 +32,27 @@ main { grid-area: main; position: relative; overflow: hidden; }
 .labels .tag.on { background: #fff; color: #000; }
 .inset-overlay { position: absolute; inset: 0; pointer-events: none; }
 #hint { position: absolute; left: 8px; bottom: 8px; right: 8px; color: var(--dim); font-size: 12px; pointer-events: none; white-space: pre-line; text-shadow: 0 1px 2px #000; }
-aside { grid-area: insp; overflow: auto; background: var(--panel); border-left: 1px solid var(--line); padding: 8px 10px 40px; }
+aside { grid-area: insp; overflow: auto; background: var(--panel); padding: 8px 10px 40px; container-type: inline-size; }
+nav, aside { min-width: 0; }
 aside h2 { font-size: 14px; margin: 4px 0 2px; }
 aside .path { color: var(--dim); font-size: 11px; margin-bottom: 8px; word-break: break-all; }
 aside .help { color: var(--dim); font-size: 12px; margin: 6px 0; white-space: pre-line; }
 aside .actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
-.form .row { display: grid; grid-template-columns: 130px 1fr auto; gap: 6px; align-items: start; margin: 3px 0; }
+.form .row { display: grid; grid-template-columns: minmax(90px, 38%) minmax(0, 1fr) auto; gap: 6px; align-items: start; margin: 3px 0; }
+.form .row > :nth-child(2) { min-width: 0; }
+/* a narrow inspector: the label goes above its value */
+@container (max-width: 330px) { .form .row { grid-template-columns: minmax(0, 1fr) auto; } .form .row > label.k { grid-column: 1 / -1; } .form details.obj, .form .list { grid-column: 1 / -1; } }
 .form label.k { color: #b9c3cc; padding-top: 3px; overflow: hidden; text-overflow: ellipsis; }
 .form label.k .key { color: #5d6873; font-size: 11px; }
 .form input[type=text], .form input[type=number], .form select { width: 100%; background: #12161a; color: var(--text); border: 1px solid #343c44; border-radius: 3px; padding: 2px 4px; font: inherit; }
 .form input:focus, .form select:focus { outline: none; border-color: var(--accent); }
-.form .vec { display: grid; grid-template-columns: repeat(auto-fit, minmax(50px, 1fr)); gap: 3px; }
+.form .vec { display: grid; grid-template-columns: repeat(auto-fit, minmax(58px, 1fr)); gap: 3px; }
+.form .vec input { min-width: 0; }
 .form .color { display: flex; gap: 4px; }
 .form .color input[type=color] { width: 32px; height: 22px; padding: 0; border: none; background: none; }
-.form details.obj { grid-column: 2 / 4; border-left: 2px solid #2e353d; padding-left: 6px; }
+.form details.obj { grid-column: 1 / -1; border-left: 2px solid #2e353d; padding-left: 6px; margin-left: 8px; }
 .form details.obj > summary { color: var(--dim); font-size: 11px; cursor: pointer; }
-.form .list { grid-column: 2 / 4; }
+.form .list { grid-column: 1 / -1; margin-left: 8px; }
 .form details.item { border: 1px solid #2b3238; border-radius: 3px; margin: 2px 0; padding: 0 6px; }
 .form details.item > summary { cursor: pointer; padding: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .form details.item .tools { float: right; display: inline-flex; gap: 2px; }
@@ -55,3 +64,12 @@ aside .actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
 .form .nullable { display: flex; gap: 6px; align-items: flex-start; }
 .drop { border: 1px dashed #4b5560; border-radius: 4px; padding: 8px; color: var(--dim); text-align: center; margin: 6px 0; }
 .drop.over { border-color: var(--accent); color: var(--text); }
+
+.outliner { position: absolute; z-index: 4; left: 8px; top: 76px; background: rgba(29,33,38,.92); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; display: none; max-height: 50%; overflow: auto; }
+.outliner label { display: block; white-space: nowrap; font-size: 12px; cursor: pointer; }
+.viewbar { position: absolute; z-index: 4; right: 8px; top: 176px; display: flex; flex-direction: column; gap: 3px; }
+.viewbar button { font-size: 11px; padding: 1px 6px; }
+.layers { position: absolute; z-index: 4; left: 8px; top: 76px; background: rgba(29,33,38,.92); border: 1px solid var(--line); border-radius: 4px; padding: 5px 8px; font-size: 12px; display: none; }
+.layers div { white-space: nowrap; }
+.layers input { margin: 0 4px 0 1px; vertical-align: middle; }
+.layers .dim, .dim { color: var(--dim); font-weight: normal; font-size: 11px; }
