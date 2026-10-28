@@ -50,7 +50,14 @@ const fromData = (d: OperatorData): OperatorDef => ({
   ...d.look,
 });
 /** every operator, from data/operators/*.json (menu order = `order`) */
-export const OPERATORS: Record<string, OperatorDef> = Object.fromEntries(Object.entries(dataDir<OperatorData>('operators')).map(([id, d]) => [id, fromData(d)]));
+export const OPERATORS: Record<string, OperatorDef> = {};
+/** (re)build OPERATORS from the data, in place (the editor calls this after an edit) */
+export function reloadOperators() {
+  const fresh = dataDir<OperatorData>('operators');
+  for (const id of Object.keys(OPERATORS)) if (!(id in fresh)) delete OPERATORS[id];
+  for (const [id, d] of Object.entries(fresh)) OPERATORS[id] = Object.assign(OPERATORS[id] ?? {}, fromData(d));
+}
+reloadOperators();
 
 export const ARMOR_MUL = { 1: 1.0, 2: 0.9, 3: 0.8 } as const;
 export const SPEED_MUL = { 1: 0.9, 2: 1.0, 3: 1.1 } as const;

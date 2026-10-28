@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { buildBones } from '../assets/build.ts';
-import { ARM_FORE, ARM_UPPER, operatorSpec } from '../assets/operatorModels.ts';
+import { operatorSpec } from '../assets/operatorModels.ts';
 import { dataFile } from '../data/index.ts';
 import { OPERATORS } from '../game/operators.ts';
 import { buildAsset } from '../assets/build.ts';
@@ -39,6 +39,22 @@ const A = dataFile<RigAnimation>('rig/animation.json');
 const v3 = (v: V3) => new THREE.Vector3(...v);
 const SHOULDER_L = new THREE.Vector3(...SK.shoulderL);
 const SHOULDER_R = new THREE.Vector3(...SK.shoulderR);
+/** the editor changed the skeleton: re-read the shoulder pivots (rigs built afterwards use the new skeleton) */
+export function reloadSkeleton() {
+  SHOULDER_L.set(...SK.shoulderL);
+  SHOULDER_R.set(...SK.shoulderR);
+}
+/** every bone's pivot in the rest pose (feet origin, arms straight down), from the skeleton */
+export function restPivots() {
+  const hips = v3(SK.hips);
+  const armL = hips.clone().add(v3(SK.shoulderL));
+  const armR = hips.clone().add(v3(SK.shoulderR));
+  return {
+    hips, torso: hips.clone(), head: hips.clone().add(v3(SK.head)), armL, armR,
+    foreL: armL.clone().add(new THREE.Vector3(0, -SK.armUpper, 0)), foreR: armR.clone().add(new THREE.Vector3(0, -SK.armUpper, 0)),
+    legL: hips.clone().add(v3(SK.legL)), legR: hips.clone().add(v3(SK.legR)),
+  };
+}
 
 /**
  * Third-person operator rig. Pivots (relative to the feet origin, facing −Z):
@@ -84,9 +100,15 @@ export class Rig {
   constructor(operatorId: string, weaponId: string | null, label?: string, labelColor = '#ffffff') {
     const def = OPERATORS[operatorId] ?? OPERATORS.recruit;
     const bones = buildBones(operatorSpec(def));
+    // a hand-made operator (data: model.glb) is modelled whole — feet at the origin, facing −Z, arms hanging straight down —
+    // with one node per bone; each part is shifted from there onto its bone's pivot (data/rig/skeleton.json)
+    const handmade = !!dataFile<{ model?: { glb?: string } }>(`operators/${def.id}.json`).model?.glb;
+    const rest = restPivots();
     const attach = (name: string, g: THREE.Group) => {
       const m = bones.get(name);
-      if (m) g.add(m);
+      if (!m) return;
+      if (handmade) m.position.copy(rest[name as keyof typeof rest]).negate();
+      g.add(m);
     };
     attach('hips', this.hips);
     attach('torso', this.torso);
@@ -107,8 +129,8 @@ export class Rig {
     this.armR.position.copy(SHOULDER_R);
     this.armL.add(this.foreL);
     this.armR.add(this.foreR);
-    this.foreL.position.set(0, -ARM_UPPER, 0);
-    this.foreR.position.set(0, -ARM_UPPER, 0);
+    this.foreL.position.set(0, -SK.armUpper, 0);
+    this.foreR.position.set(0, -SK.armUpper, 0);
     this.hips.add(this.legL, this.legR);
     this.legL.position.set(...SK.legL);
     this.legR.position.set(...SK.legR);
@@ -238,7 +260,7 @@ export class Rig {
     const leftOnGun = this.gun && !shielded ? (this.pistol ? grip.clone().add(v3(A.hold.leftOnPistol)) : fore.add(v3(A.hold.leftOnFore))) : null;
     // never further than the arms reach: slide the gun back along the aim until both hands are on it
     const shoulderL = toRoot(SHOULDER_L);
-    const reach = ARM_UPPER + ARM_FORE - 0.01;
+    const reach = SK.armUpper + SK.armFore - 0.01;
     for (let i = 0; i < 12; i++) {
       const left = leftOnGun ? gripAt.clone().add(leftOnGun.clone().sub(grip).applyQuaternion(gunQ)) : null;
       if (gripAt.distanceTo(shoulderR) <= reach && (!left || left.distanceTo(shoulderL) <= reach)) break;
@@ -285,7 +307,7 @@ export class Rig {
   handWorld(side: 'left' | 'right', out = new THREE.Vector3()) {
     const f = side === 'left' ? this.foreL : this.foreR;
     this.root.updateMatrixWorld(true);
-    return out.set(0, -ARM_FORE, 0).applyMatrix4(f.matrixWorld);
+    return out.set(0, -SK.armFore, 0).applyMatrix4(f.matrixWorld);
   }
 
   /**
@@ -354,6 +376,7 @@ export class Rig {
  * is put on the side of `pole`. Out-of-reach targets are reached for along the line.
  */
 function solveArm(upper: THREE.Group, fore: THREE.Group, shoulder: THREE.Vector3, target: THREE.Vector3, pole: THREE.Vector3) {
+  const ARM_UPPER = SK.armUpper, ARM_FORE = SK.armFore;
   const d = target.clone().sub(shoulder);
   const dist = THREE.MathUtils.clamp(d.length(), Math.abs(ARM_UPPER - ARM_FORE) + 0.02, ARM_UPPER + ARM_FORE - 0.002);
   const dir = d.lengthSq() > 1e-8 ? d.normalize() : DOWN.clone();

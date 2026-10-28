@@ -49,6 +49,14 @@ export async function preloadGlbAssets(categories = ['weapon', 'operator', 'gadg
   }
 }
 
+/** load (or replace) one model in the cache — the editor, after importing a GLB */
+export async function loadGlb(id: string, url: string): Promise<void> {
+  const gltf = await new GLTFLoader().loadAsync(url);
+  cache.set(id, gltf.scene);
+}
+/** forget a model (the editor unlinked it): the procedural mesh is used again */
+export function dropGlb(id: string) { cache.delete(id); }
+
 /** Per-bone meshes from a pipeline GLB (bone '' = unboned body), or null. */
 export function glbBones(id: string): Map<string, THREE.Mesh> | null {
   const src = cache.get(id);

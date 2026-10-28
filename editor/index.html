@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>R6S TEMU 에디터</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <header>
+    <b>R6S TEMU 에디터</b>
+    <span id="status"></span>
+    <span class="spacer"></span>
+    <button id="undo" title="되돌리기 (Ctrl+Z)">↶ 되돌리기</button>
+    <button id="save" title="저장 (Ctrl+S)">💾 저장</button>
+    <a href="/" target="r6game" title="게임 탭은 저장할 때마다 자동으로 새로고침됩니다">▶ 게임 열기</a>
+  </header>
+  <nav id="tree"></nav>
+  <main>
+    <div id="toolbar"></div>
+    <div id="view"></div>
+    <canvas id="plan"></canvas>
+    <div id="hint"></div>
+  </main>
+  <aside id="inspector"></aside>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

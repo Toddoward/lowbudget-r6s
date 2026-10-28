@@ -67,7 +67,7 @@ export interface OpticDef {
   /** the see-through lens at the `lens` anchor: stencil shape / size (m) and tint */
   lens: { shape: 'circle' | 'rect'; size: [number, number]; tint: string; tintOpacity: number } | null;
 }
-export const OPTICS = dataDir<OpticDef>('optics') as Record<Optic, OpticDef>;
+export const OPTICS = {} as Record<Optic, OpticDef>;
 
 const fromData = (d: WeaponData): WeaponDef => {
   const { procedural, ...model } = d.model;
@@ -84,10 +84,20 @@ const fromData = (d: WeaponData): WeaponDef => {
   };
 };
 /** every weapon, from data/weapons/*.json */
-export const WEAPONS: Record<string, WeaponDef> = Object.fromEntries(Object.entries(dataDir<WeaponData>('weapons')).map(([id, d]) => [id, fromData(d)]));
-
+export const WEAPONS: Record<string, WeaponDef> = {};
 /** optic magnification (×) per optic (data/optics/*.json) */
-export const OPTIC_ZOOM = Object.fromEntries(Object.values(OPTICS).map((o) => [o.id, o.zoom])) as Record<Optic, number>;
+export const OPTIC_ZOOM = {} as Record<Optic, number>;
+/** (re)build WEAPONS, OPTICS and OPTIC_ZOOM from the data, in place (the editor calls this after an edit) */
+export function reloadWeapons() {
+  const fresh = dataDir<WeaponData>('weapons');
+  for (const id of Object.keys(WEAPONS)) if (!(id in fresh)) delete WEAPONS[id];
+  for (const [id, d] of Object.entries(fresh)) WEAPONS[id] = Object.assign(WEAPONS[id] ?? {}, fromData(d));
+  const optics = dataDir<OpticDef>('optics');
+  for (const id of Object.keys(OPTICS)) if (!(id in optics)) delete OPTICS[id as Optic];
+  Object.assign(OPTICS, optics);
+  for (const o of Object.values(OPTICS)) OPTIC_ZOOM[o.id] = o.zoom;
+  specCache.clear();
+}
 /** the world camera's vertical FOV (degrees) when fully aimed through `optic`, from the player's FOV */
 export function adsFovOf(fov: number, optic: Optic): number {
   const h = (fov * Math.PI) / 360;
@@ -95,6 +105,7 @@ export function adsFovOf(fov: number, optic: Optic): number {
 }
 
 const specCache = new Map<string, AssetSpec>();
+reloadWeapons();
 export function weaponSpec(id: string): AssetSpec {
   let s = specCache.get(id);
   if (!s) {

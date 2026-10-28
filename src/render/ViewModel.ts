@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { buildAsset } from '../assets/build.ts';
 import { chargeSpec, deviceSpec, hammerSpec, launcherSpec, pulseSensorSpec, throwableSpec } from '../assets/weaponModels.ts';
 import { OPTICS, weaponSpec, WEAPONS } from '../game/weapons.ts';
+import { GADGETS } from '../game/Gadgets.ts';
 import { shieldLocal, shieldPlace, shieldPlateOf, type ShieldPose, type Soldier } from '../game/Soldier.ts';
 import type { AssetSpec } from '../assets/spec.ts';
 import { vcMaterial } from './palette.ts';
@@ -168,9 +169,11 @@ export class ViewModel {
       heartbeat: pulseSensorSpec,
       barricade: () => chargeSpec('vm_barricade', '#b08a55', 0.3, 0.12),
     } as Record<string, () => AssetSpec>)[key]?.() ?? extraGadgetSpec(key) ?? throwableSpec('vm_none', '#444');
+    // a gadget with a hand-made model (data/gadgets/<key>.json `model.glb`) is held as modelled
+    if (!WEAPONS[key] && GADGETS[key]?.model?.glb) spec = { ...spec, id: `gadget_${key}` };
     // the procedural build here (the exact optic geometry matters more than the baked GLB), except for hand-made models:
     // those are drawn as modelled, minus their `_glow` parts (lens caps would close the sight line seen from the eye)
-    const g = buildAsset(WEAPONS[key]?.model.glb ? spec : { ...spec, id: `vm_${spec.id}` });
+    const g = buildAsset(WEAPONS[key]?.model.glb || spec.id.startsWith('gadget_') ? spec : { ...spec, id: `vm_${spec.id}` });
     g.traverse((o) => { o.castShadow = false; o.receiveShadow = false; if (o.name.endsWith('_glow')) o.visible = false; });
     const mag = g.children.find((c) => c.name === 'mag') ?? null;
     // the optic (data/optics/<id>.json): reticle, see-through lens, eye relief and aimed view-model FOV

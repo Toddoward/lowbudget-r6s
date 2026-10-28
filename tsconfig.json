@@ -16,5 +16,5 @@
     "noEmit": true,
     "types": ["vite/client"]
   },
-  "include": ["src", "shared", "functions"]
+  "include": ["src", "shared", "functions", "editor"]
 }

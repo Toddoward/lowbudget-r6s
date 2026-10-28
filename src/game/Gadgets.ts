@@ -33,6 +33,8 @@ export interface GadgetData {
   bomblets?: { count: number; delay: number; step: number; blast: Blast };
   cloud?: { radius: number; duration: number; dps: number };
   blind?: { facing: number; away: number };
+  /** a hand-made model under public/assets/models/ (origin: where it is placed / held) */
+  model?: { glb?: string };
 }
 export const GADGETS = dataDir<GadgetData>('gadgets');
 const G = GADGETS;
@@ -415,6 +417,8 @@ export class Gadgets {
       edd: () => extraGadgetSpec('edd')!,
       turret: () => extraGadgetSpec('turret')!,
     }[type]();
+    // a hand-made model (data/gadgets/<type>.json `model.glb`) is drawn as modelled: origin = where it sits
+    if (G[type]?.model?.glb) return buildAsset({ ...spec, id: `gadget_${type}` });
     const m = buildAsset(spec);
     // gadget specs are authored "in hand" (-Z forward, offset); recentre for world placement
     m.children.forEach((c) => c.position.set(0, -0.05, 0.12));
