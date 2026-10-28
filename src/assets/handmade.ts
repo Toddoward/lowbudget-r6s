@@ -12,7 +12,8 @@ import type { AssetSpec } from './spec.ts';
 type Anchors = NonNullable<AssetSpec['anchors']>;
 
 // L85A2 with ACOG: the sight axis runs at y 0.172 through the hollow scope, the objective lens cap at z −0.064
-// (tube Ø 44 mm), the eyepiece end at z +0.066 (Ø 29 mm); the bore leaves the muzzle at z −0.569. Grip / fore stay the procedural ones until the hands are fitted to the hand-made models.
+// (tube Ø 44 mm), the eyepiece end at z +0.066 (Ø 29 mm); the bore leaves the muzzle at z −0.569.
+// Grip / fore stay the procedural ones until the hands are fitted to the hand-made models.
 const L85A2: Anchors = { sight: [0, 0.172, 0.066], lens: [0, 0.172, -0.062], muzzle: [0, 0.078, -0.569] };
 
 export const HANDMADE_ANCHORS: Record<string, Anchors> = {
