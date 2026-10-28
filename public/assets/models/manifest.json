@@ -561,10 +561,10 @@
    "bytes": 39280
   },
   "weapon_l85a2": {
-   "file": "weapon_l85a2.glb",
+   "file": "handmade/weapon_l85a2.glb",
    "category": "weapon",
-   "parts": 26,
-   "bytes": 49364
+   "handmade": true,
+   "bytes": 112336
   },
   "weapon_mp5k": {
    "file": "weapon_mp5k.glb",

@@ -1,5 +1,6 @@
 import type { AssetSpec } from '../assets/spec.ts';
 import { gunSpec, type GunStyle } from '../assets/weaponModels.ts';
+import { HANDMADE_ANCHORS } from '../assets/handmade.ts';
 
 export type FireMode = 'auto' | 'semi';
 export interface WeaponDef {
@@ -63,6 +64,8 @@ export function weaponSpec(id: string): AssetSpec {
     const def = WEAPONS[id];
     const style = def.style.layout === 'shotgun' ? { ...def.style, layout: 'ak' as const } : def.style;
     s = gunSpec(`weapon_${id}`, style);
+    const hand = HANDMADE_ANCHORS[s.id];
+    if (hand) s = { ...s, anchors: { ...s.anchors, ...hand } };
     specCache.set(id, s);
   }
   return s;

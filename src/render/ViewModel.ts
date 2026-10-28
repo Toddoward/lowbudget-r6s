@@ -7,6 +7,7 @@ import type { AssetSpec } from '../assets/spec.ts';
 import { vcMaterial } from './palette.ts';
 import { BoxBatch } from '../world/BoxBatch.ts';
 import { extraGadgetSpec } from '../assets/gadgetModels.ts';
+import { isHandmade } from '../assets/handmade.ts';
 
 type Reticle = 'dot' | 'holo' | 'acog' | 'none';
 interface VmModel { g: THREE.Group; spec: AssetSpec; mag: THREE.Object3D | null; reticle: Reticle; lens: THREE.Mesh | null; tint: THREE.Mesh | null; eyeRelief: number }
@@ -174,9 +175,10 @@ export class ViewModel {
       heartbeat: pulseSensorSpec,
       barricade: () => chargeSpec('vm_barricade', '#b08a55', 0.3, 0.12),
     } as Record<string, () => AssetSpec>)[key]?.() ?? extraGadgetSpec(key) ?? throwableSpec('vm_none', '#444');
-    // always the procedural build here: the exact optic geometry matters more than the baked GLB
-    const g = buildAsset({ ...spec, id: `vm_${spec.id}` });
-    g.traverse((o) => { o.castShadow = false; o.receiveShadow = false; });
+    // the procedural build here (the exact optic geometry matters more than the baked GLB), except for hand-made models:
+    // those are drawn as modelled, minus their `_glow` parts (lens caps would close the sight line seen from the eye)
+    const g = buildAsset(isHandmade(spec.id) ? spec : { ...spec, id: `vm_${spec.id}` });
+    g.traverse((o) => { o.castShadow = false; o.receiveShadow = false; if (o.name.endsWith('_glow')) o.visible = false; });
     const mag = g.children.find((c) => c.name === 'mag') ?? null;
     const optic = WEAPONS[key]?.style.optic;
     const reticle: Reticle = optic === 'acog' ? 'acog' : optic === 'holo' ? 'holo' : optic === 'reflex' ? 'dot' : 'none';
