@@ -24,6 +24,8 @@ export class Input {
   private wheel = 0;
   sensitivity = 0.0022;
   adsSensMul = 0.8;
+  /** tan(view FOV / 2) / tan(player FOV / 2): < 1 while aiming through a magnifying optic (set by Game each frame) */
+  zoomSens = 1;
   invertY = false;
   locked = false;
   /** a match is running: swallow browser defaults for bound keys */
@@ -167,7 +169,7 @@ export class Input {
       if (inp.sprint && inp.moveF > 0 && this.wantStance !== Stance.Stand) this.wantStance = Stance.Stand;
       inp.stance = this.wantStance;
     }
-    const sens = this.sensitivity * (inp.ads ? this.adsSensMul : 1);
+    const sens = this.sensitivity * (inp.ads ? this.adsSensMul : 1) * this.zoomSens;
     inp.lookDYaw = -this.mouseDX * sens;
     inp.lookDPitch = -this.mouseDY * sens * (this.invertY ? -1 : 1);
     this.flush();
