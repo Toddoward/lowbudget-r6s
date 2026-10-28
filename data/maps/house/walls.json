@@ -1,0 +1,679 @@
+{
+  "$schema": "../../schema/walls.schema.json",
+  "walls": [
+    {
+      "group": "exterior (underground concrete) — the garage façade is the only one above grade",
+      "floor": -1,
+      "run": "x",
+      "c": -9.62,
+      "from": -9.425,
+      "to": -2.21,
+      "tier": "solid",
+      "ext": true,
+      "openings": [{ "at": -5.85, "w": 0.45, "kind": "vent" }],
+      "note": "storage N (+ vent from the yard shaft)"
+    },
+    {
+      "floor": -1,
+      "run": "z",
+      "c": -9.425,
+      "from": -9.62,
+      "to": -3.185,
+      "tier": "solid",
+      "ext": true,
+      "openings": [{ "at": -9.165, "w": 0.45, "kind": "vent" }, { "at": -8.125, "w": 1.3, "kind": "exterior_door" }],
+      "note": "storage W → exterior NW stairwell (+ the datamap's B-level drone vent at the NW corner)"
+    },
+    { "floor": -1, "run": "x", "c": -3.185, "from": -10.335, "to": -9.425, "tier": "solid", "ext": true },
+    { "floor": -1, "run": "z", "c": -10.335, "from": -3.185, "to": 0.715, "tier": "solid", "ext": true },
+    { "floor": -1, "run": "x", "c": 0.715, "from": -11.245, "to": -10.335, "tier": "solid", "ext": true },
+    { "floor": -1, "run": "z", "c": -11.245, "from": 0.715, "to": 1.43, "tier": "solid", "ext": true },
+    { "floor": -1, "run": "z", "c": -12.285, "from": 2.275, "to": 3.445, "tier": "solid", "ext": true },
+    { "floor": -1, "run": "z", "c": -11.245, "from": 4.225, "to": 4.81, "tier": "solid", "ext": true },
+    { "floor": -1, "run": "x", "c": 4.81, "from": -11.245, "to": -7.085, "tier": "solid", "ext": true },
+    { "floor": -1, "run": "z", "c": -7.085, "from": 4.81, "to": 8.385, "tier": "solid", "ext": true },
+    { "floor": -1, "run": "x", "c": 8.385, "from": -7.085, "to": 2.665, "tier": "solid", "ext": true },
+    { "floor": -1, "run": "z", "c": 2.665, "from": 6.305, "to": 8.385, "tier": "solid", "ext": true },
+    { "floor": -1, "run": "x", "c": 6.305, "from": 2.665, "to": 12.61, "tier": "solid", "ext": true },
+    {
+      "group": "garage shutter A (3 reinforceable sections) + drone vent beside it",
+      "floor": -1,
+      "run": "z",
+      "c": 12.61,
+      "from": -0.78,
+      "to": 6.305,
+      "tier": "solid",
+      "ext": true,
+      "openings": [{ "at": 2.6, "w": 4.68, "kind": "shutter" }, { "at": 5.655, "w": 0.45, "kind": "vent" }]
+    },
+    {
+      "floor": -1,
+      "run": "x",
+      "c": -0.78,
+      "from": 9.36,
+      "to": 12.61,
+      "tier": "solid",
+      "ext": true,
+      "note": "hard pillar wall between the two shutters"
+    },
+    {
+      "floor": -1,
+      "run": "z",
+      "c": 9.36,
+      "from": -6.24,
+      "to": -0.78,
+      "tier": "solid",
+      "ext": true,
+      "openings": [{ "at": -3.51, "w": 4.16, "kind": "shutter" }],
+      "note": "garage shutter B"
+    },
+    { "floor": -1, "run": "x", "c": -6.24, "from": -2.21, "to": 9.36, "tier": "solid", "ext": true },
+    { "floor": -1, "run": "z", "c": -2.21, "from": -9.62, "to": -6.24, "tier": "solid", "ext": true },
+    {
+      "group": "interior",
+      "floor": -1,
+      "run": "x",
+      "c": -6.24,
+      "from": -9.425,
+      "to": -2.21,
+      "tier": "soft",
+      "openings": [{ "at": -4.68, "w": 1.3, "kind": "door" }],
+      "note": "storage | training — fully soft (wallbang city)"
+    },
+    {
+      "floor": -1,
+      "run": "z",
+      "c": 0.455,
+      "from": -6.24,
+      "to": -1.235,
+      "tier": "soft",
+      "note": "training | garage"
+    },
+    {
+      "floor": -1,
+      "run": "x",
+      "c": -1.235,
+      "from": -3.055,
+      "to": 2.535,
+      "tier": "solid",
+      "note": "training & garage | basement stairs"
+    },
+    {
+      "floor": -1,
+      "run": "z",
+      "c": 2.535,
+      "from": -1.235,
+      "to": 0.715,
+      "tier": "solid",
+      "h": 2.85,
+      "note": "basement stairs | garage — under the top steps, up to their underside"
+    },
+    {
+      "group": "closes the void under the upper basement steps (model) — only up to the steps' underside, the flight runs over it",
+      "floor": -1,
+      "run": "z",
+      "c": 0.338,
+      "from": -1.235,
+      "to": 0.715,
+      "tier": "solid",
+      "h": 1.65
+    },
+    {
+      "floor": -1,
+      "run": "x",
+      "c": -0.78,
+      "from": 7.579,
+      "to": 9.36,
+      "tier": "solid",
+      "note": "garage: stub wall west of the shutter pillar (model)"
+    },
+    {
+      "floor": -1,
+      "run": "x",
+      "c": 0.715,
+      "from": -10.335,
+      "to": -6.864,
+      "tier": "solid",
+      "note": "training | side stairs: the model's wall, open east of x −5.28"
+    },
+    {
+      "floor": -1,
+      "run": "x",
+      "c": 0.715,
+      "from": -4.68,
+      "to": 2.535,
+      "tier": "solid",
+      "spans": [{ "from": -4.68, "to": -2.795, "tier": "soft" }],
+      "note": "training (NW part soft) & stairs | laundry"
+    },
+    {
+      "floor": -1,
+      "run": "z",
+      "c": -4.68,
+      "from": 0.715,
+      "to": 4.81,
+      "tier": "soft",
+      "note": "side stairs | laundry (no door in the model)"
+    },
+    {
+      "floor": -1,
+      "run": "z",
+      "c": 2.535,
+      "from": 0.715,
+      "to": 6.305,
+      "tier": "soft",
+      "openings": [{ "at": 5.525, "w": 1.17, "kind": "door" }],
+      "spans": [{ "from": 4.81, "to": 6.305, "tier": "solid" }],
+      "note": "laundry & back hall | garage"
+    },
+    {
+      "floor": -1,
+      "run": "x",
+      "c": 4.81,
+      "from": -7.085,
+      "to": -4.68,
+      "tier": "solid",
+      "openings": [{ "at": -5.85, "w": 1.3, "kind": "door" }],
+      "note": "side stairs | back hall"
+    },
+    {
+      "group": "exterior: windows ×10 + front door + back door (matches the guide)",
+      "floor": 0,
+      "run": "x",
+      "c": -9.62,
+      "from": -9.425,
+      "to": -2.21,
+      "tier": "solid",
+      "ext": true,
+      "openings": [{ "at": -5.85, "w": 1.625, "kind": "window" }],
+      "note": "living N"
+    },
+    {
+      "floor": 0,
+      "run": "z",
+      "c": -9.425,
+      "from": -9.62,
+      "to": -3.185,
+      "tier": "solid",
+      "ext": true,
+      "openings": [{ "at": -4.225, "w": 1.3, "kind": "window" }, { "at": -5.72, "w": 0.45, "kind": "vent" }],
+      "note": "living W (+ drone vent from the west yard)"
+    },
+    { "floor": 0, "run": "x", "c": -3.185, "from": -10.335, "to": -9.425, "tier": "solid", "ext": true },
+    {
+      "floor": 0,
+      "run": "z",
+      "c": -10.335,
+      "from": -3.185,
+      "to": 0.715,
+      "tier": "solid",
+      "ext": true,
+      "openings": [{ "at": -1.82, "w": 1.17, "kind": "french" }, { "at": -0.585, "w": 1.17, "kind": "french" }],
+      "note": "living W french windows"
+    },
+    { "floor": 0, "run": "x", "c": 0.715, "from": -11.245, "to": -10.335, "tier": "solid", "ext": true },
+    { "floor": 0, "run": "z", "c": -11.245, "from": 0.715, "to": 1.43, "tier": "solid", "ext": true },
+    {
+      "floor": 0,
+      "run": "z",
+      "c": -12.285,
+      "from": 2.275,
+      "to": 3.445,
+      "tier": "solid",
+      "ext": true,
+      "openings": [{ "at": 2.86, "w": 1.04, "kind": "window", "y0": 2, "h": 1.15 }],
+      "note": "back stairwell bay: the half-landing window"
+    },
+    { "floor": 0, "run": "z", "c": -11.245, "from": 4.225, "to": 4.875, "tier": "solid", "ext": true },
+    { "floor": 0, "run": "x", "c": 4.875, "from": -11.245, "to": -7.085, "tier": "solid", "ext": true },
+    { "floor": 0, "run": "z", "c": -7.085, "from": 4.875, "to": 6.305, "tier": "solid", "ext": true },
+    {
+      "floor": 0,
+      "run": "x",
+      "c": 6.305,
+      "from": -7.085,
+      "to": 12.61,
+      "tier": "solid",
+      "ext": true,
+      "openings": [{ "at": -5.59, "w": 1.43, "kind": "exterior_door" }],
+      "note": "south façade: back door (Side Street)"
+    },
+    {
+      "floor": 0,
+      "run": "z",
+      "c": 12.61,
+      "from": -0.78,
+      "to": 6.305,
+      "tier": "solid",
+      "ext": true,
+      "openings": [{ "at": 1.235, "w": 1.82, "kind": "window" }],
+      "note": "dining E"
+    },
+    { "floor": 0, "run": "x", "c": -0.78, "from": 10.53, "to": 12.61, "tier": "solid", "ext": true },
+    { "floor": 0, "run": "z", "c": 10.53, "from": -3.185, "to": -0.78, "tier": "solid", "ext": true },
+    {
+      "floor": 0,
+      "run": "z",
+      "c": 10.79,
+      "from": -5.33,
+      "to": -3.185,
+      "tier": "solid",
+      "ext": true,
+      "openings": [{ "at": -4.42, "w": 1.17, "kind": "window" }],
+      "note": "office E"
+    },
+    {
+      "floor": 0,
+      "run": "x",
+      "c": -6.695,
+      "from": 5.655,
+      "to": 9.425,
+      "tier": "solid",
+      "ext": true,
+      "openings": [{ "at": 8.58, "w": 1.04, "kind": "window" }, { "at": 6.24, "w": 0.45, "kind": "vent" }],
+      "note": "office N window (2.15 m over the front yard: out of reach from the ground) + porch→office drone vent"
+    },
+    { "floor": 0, "run": "z", "c": 5.655, "from": -6.695, "to": -6.37, "tier": "solid", "ext": true },
+    {
+      "floor": 0,
+      "run": "x",
+      "c": -6.37,
+      "from": -2.21,
+      "to": 5.655,
+      "tier": "solid",
+      "ext": true,
+      "openings": [{ "at": 0.13, "w": 2.34, "kind": "exterior_door" }],
+      "note": "FRONT DOOR (double)"
+    },
+    { "floor": 0, "run": "z", "c": -2.21, "from": -9.62, "to": -6.37, "tier": "solid", "ext": true },
+    {
+      "group": "interior",
+      "floor": 0,
+      "run": "z",
+      "c": -2.275,
+      "from": -6.37,
+      "to": 0.78,
+      "tier": "semi",
+      "openings": [{ "at": -4.615, "w": 2.08, "kind": "arch" }],
+      "note": "living | lobby — semi (studs stay)"
+    },
+    {
+      "floor": 0,
+      "run": "x",
+      "c": 0.78,
+      "from": -10.335,
+      "to": 2.99,
+      "tier": "solid",
+      "openings": [{ "at": -5.005, "w": 1.17, "kind": "door" }],
+      "spans": [{ "from": -7.02, "to": -5.59, "tier": "soft" }],
+      "note": "living | back entrance / kitchen | basement stairs"
+    },
+    {
+      "floor": 0,
+      "run": "x",
+      "c": -1.235,
+      "from": -2.275,
+      "to": 2.99,
+      "tier": "solid",
+      "note": "lobby | basement stairs"
+    },
+    {
+      "floor": 0,
+      "run": "z",
+      "c": 5.59,
+      "from": -6.37,
+      "to": 6.305,
+      "tier": "soft",
+      "openings": [{ "at": 2.795, "w": 3.25, "kind": "arch" }, { "at": 5.655, "w": 0.45, "kind": "vent" }],
+      "spans": [{ "from": -6.37, "to": -0.78, "tier": "semi" }],
+      "note": "lobby|office (semi) · landing|dining · kitchen|dining"
+    },
+    {
+      "floor": 0,
+      "run": "x",
+      "c": -0.78,
+      "from": 5.59,
+      "to": 10.53,
+      "tier": "soft",
+      "openings": [{ "at": 8.255, "w": 1.17, "kind": "door" }],
+      "note": "office | dining"
+    },
+    {
+      "floor": 0,
+      "run": "z",
+      "c": -4.095,
+      "from": 0.78,
+      "to": 6.305,
+      "tier": "semi",
+      "openings": [{ "at": 5.265, "w": 1.95, "kind": "arch" }],
+      "note": "back entrance | kitchen (semi section on the kitchen's west side)"
+    },
+    {
+      "floor": 0,
+      "run": "x",
+      "c": 4.264,
+      "from": -4.095,
+      "to": -2.054,
+      "tier": "solid",
+      "note": "kitchen pantry nook behind the back-entrance arch (model)"
+    },
+    {
+      "group": "exterior: windows ×12 + the unboardable open window",
+      "floor": 1,
+      "run": "x",
+      "c": -9.62,
+      "from": -9.425,
+      "to": -2.21,
+      "tier": "solid",
+      "ext": true,
+      "openings": [{ "at": -5.85, "w": 1.625, "kind": "window" }],
+      "note": "bathroom N"
+    },
+    {
+      "floor": 1,
+      "run": "z",
+      "c": -2.21,
+      "from": -9.62,
+      "to": -7.15,
+      "tier": "solid",
+      "ext": true,
+      "openings": [{ "at": -8.255, "w": 1.3, "kind": "window" }],
+      "note": "bathroom E → porch roof"
+    },
+    {
+      "floor": 1,
+      "run": "x",
+      "c": -7.15,
+      "from": -2.21,
+      "to": 5.655,
+      "tier": "solid",
+      "ext": true,
+      "openings": [{ "at": -0.13, "w": 2.08, "kind": "open_window" }],
+      "note": "OPEN WINDOW over the front door"
+    },
+    { "floor": 1, "run": "z", "c": 5.655, "from": -7.15, "to": -6.695, "tier": "solid", "ext": true },
+    {
+      "floor": 1,
+      "run": "x",
+      "c": -6.695,
+      "from": 5.655,
+      "to": 9.425,
+      "tier": "solid",
+      "ext": true,
+      "openings": [{ "at": 8.58, "w": 1.17, "kind": "window" }],
+      "note": "workshop N"
+    },
+    {
+      "floor": 1,
+      "run": "z",
+      "c": 10.79,
+      "from": -5.33,
+      "to": -3.185,
+      "tier": "solid",
+      "ext": true,
+      "openings": [{ "at": -4.42, "w": 1.17, "kind": "window" }],
+      "note": "workshop E"
+    },
+    { "floor": 1, "run": "z", "c": 10.53, "from": -3.185, "to": -0.78, "tier": "solid", "ext": true },
+    { "floor": 1, "run": "x", "c": -0.78, "from": 10.53, "to": 12.61, "tier": "solid", "ext": true },
+    { "floor": 1, "run": "z", "c": 12.61, "from": -0.78, "to": 6.305, "tier": "solid", "ext": true },
+    {
+      "floor": 1,
+      "run": "x",
+      "c": 6.305,
+      "from": -2.34,
+      "to": 12.61,
+      "tier": "solid",
+      "ext": true,
+      "openings": [{ "at": 4.68, "w": 1.56, "kind": "window" }],
+      "note": "master S"
+    },
+    {
+      "floor": 1,
+      "run": "z",
+      "c": -2.34,
+      "from": 6.305,
+      "to": 8.58,
+      "tier": "solid",
+      "ext": true,
+      "openings": [{ "at": 7.436, "w": 1.17, "kind": "window" }],
+      "note": "kids E"
+    },
+    {
+      "floor": 1,
+      "run": "x",
+      "c": 8.58,
+      "from": -9.425,
+      "to": -2.34,
+      "tier": "solid",
+      "ext": true,
+      "openings": [{ "at": -7.28, "w": 1.3, "kind": "window" }, { "at": -4.03, "w": 1.3, "kind": "window" }],
+      "note": "kids S ×2"
+    },
+    {
+      "floor": 1,
+      "run": "z",
+      "c": -9.425,
+      "from": 4.875,
+      "to": 8.58,
+      "tier": "solid",
+      "ext": true,
+      "openings": [{ "at": 6.63, "w": 1.56, "kind": "window" }],
+      "note": "kids W"
+    },
+    { "floor": 1, "run": "x", "c": 4.875, "from": -11.245, "to": -9.425, "tier": "solid", "ext": true },
+    { "floor": 1, "run": "z", "c": -11.245, "from": 4.225, "to": 4.875, "tier": "solid", "ext": true },
+    {
+      "floor": 1,
+      "run": "z",
+      "c": -12.285,
+      "from": 2.275,
+      "to": 3.445,
+      "tier": "solid",
+      "ext": true,
+      "openings": [{ "at": 2.86, "w": 1.04, "kind": "window", "y0": 0.35, "h": 0.9, "barricade": false }],
+      "note": "back stairwell bay: upper window"
+    },
+    { "floor": 1, "run": "z", "c": -11.245, "from": 0.715, "to": 1.43, "tier": "solid", "ext": true },
+    { "floor": 1, "run": "x", "c": 0.715, "from": -11.245, "to": -10.335, "tier": "solid", "ext": true },
+    { "floor": 1, "run": "z", "c": -10.335, "from": -3.185, "to": 0.715, "tier": "solid", "ext": true },
+    { "floor": 1, "run": "x", "c": -3.185, "from": -10.335, "to": -9.425, "tier": "solid", "ext": true },
+    { "floor": 1, "run": "z", "c": -9.425, "from": -9.62, "to": -3.185, "tier": "solid", "ext": true },
+    {
+      "group": "interior — almost everything up here is soft (the guide's key point)",
+      "floor": 1,
+      "run": "x",
+      "c": -7.15,
+      "from": -9.425,
+      "to": -4.095,
+      "tier": "soft",
+      "openings": [{ "at": -6.76, "w": 1.3, "kind": "door" }],
+      "note": "bathroom | west hall"
+    },
+    {
+      "floor": 1,
+      "run": "z",
+      "c": -4.095,
+      "from": -7.15,
+      "to": 2.86,
+      "tier": "soft",
+      "openings": [{ "at": -5.98, "w": 1.3, "kind": "door" }, { "at": 1.82, "w": 1.56, "kind": "door" }],
+      "note": "hall annex & upper hall | west hall"
+    },
+    {
+      "floor": 1,
+      "run": "x",
+      "c": -3.25,
+      "from": -4.095,
+      "to": -2.21,
+      "tier": "soft",
+      "openings": [{ "at": -3.159, "w": 1.17, "kind": "door" }],
+      "note": "hall annex | upper hall"
+    },
+    {
+      "floor": 1,
+      "run": "x",
+      "c": -7.15,
+      "from": -4.095,
+      "to": -2.21,
+      "tier": "soft",
+      "note": "bathroom | hall annex (model)"
+    },
+    {
+      "floor": 1,
+      "run": "x",
+      "c": 0.715,
+      "from": -10.335,
+      "to": -5.824,
+      "tier": "soft",
+      "note": "west hall partition (model): north part | south part, open east of x −4.48"
+    },
+    {
+      "floor": 1,
+      "run": "z",
+      "c": -2.21,
+      "from": -7.15,
+      "to": -3.25,
+      "tier": "soft",
+      "openings": [{ "at": -5.98, "w": 0.45, "kind": "vent" }],
+      "note": "hall annex | upper hall (+ drone vent)"
+    },
+    {
+      "floor": 1,
+      "run": "z",
+      "c": 5.655,
+      "from": -6.695,
+      "to": 0.715,
+      "tier": "soft",
+      "openings": [{ "at": -0.104, "w": 1.235, "kind": "door" }],
+      "note": "upper hall | workshop · vestibule (the model's door is the vestibule's)"
+    },
+    {
+      "floor": 1,
+      "run": "x",
+      "c": -0.78,
+      "from": 5.655,
+      "to": 10.53,
+      "tier": "soft",
+      "openings": [{ "at": 6.656, "w": 1.3, "kind": "door" }, { "at": 8.515, "w": 1.3, "kind": "door" }],
+      "note": "workshop | vestibule · master (model: two doors)"
+    },
+    {
+      "floor": 1,
+      "run": "z",
+      "c": 7.605,
+      "from": -0.78,
+      "to": 0.715,
+      "tier": "soft",
+      "note": "vestibule | master"
+    },
+    {
+      "floor": 1,
+      "run": "x",
+      "c": 0.715,
+      "from": 1.625,
+      "to": 7.605,
+      "tier": "soft",
+      "openings": [{ "at": 2.6, "w": 1.3, "kind": "door" }],
+      "note": "upper hall · vestibule | master"
+    },
+    {
+      "floor": 1,
+      "run": "z",
+      "c": 1.625,
+      "from": 0.715,
+      "to": 2.86,
+      "tier": "soft",
+      "openings": [{ "at": 1.56, "w": 1.3, "kind": "door" }],
+      "note": "upper hall (south arm) | master"
+    },
+    {
+      "floor": 1,
+      "run": "x",
+      "c": 2.86,
+      "from": -7.215,
+      "to": 1.625,
+      "tier": "soft",
+      "openings": [{ "at": -3.315, "w": 1.17, "kind": "door" }],
+      "spans": [{ "from": -2.34, "to": 1.625, "tier": "semi" }],
+      "note": "kids | halls · walk-in closet north (semi)"
+    },
+    {
+      "floor": 1,
+      "run": "z",
+      "c": -2.34,
+      "from": 2.86,
+      "to": 6.305,
+      "tier": "solid",
+      "note": "kids | walk-in closet (bulletproof)"
+    },
+    {
+      "floor": 1,
+      "run": "z",
+      "c": 1.625,
+      "from": 2.86,
+      "to": 6.305,
+      "tier": "solid",
+      "openings": [{ "at": 4.68, "w": 1.17, "kind": "door" }],
+      "note": "walk-in closet | master (bulletproof)"
+    },
+    {
+      "floor": 1,
+      "run": "z",
+      "c": -7.215,
+      "from": 2.86,
+      "to": 4.875,
+      "tier": "soft",
+      "note": "kids | west hall"
+    },
+    {
+      "floor": 1,
+      "run": "x",
+      "c": 4.875,
+      "from": -9.425,
+      "to": -7.215,
+      "tier": "soft",
+      "note": "kids | west hall"
+    }
+  ],
+  "diagonal": [
+    { "floor": -1, "a": [-11.245, 1.43], "b": [-12.285, 2.275] },
+    { "floor": -1, "a": [-12.285, 3.445], "b": [-11.245, 4.225] },
+    {
+      "floor": 0,
+      "a": [-11.245, 1.43],
+      "b": [-12.285, 2.275],
+      "window": { "at": 0.5, "w": 1.04 }
+    },
+    {
+      "floor": 0,
+      "a": [-12.285, 3.445],
+      "b": [-11.245, 4.225],
+      "window": { "at": 0.5, "w": 1.04 }
+    },
+    {
+      "floor": 1,
+      "a": [-11.245, 1.43],
+      "b": [-12.285, 2.275],
+      "window": { "at": 0.5, "w": 1.04 }
+    },
+    {
+      "floor": 1,
+      "a": [-12.285, 3.445],
+      "b": [-11.245, 4.225],
+      "window": { "at": 0.5, "w": 1.04 }
+    },
+    {
+      "floor": 0,
+      "a": [9.425, -6.695],
+      "b": [10.79, -5.33],
+      "window": { "at": 0.5, "w": 1.235 }
+    },
+    {
+      "floor": 1,
+      "a": [9.425, -6.695],
+      "b": [10.79, -5.33],
+      "window": { "at": 0.5, "w": 1.235 }
+    }
+  ]
+}

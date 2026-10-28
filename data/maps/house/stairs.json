@@ -1,0 +1,149 @@
+{
+  "$schema": "../../schema/stairs.schema.json",
+  "stairs": [
+    {
+      "group": "main stairs (blueprint 1F / the source model): an L in the lobby's north-east corner — from beside the front door east along the front wall to a landing in the corner, then south along the office wall up to 2F (both flights against the walls' inner faces)",
+      "id": "stairs_main_a",
+      "label": "Lobby Stairs",
+      "rect": { "x0": 1.56, "z0": -6.214, "x1": 3.64, "z1": -4.68 },
+      "axis": "x",
+      "yMin": 0,
+      "yMax": 1.4
+    },
+    {
+      "id": "stairs_main_b",
+      "label": "Lobby Stairs",
+      "rect": { "x0": 3.64, "z0": -4.68, "x1": 5.486, "z1": -1.56 },
+      "axis": "z",
+      "yMin": 1.4,
+      "yMax": 3.5
+    },
+    {
+      "group": "basement stairs: 1F lobby landing → B (westwards, under the 2F upper-hallway hatch)",
+      "id": "stairs_basement",
+      "label": "Basement Stairs",
+      "rect": { "x0": -2.99, "z0": -1.105, "x1": 2.99, "z1": 0.65 },
+      "axis": "x",
+      "yMin": -3.5,
+      "yMax": 0
+    },
+    {
+      "group": "back stairs (the source model's back-entrance stairwell): a switchback stacked B → 1F → 2F in the west bay — on every floor the lower flight climbs west along the south half to a half landing in the bay, the upper flight climbs east along the north half to the next floor; both start from the east end (x −5.5), a wall runs between them",
+      "id": "stairs_back_b1",
+      "label": "Back Stairs",
+      "rect": { "x0": -10.335, "z0": 2.99, "x1": -7.15, "z1": 4.68 },
+      "axis": "x",
+      "yMin": -1.75,
+      "yMax": -3.5
+    },
+    {
+      "id": "stairs_back_b2",
+      "label": "Back Stairs",
+      "rect": { "x0": -10.335, "z0": 0.975, "x1": -7.15, "z1": 2.86 },
+      "axis": "x",
+      "yMin": -1.75,
+      "yMax": 0
+    },
+    {
+      "id": "stairs_back_11",
+      "label": "Back Stairs",
+      "rect": { "x0": -10.335, "z0": 2.99, "x1": -7.15, "z1": 4.68 },
+      "axis": "x",
+      "yMin": 1.75,
+      "yMax": 0
+    },
+    {
+      "id": "stairs_back_12",
+      "label": "Back Stairs",
+      "rect": { "x0": -10.335, "z0": 0.975, "x1": -7.15, "z1": 2.86 },
+      "axis": "x",
+      "yMin": 1.75,
+      "yMax": 3.5
+    },
+    {
+      "group": "NW basement stairs (datamap zone 11): a flight down from the front yard, south to the pit at the storage door (the datamap's 2.1 m flight is lengthened to 4.1 m: 40° instead of 58°, walkable and in step with the House's other stairs)",
+      "id": "stairs_storage_ext",
+      "label": "NW Basement Stairs",
+      "rect": { "x0": -14.04, "z0": -15.743, "x1": -10.231, "z1": -10.4 },
+      "axis": "z",
+      "yMin": -1.2,
+      "yMax": -3.5,
+      "exterior": true
+    },
+    {
+      "group": "the front walk (blueprint / screenshots): up from the sidewalk through the low wall to the lower terrace, through the next wall to the upper terrace, then the porch stairs — 7 steps — to the front door (treads 0.3 m, in line with the door)",
+      "id": "steps_front_1",
+      "label": "Front Steps",
+      "rect": { "x0": -1.17, "z0": -19.5, "x1": 1.43, "z1": -18.6 },
+      "axis": "z",
+      "yMin": -2.25,
+      "yMax": -1.8,
+      "exterior": true,
+      "steps": 3
+    },
+    {
+      "id": "steps_front_2",
+      "label": "Front Steps",
+      "rect": { "x0": -1.17, "z0": -16.25, "x1": 1.43, "z1": -15.05 },
+      "axis": "z",
+      "yMin": -1.8,
+      "yMax": -1.2,
+      "exterior": true,
+      "steps": 4
+    },
+    {
+      "id": "steps_porch",
+      "label": "Porch Stairs",
+      "rect": { "x0": -1.17, "z0": -11.2, "x1": 1.43, "z1": -9.1 },
+      "axis": "z",
+      "yMin": -1.2,
+      "yMax": 0,
+      "exterior": true,
+      "steps": 7
+    }
+  ],
+  "landings": [
+    {
+      "rect": { "x0": 3.64, "z0": -6.214, "x1": 5.486, "z1": -4.68 },
+      "y": 1.4,
+      "label": "Lobby Stairs Landing"
+    },
+    {
+      "rect": { "x0": -11.245, "z0": 0.975, "x1": -10.335, "z1": 4.68 },
+      "y": -1.75,
+      "label": "Back Stairs Landing"
+    },
+    {
+      "rect": { "x0": -11.765, "z0": 1.885, "x1": -11.245, "z1": 3.835 },
+      "y": -1.75,
+      "label": "Back Stairs Landing"
+    },
+    {
+      "rect": { "x0": -12.285, "z0": 2.275, "x1": -11.765, "z1": 3.445 },
+      "y": -1.75,
+      "label": "Back Stairs Landing"
+    },
+    {
+      "rect": { "x0": -11.245, "z0": 0.975, "x1": -10.335, "z1": 4.68 },
+      "y": 1.75,
+      "label": "Back Stairs Landing"
+    },
+    {
+      "rect": { "x0": -11.765, "z0": 1.885, "x1": -11.245, "z1": 3.835 },
+      "y": 1.75,
+      "label": "Back Stairs Landing"
+    },
+    {
+      "rect": { "x0": -12.285, "z0": 2.275, "x1": -11.765, "z1": 3.445 },
+      "y": 1.75,
+      "label": "Back Stairs Landing"
+    }
+  ],
+  "mainLanding": { "x0": 3.64, "z0": -6.214, "x1": 5.486, "z1": -4.68 },
+  "backStairwell": { "x0": -12.285, "z0": 0.715, "x1": -7.15, "z1": 4.875 },
+  "nwStairwellPit": { "x0": -14.04, "z0": -10.4, "x1": -9.425, "z1": -7.41 },
+  "holes": {
+    "main": { "x0": 1.56, "z0": -6.37, "x1": 5.655, "z1": -1.56 },
+    "basement": { "x0": -2.275, "z0": -1.235, "x1": 2.99, "z1": 0.78 }
+  }
+}
