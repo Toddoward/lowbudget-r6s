@@ -20,6 +20,8 @@ document.body.classList.toggle('qa', QA);
 
 const game = new Game($<HTMLCanvasElement>('#game'));
 (window as unknown as { r6game: Game }).r6game = game;
+// dev server: a data file changed (the editor saved, or a hand edit) → reload with the new data
+if (import.meta.hot) import.meta.hot.on('r6:data', () => location.reload());
 // QA hook: shorten PvP phases for local-transport rooms hosted by this tab
 if (QA || new URLSearchParams(location.search).has('fastrounds')) (window as unknown as { r6timings: typeof PVP_TIMINGS }).r6timings = PVP_TIMINGS;
 setKeyCapResolver((a) => game.input.binds.cap(a));

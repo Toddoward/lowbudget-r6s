@@ -1,32 +1,26 @@
 import * as THREE from 'three';
 import { buildAsset } from '../assets/build.ts';
 import { chargeSpec, deviceSpec, hammerSpec, launcherSpec, pulseSensorSpec, throwableSpec } from '../assets/weaponModels.ts';
-import { weaponSpec, WEAPONS } from '../game/weapons.ts';
+import { OPTICS, weaponSpec, WEAPONS } from '../game/weapons.ts';
+import { GADGETS } from '../game/Gadgets.ts';
 import { shieldLocal, shieldPlace, shieldPlateOf, type ShieldPose, type Soldier } from '../game/Soldier.ts';
 import type { AssetSpec } from '../assets/spec.ts';
 import { vcMaterial } from './palette.ts';
 import { BoxBatch } from '../world/BoxBatch.ts';
 import { extraGadgetSpec } from '../assets/gadgetModels.ts';
-import { isHandmade } from '../assets/handmade.ts';
+import { dataFile } from '../data/index.ts';
 
 type Reticle = 'dot' | 'holo' | 'acog' | 'none';
-interface VmModel { g: THREE.Group; spec: AssetSpec; mag: THREE.Object3D | null; reticle: Reticle; lens: THREE.Mesh | null; tint: THREE.Mesh | null; eyeRelief: number }
+interface VmModel { g: THREE.Group; spec: AssetSpec; mag: THREE.Object3D | null; reticle: Reticle; reticleAngle: number; lens: THREE.Mesh | null; tint: THREE.Mesh | null; eyeRelief: number; adsFov: number }
 
 const FWD = new THREE.Vector3(0, 0, -1);
 
 /** how an item is held: where it sits from the hip, extra tilt, and where the left hand goes */
 type Hold = 'rifle' | 'pistol' | 'launcher' | 'hammer' | 'held';
 interface HoldPose { hip: [number, number, number]; rot: [number, number, number]; left: 'fore' | 'cup' | [number, number, number] | null }
-const HOLDS: Record<Hold, HoldPose> = {
-  rifle: { hip: [0.15, -0.165, -0.35], rot: [0, 0, 0], left: 'fore' },
-  // both hands on the grip, the pistol a little higher and closer than a rifle
-  pistol: { hip: [0.12, -0.125, -0.3], rot: [0, 0, 0], left: 'cup' },
-  launcher: { hip: [0.15, -0.17, -0.36], rot: [0, 0, 0], left: [-0.02, -0.04, -0.3] },
-  // sledgehammer: carried at the right hip, head up and forward, left hand low on the handle
-  hammer: { hip: [0.24, -0.26, -0.32], rot: [0.45, 0.2, 0.3], left: [0, -0.02, 0.12] },
-  // devices, charges, throwables, sensors: in the right hand, steadied by the left
-  held: { hip: [0.12, -0.17, -0.27], rot: [0.1, 0, 0], left: [-0.075, 0.02, -0.12] },
-};
+/** data/rig/viewmodel.json: the hip pose per kind of item (where it sits from the eye, its tilt, where the left hand goes) */
+const VM = dataFile<{ hipFov: number; holds: Record<Hold, HoldPose> }>('rig/viewmodel.json');
+const HOLDS = VM.holds;
 const holdOf = (key: string): Hold => (WEAPONS[key] ? (WEAPONS[key].cls === 'Pistol' ? 'pistol' : 'rifle') : key === 'hammer' ? 'hammer' : key === 'ash_round' ? 'launcher' : 'held');
 
 /**
@@ -65,7 +59,7 @@ export function shieldInView(s: Soldier, pose: ShieldPose): { p: THREE.Vector3; 
 
 export class ViewModel {
   readonly scene = new THREE.Scene();
-  readonly camera = new THREE.PerspectiveCamera(58, 1, 0.01, 12);
+  readonly camera = new THREE.PerspectiveCamera(VM.hipFov, 1, 0.01, 12);
   private holder = new THREE.Group();
   private models = new Map<string, VmModel>();
   private current: string | null = null;
@@ -175,32 +169,35 @@ export class ViewModel {
       heartbeat: pulseSensorSpec,
       barricade: () => chargeSpec('vm_barricade', '#b08a55', 0.3, 0.12),
     } as Record<string, () => AssetSpec>)[key]?.() ?? extraGadgetSpec(key) ?? throwableSpec('vm_none', '#444');
+    // a gadget with a hand-made model (data/gadgets/<key>.json `model.glb`) is held as modelled
+    if (!WEAPONS[key] && GADGETS[key]?.model?.glb) spec = { ...spec, id: `gadget_${key}` };
     // the procedural build here (the exact optic geometry matters more than the baked GLB), except for hand-made models:
     // those are drawn as modelled, minus their `_glow` parts (lens caps would close the sight line seen from the eye)
-    const g = buildAsset(isHandmade(spec.id) ? spec : { ...spec, id: `vm_${spec.id}` });
+    const g = buildAsset(WEAPONS[key]?.model.glb || spec.id.startsWith('gadget_') ? spec : { ...spec, id: `vm_${spec.id}` });
     g.traverse((o) => { o.castShadow = false; o.receiveShadow = false; if (o.name.endsWith('_glow')) o.visible = false; });
     const mag = g.children.find((c) => c.name === 'mag') ?? null;
-    const optic = WEAPONS[key]?.style.optic;
-    const reticle: Reticle = optic === 'acog' ? 'acog' : optic === 'holo' ? 'holo' : optic === 'reflex' ? 'dot' : 'none';
+    // the optic (data/optics/<id>.json): reticle, see-through lens, eye relief and aimed view-model FOV
+    const optic = WEAPONS[key] ? OPTICS[WEAPONS[key].style.optic] : null;
+    const reticle: Reticle = optic?.reticle?.texture ?? 'none';
     let lens: THREE.Mesh | null = null;
     let tint: THREE.Mesh | null = null;
     const la = spec.anchors?.lens;
-    if (la && reticle !== 'none') {
-      const [w, h] = reticle === 'acog' ? [0.042, 0.042] : reticle === 'holo' ? [0.036, 0.042] : [0.025, 0.03];
-      const geo = reticle === 'acog' ? new THREE.CircleGeometry(w / 2, 20) : new THREE.PlaneGeometry(w, h);
+    if (la && optic?.lens && reticle !== 'none') {
+      const [w, h] = optic.lens.size;
+      const geo = optic.lens.shape === 'circle' ? new THREE.CircleGeometry(w / 2, 20) : new THREE.PlaneGeometry(w, h);
       lens = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
         colorWrite: false, depthWrite: false, stencilWrite: true, stencilRef: 1, stencilFunc: THREE.AlwaysStencilFunc, stencilZPass: THREE.ReplaceStencilOp,
       }));
       lens.position.set(...la);
       lens.renderOrder = 10;
       g.add(lens);
-      tint = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: reticle === 'acog' ? '#2a4a3a' : '#5a7a90', transparent: true, opacity: reticle === 'acog' ? 0.18 : 0.1, depthWrite: false }));
+      tint = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: optic.lens.tint, transparent: true, opacity: optic.lens.tintOpacity, depthWrite: false }));
       tint.position.set(la[0], la[1], la[2] + 0.001);
       tint.renderOrder = 11;
       g.add(tint);
     }
-    const eyeRelief = reticle === 'acog' ? 0.06 : reticle === 'none' ? (WEAPONS[key]?.cls === 'Pistol' ? 0.2 : 0.09) : 0.12;
-    m = { g, spec, mag, reticle, lens, tint, eyeRelief };
+    const eyeRelief = WEAPONS[key]?.model.eyeRelief ?? optic?.eyeRelief ?? 0.09;
+    m = { g, spec, mag, reticle, reticleAngle: optic?.reticle?.angle ?? 0, lens, tint, eyeRelief, adsFov: optic?.viewmodelFov ?? 50 };
     this.models.set(key, m);
     return m;
   }
@@ -304,7 +301,7 @@ export class ViewModel {
     if (this.reticle.visible) {
       rm.map = this.reticleTex[m.reticle as Exclude<Reticle, 'none'>];
       const D = 8;
-      const angular = m.reticle === 'acog' ? 0.05 : m.reticle === 'holo' ? 0.06 : 0.02; // radians across the texture
+      const angular = m.reticleAngle; // radians across the texture
       this.reticle.position.copy(bore).multiplyScalar(D);
       // plane normal (+Z) must face the eye: the holder's +Z axis is exactly -bore
       this.reticle.quaternion.copy(this.holder.quaternion);
@@ -317,7 +314,7 @@ export class ViewModel {
     // lighting roughly matches surroundings
     this.sun.intensity = 2.6 * interiorDim;
     this.fill.intensity = 1.4 * interiorDim + 0.6;
-    this.camera.fov = THREE.MathUtils.lerp(58, m.reticle === 'acog' ? 34 : 50, ads);
+    this.camera.fov = THREE.MathUtils.lerp(VM.hipFov, m.adsFov, ads);
     this.camera.updateProjectionMatrix();
   }
 

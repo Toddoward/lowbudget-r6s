@@ -1,0 +1,10 @@
+{
+  "$schema": "../schema/optic.schema.json",
+  "id": "holo",
+  "name": "Holographic",
+  "zoom": 1.1,
+  "eyeRelief": 0.12,
+  "viewmodelFov": 50,
+  "reticle": { "texture": "holo", "angle": 0.06 },
+  "lens": { "shape": "rect", "size": [0.036, 0.042], "tint": "#5a7a90", "tintOpacity": 0.1 }
+}

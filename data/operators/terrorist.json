@@ -1,0 +1,22 @@
+{
+  "$schema": "../schema/operator.schema.json",
+  "id": "terrorist",
+  "name": "White Masks",
+  "order": 16,
+  "team": "terrorist",
+  "unit": "White Masks",
+  "armor": 2,
+  "speed": 2,
+  "loadout": {
+    "primary": "ak47t",
+    "secondary": "p226",
+    "gadget": "none",
+    "gadgetName": "—",
+    "gadgetCount": 0,
+    "universal": "none",
+    "universalCount": 0
+  },
+  "description": { "en": "Terrorist Hunt hostile." },
+  "look": { "headgear": "whitemask", "cloth": "#6e6150", "accent": "#3d3830" },
+  "model": {}
+}

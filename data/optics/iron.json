@@ -1,0 +1,10 @@
+{
+  "$schema": "../schema/optic.schema.json",
+  "id": "iron",
+  "name": "Iron sights",
+  "zoom": 1,
+  "eyeRelief": 0.09,
+  "viewmodelFov": 50,
+  "reticle": null,
+  "lens": null
+}

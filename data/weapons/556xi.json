@@ -1,0 +1,24 @@
+{
+  "$schema": "../schema/weapon.schema.json",
+  "id": "556xi",
+  "name": "556xi",
+  "class": "AR",
+  "order": 2,
+  "damage": { "base": 47, "falloffStart": 25, "falloffEnd": 42, "min": 0.6 },
+  "fire": { "rpm": 690, "mode": "auto" },
+  "ammo": { "mag": 30, "reserve": 150, "reload": 2.4, "reloadEmpty": 3 },
+  "spread": { "hip": 2.3, "ads": 0.26 },
+  "recoil": { "vertical": 0.6, "horizontal": 0.26, "recover": 7 },
+  "penetration": { "budget": 2, "wallDamage": 1 },
+  "optic": "holo",
+  "model": {
+    "anchors": {
+      "sight": [0, 0.172, -0.11],
+      "lens": [0, 0.172, -0.185],
+      "muzzle": [0, 0.065, -0.87],
+      "grip": [0, -0.03, 0],
+      "fore": [0, 0.03, -0.395]
+    },
+    "procedural": { "layout": "ar", "body": "#7d6f52", "accent": "#2e2f31", "length": 0.82 }
+  }
+}

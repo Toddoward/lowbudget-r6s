@@ -1,0 +1,94 @@
+{
+ "type": "object",
+ "title": "3인칭 골격",
+ "properties": {
+  "$schema": {
+   "type": "string",
+   "title": "스키마",
+   "description": "VS Code / 에디터용 스키마 경로"
+  },
+  "hips": {
+   "type": "array",
+   "title": "hips",
+   "description": "발 기준 골반 위치",
+   "items": {
+    "type": "number"
+   },
+   "minItems": 3,
+   "maxItems": 3
+  },
+  "head": {
+   "type": "array",
+   "title": "head",
+   "description": "골반 기준 머리 피벗",
+   "items": {
+    "type": "number"
+   },
+   "minItems": 3,
+   "maxItems": 3
+  },
+  "shoulderL": {
+   "type": "array",
+   "title": "왼쪽 어깨",
+   "description": "골반 기준",
+   "items": {
+    "type": "number"
+   },
+   "minItems": 3,
+   "maxItems": 3
+  },
+  "shoulderR": {
+   "type": "array",
+   "title": "오른쪽 어깨",
+   "description": "골반 기준",
+   "items": {
+    "type": "number"
+   },
+   "minItems": 3,
+   "maxItems": 3
+  },
+  "armUpper": {
+   "type": "number",
+   "title": "위팔 길이 (m)"
+  },
+  "armFore": {
+   "type": "number",
+   "title": "아래팔 길이 (m)",
+   "description": "팔꿈치 → 손 중심"
+  },
+  "legL": {
+   "type": "array",
+   "title": "왼쪽 고관절",
+   "description": "골반 기준",
+   "items": {
+    "type": "number"
+   },
+   "minItems": 3,
+   "maxItems": 3
+  },
+  "legR": {
+   "type": "array",
+   "title": "오른쪽 고관절",
+   "description": "골반 기준",
+   "items": {
+    "type": "number"
+   },
+   "minItems": 3,
+   "maxItems": 3
+  }
+ },
+ "additionalProperties": false,
+ "description": "data/rig/skeleton.json — 뼈대 피벗 (발 원점, −Z 정면, m)",
+ "required": [
+  "hips",
+  "head",
+  "shoulderL",
+  "shoulderR",
+  "armUpper",
+  "armFore",
+  "legL",
+  "legR"
+ ],
+ "$id": "skeleton",
+ "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

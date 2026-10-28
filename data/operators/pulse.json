@@ -1,0 +1,26 @@
+{
+  "$schema": "../schema/operator.schema.json",
+  "id": "pulse",
+  "name": "Pulse",
+  "order": 8,
+  "team": "defend",
+  "unit": "FBI SWAT",
+  "roles": ["intel", "flank"],
+  "armor": 2,
+  "speed": 2,
+  "loadout": {
+    "primary": "ump45",
+    "secondary": "usg57",
+    "gadget": "heartbeat",
+    "gadgetName": "Cardiac Sensor",
+    "gadgetCount": 1,
+    "universal": "barricade",
+    "universalCount": 99
+  },
+  "description": {
+    "en": "Hold [3]: detects heartbeats through walls & floors within 9 m.",
+    "ko": "[G]로 센서를 들고 좌클릭 유지: 9 m 안 심장 박동을 벽·바닥 너머로 감지합니다."
+  },
+  "look": { "headgear": "cap_headset", "cloth": "#323a44", "accent": "#58616d" },
+  "model": {}
+}

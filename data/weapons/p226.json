@@ -1,0 +1,25 @@
+{
+  "$schema": "../schema/weapon.schema.json",
+  "id": "p226",
+  "name": "P226 Mk25",
+  "class": "Pistol",
+  "order": 10,
+  "damage": { "base": 50, "falloffStart": 12, "falloffEnd": 25, "min": 0.5 },
+  "fire": { "rpm": 420, "mode": "semi" },
+  "ammo": { "mag": 15, "reserve": 60, "reload": 1.8, "reloadEmpty": 2.2 },
+  "spread": { "hip": 1.4, "ads": 0.5 },
+  "recoil": { "vertical": 0.9, "horizontal": 0.25, "recover": 9 },
+  "penetration": { "budget": 1, "wallDamage": 0.8 },
+  "optic": "iron",
+  "model": {
+    "eyeRelief": 0.2,
+    "anchors": {
+      "sight": [0, 0.0905, 0.03],
+      "lens": [0, 0.0905, -0.153],
+      "muzzle": [0, 0.055, -0.19],
+      "grip": [0, -0.03, 0],
+      "fore": [0, -0.03, 0]
+    },
+    "procedural": { "layout": "pistol", "body": "#1f2023", "accent": "#26272a", "length": 0.2 }
+  }
+}

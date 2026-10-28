@@ -1,0 +1,640 @@
+{
+ "type": "object",
+ "title": "맵 기본값",
+ "properties": {
+  "$schema": {
+   "type": "string",
+   "title": "스키마"
+  },
+  "name": {
+   "type": "string",
+   "title": "맵 이름"
+  },
+  "note": {
+   "type": "string",
+   "title": "메모"
+  },
+  "floors": {
+   "type": "object",
+   "title": "층",
+   "properties": {
+    "-1": {
+     "type": "object",
+     "title": "층 -1",
+     "properties": {
+      "label": {
+       "type": "string",
+       "title": "표시"
+      },
+      "y": {
+       "type": "number",
+       "title": "바닥 높이 (m)"
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "label",
+      "y"
+     ]
+    },
+    "0": {
+     "type": "object",
+     "title": "층 0",
+     "properties": {
+      "label": {
+       "type": "string",
+       "title": "표시"
+      },
+      "y": {
+       "type": "number",
+       "title": "바닥 높이 (m)"
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "label",
+      "y"
+     ]
+    },
+    "1": {
+     "type": "object",
+     "title": "층 1",
+     "properties": {
+      "label": {
+       "type": "string",
+       "title": "표시"
+      },
+      "y": {
+       "type": "number",
+       "title": "바닥 높이 (m)"
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "label",
+      "y"
+     ]
+    }
+   },
+   "additionalProperties": false,
+   "required": [
+    "-1",
+    "0",
+    "1"
+   ]
+  },
+  "wallHeight": {
+   "type": "number",
+   "title": "벽 높이 (m)",
+   "description": "바닥 → 천장"
+  },
+  "slab": {
+   "type": "number",
+   "title": "슬래브 두께 (m)"
+  },
+  "roofY": {
+   "type": "number",
+   "title": "지붕 처마 높이 (m)"
+  },
+  "lowerGroundY": {
+   "type": "number",
+   "title": "지하 바깥 바닥 높이 (m)"
+  },
+  "cell": {
+   "type": "number",
+   "title": "파괴 셀 크기 (m)"
+  },
+  "panelMaxWidth": {
+   "type": "number",
+   "title": "강화 패널 최대 폭 (m)"
+  },
+  "roofPitch": {
+   "type": "number",
+   "title": "지붕 경사 (°)"
+  },
+  "roofOverhang": {
+   "type": "number",
+   "title": "처마 돌출 (m)"
+  },
+  "yard": {
+   "type": "object",
+   "title": "바깥 높이 (m)",
+   "properties": {
+    "road": {
+     "type": "number",
+     "title": "road"
+    },
+    "sidewalk": {
+     "type": "number",
+     "title": "sidewalk"
+    },
+    "site": {
+     "type": "number",
+     "title": "site"
+    },
+    "lowerTerrace": {
+     "type": "number",
+     "title": "lowerTerrace"
+    },
+    "upperTerrace": {
+     "type": "number",
+     "title": "upperTerrace"
+    },
+    "garage": {
+     "type": "number",
+     "title": "garage"
+    },
+    "westYard": {
+     "type": "number",
+     "title": "westYard"
+    },
+    "backYard": {
+     "type": "number",
+     "title": "backYard"
+    },
+    "south": {
+     "type": "number",
+     "title": "south"
+    },
+    "riverBed": {
+     "type": "number",
+     "title": "riverBed"
+    },
+    "water": {
+     "type": "number",
+     "title": "water"
+    }
+   },
+   "additionalProperties": false,
+   "description": "1F 바닥 = 0. 지형(terrain.ts)이 이 높이로 만들어짐",
+   "required": [
+    "road",
+    "sidewalk",
+    "site",
+    "lowerTerrace",
+    "upperTerrace",
+    "garage",
+    "westYard",
+    "backYard",
+    "south",
+    "riverBed",
+    "water"
+   ]
+  },
+  "openings": {
+   "type": "object",
+   "title": "개구부 종류별 치수",
+   "properties": {
+    "door": {
+     "type": "object",
+     "title": "개구부 치수",
+     "properties": {
+      "y0": {
+       "type": "number",
+       "title": "바닥에서 아래턱 높이 (m)"
+      },
+      "h": {
+       "type": "number",
+       "title": "높이 (m)"
+      },
+      "barricade": {
+       "type": "boolean",
+       "title": "바리케이드 가능"
+      },
+      "gap": {
+       "type": "number",
+       "title": "바리케이드 아래 틈 (m)",
+       "description": "드론·엎드림이 지나가는 틈"
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "y0",
+      "h",
+      "barricade",
+      "gap"
+     ]
+    },
+    "exterior_door": {
+     "type": "object",
+     "title": "개구부 치수",
+     "properties": {
+      "y0": {
+       "type": "number",
+       "title": "바닥에서 아래턱 높이 (m)"
+      },
+      "h": {
+       "type": "number",
+       "title": "높이 (m)"
+      },
+      "barricade": {
+       "type": "boolean",
+       "title": "바리케이드 가능"
+      },
+      "gap": {
+       "type": "number",
+       "title": "바리케이드 아래 틈 (m)",
+       "description": "드론·엎드림이 지나가는 틈"
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "y0",
+      "h",
+      "barricade",
+      "gap"
+     ]
+    },
+    "window": {
+     "type": "object",
+     "title": "개구부 치수",
+     "properties": {
+      "y0": {
+       "type": "number",
+       "title": "바닥에서 아래턱 높이 (m)"
+      },
+      "h": {
+       "type": "number",
+       "title": "높이 (m)"
+      },
+      "barricade": {
+       "type": "boolean",
+       "title": "바리케이드 가능"
+      },
+      "gap": {
+       "type": "number",
+       "title": "바리케이드 아래 틈 (m)",
+       "description": "드론·엎드림이 지나가는 틈"
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "y0",
+      "h",
+      "barricade",
+      "gap"
+     ]
+    },
+    "french": {
+     "type": "object",
+     "title": "개구부 치수",
+     "properties": {
+      "y0": {
+       "type": "number",
+       "title": "바닥에서 아래턱 높이 (m)"
+      },
+      "h": {
+       "type": "number",
+       "title": "높이 (m)"
+      },
+      "barricade": {
+       "type": "boolean",
+       "title": "바리케이드 가능"
+      },
+      "gap": {
+       "type": "number",
+       "title": "바리케이드 아래 틈 (m)",
+       "description": "드론·엎드림이 지나가는 틈"
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "y0",
+      "h",
+      "barricade",
+      "gap"
+     ]
+    },
+    "open_window": {
+     "type": "object",
+     "title": "개구부 치수",
+     "properties": {
+      "y0": {
+       "type": "number",
+       "title": "바닥에서 아래턱 높이 (m)"
+      },
+      "h": {
+       "type": "number",
+       "title": "높이 (m)"
+      },
+      "barricade": {
+       "type": "boolean",
+       "title": "바리케이드 가능"
+      },
+      "gap": {
+       "type": "number",
+       "title": "바리케이드 아래 틈 (m)",
+       "description": "드론·엎드림이 지나가는 틈"
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "y0",
+      "h",
+      "barricade",
+      "gap"
+     ]
+    },
+    "arch": {
+     "type": "object",
+     "title": "개구부 치수",
+     "properties": {
+      "y0": {
+       "type": "number",
+       "title": "바닥에서 아래턱 높이 (m)"
+      },
+      "h": {
+       "type": "number",
+       "title": "높이 (m)"
+      },
+      "barricade": {
+       "type": "boolean",
+       "title": "바리케이드 가능"
+      },
+      "gap": {
+       "type": "number",
+       "title": "바리케이드 아래 틈 (m)",
+       "description": "드론·엎드림이 지나가는 틈"
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "y0",
+      "h",
+      "barricade",
+      "gap"
+     ]
+    },
+    "shutter": {
+     "type": "object",
+     "title": "개구부 치수",
+     "properties": {
+      "y0": {
+       "type": "number",
+       "title": "바닥에서 아래턱 높이 (m)"
+      },
+      "h": {
+       "type": "number",
+       "title": "높이 (m)"
+      },
+      "barricade": {
+       "type": "boolean",
+       "title": "바리케이드 가능"
+      },
+      "gap": {
+       "type": "number",
+       "title": "바리케이드 아래 틈 (m)",
+       "description": "드론·엎드림이 지나가는 틈"
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "y0",
+      "h",
+      "barricade",
+      "gap"
+     ]
+    },
+    "vent": {
+     "type": "object",
+     "title": "개구부 치수",
+     "properties": {
+      "y0": {
+       "type": "number",
+       "title": "바닥에서 아래턱 높이 (m)"
+      },
+      "h": {
+       "type": "number",
+       "title": "높이 (m)"
+      },
+      "barricade": {
+       "type": "boolean",
+       "title": "바리케이드 가능"
+      },
+      "gap": {
+       "type": "number",
+       "title": "바리케이드 아래 틈 (m)",
+       "description": "드론·엎드림이 지나가는 틈"
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "y0",
+      "h",
+      "barricade",
+      "gap"
+     ]
+    }
+   },
+   "additionalProperties": false,
+   "required": [
+    "door",
+    "exterior_door",
+    "window",
+    "french",
+    "open_window",
+    "arch",
+    "shutter",
+    "vent"
+   ]
+  },
+  "bounds": {
+   "type": "object",
+   "title": "사각형 (m)",
+   "properties": {
+    "x0": {
+     "type": "number",
+     "title": "서쪽 x"
+    },
+    "z0": {
+     "type": "number",
+     "title": "북쪽 z"
+    },
+    "x1": {
+     "type": "number",
+     "title": "동쪽 x"
+    },
+    "z1": {
+     "type": "number",
+     "title": "남쪽 z"
+    }
+   },
+   "additionalProperties": false,
+   "description": "월드 좌표 (m): +X 동쪽, +Z 남쪽",
+   "required": [
+    "x0",
+    "z0",
+    "x1",
+    "z1"
+   ]
+  },
+  "houseRect": {
+   "type": "object",
+   "title": "사각형 (m)",
+   "properties": {
+    "x0": {
+     "type": "number",
+     "title": "서쪽 x"
+    },
+    "z0": {
+     "type": "number",
+     "title": "북쪽 z"
+    },
+    "x1": {
+     "type": "number",
+     "title": "동쪽 x"
+    },
+    "z1": {
+     "type": "number",
+     "title": "남쪽 z"
+    }
+   },
+   "additionalProperties": false,
+   "description": "월드 좌표 (m): +X 동쪽, +Z 남쪽",
+   "required": [
+    "x0",
+    "z0",
+    "x1",
+    "z1"
+   ]
+  },
+  "driveway": {
+   "type": "object",
+   "title": "사각형 (m)",
+   "properties": {
+    "x0": {
+     "type": "number",
+     "title": "서쪽 x"
+    },
+    "z0": {
+     "type": "number",
+     "title": "북쪽 z"
+    },
+    "x1": {
+     "type": "number",
+     "title": "동쪽 x"
+    },
+    "z1": {
+     "type": "number",
+     "title": "남쪽 z"
+    }
+   },
+   "additionalProperties": false,
+   "description": "월드 좌표 (m): +X 동쪽, +Z 남쪽",
+   "required": [
+    "x0",
+    "z0",
+    "x1",
+    "z1"
+   ]
+  },
+  "ventShaft": {
+   "type": "object",
+   "title": "사각형 (m)",
+   "properties": {
+    "x0": {
+     "type": "number",
+     "title": "서쪽 x"
+    },
+    "z0": {
+     "type": "number",
+     "title": "북쪽 z"
+    },
+    "x1": {
+     "type": "number",
+     "title": "동쪽 x"
+    },
+    "z1": {
+     "type": "number",
+     "title": "남쪽 z"
+    }
+   },
+   "additionalProperties": false,
+   "description": "월드 좌표 (m): +X 동쪽, +Z 남쪽",
+   "required": [
+    "x0",
+    "z0",
+    "x1",
+    "z1"
+   ]
+  },
+  "garageVentWell": {
+   "type": "object",
+   "title": "사각형 (m)",
+   "properties": {
+    "x0": {
+     "type": "number",
+     "title": "서쪽 x"
+    },
+    "z0": {
+     "type": "number",
+     "title": "북쪽 z"
+    },
+    "x1": {
+     "type": "number",
+     "title": "동쪽 x"
+    },
+    "z1": {
+     "type": "number",
+     "title": "남쪽 z"
+    }
+   },
+   "additionalProperties": false,
+   "description": "월드 좌표 (m): +X 동쪽, +Z 남쪽",
+   "required": [
+    "x0",
+    "z0",
+    "x1",
+    "z1"
+   ]
+  },
+  "deckSteps": {
+   "type": "array",
+   "title": "데크 계단",
+   "items": {
+    "type": "object",
+    "title": "사각형 (m)",
+    "properties": {
+     "x0": {
+      "type": "number",
+      "title": "서쪽 x"
+     },
+     "z0": {
+      "type": "number",
+      "title": "북쪽 z"
+     },
+     "x1": {
+      "type": "number",
+      "title": "동쪽 x"
+     },
+     "z1": {
+      "type": "number",
+      "title": "남쪽 z"
+     }
+    },
+    "additionalProperties": false,
+    "description": "월드 좌표 (m): +X 동쪽, +Z 남쪽",
+    "required": [
+     "x0",
+     "z0",
+     "x1",
+     "z1"
+    ]
+   }
+  }
+ },
+ "additionalProperties": false,
+ "description": "data/maps/house/map.json — 층 높이, 벽·슬래브, 지붕, 마당 높이, 개구부 종류별 치수, 영역",
+ "required": [
+  "floors",
+  "wallHeight",
+  "slab",
+  "roofY",
+  "yard",
+  "openings",
+  "bounds",
+  "houseRect"
+ ],
+ "$id": "map",
+ "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

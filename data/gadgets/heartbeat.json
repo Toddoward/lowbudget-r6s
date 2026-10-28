@@ -1,0 +1,8 @@
+{
+  "$schema": "../schema/gadget.schema.json",
+  "id": "heartbeat",
+  "name": "Cardiac Sensor",
+  "class": "tool",
+  "range": 9,
+  "model": {}
+}

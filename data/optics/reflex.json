@@ -1,0 +1,10 @@
+{
+  "$schema": "../schema/optic.schema.json",
+  "id": "reflex",
+  "name": "Red dot (reflex)",
+  "zoom": 1.1,
+  "eyeRelief": 0.12,
+  "viewmodelFov": 50,
+  "reticle": { "texture": "dot", "angle": 0.02 },
+  "lens": { "shape": "rect", "size": [0.025, 0.03], "tint": "#5a7a90", "tintOpacity": 0.1 }
+}

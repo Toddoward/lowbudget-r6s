@@ -1,0 +1,47 @@
+{
+  "$schema": "../../schema/map.schema.json",
+  "name": "House",
+  "note": "World metres: +X east, +Y up, +Z south (north = −Z). Floors B = −1, 1F = 0, 2F = 1.",
+  "floors": {
+    "0": { "label": "1F", "y": 0 },
+    "1": { "label": "2F", "y": 3.5 },
+    "-1": { "label": "B", "y": -3.5 }
+  },
+  "wallHeight": 3.2,
+  "slab": 0.3,
+  "roofY": 7,
+  "lowerGroundY": -3.5,
+  "cell": 0.25,
+  "panelMaxWidth": 1.45,
+  "roofPitch": 30,
+  "roofOverhang": 0.35,
+  "yard": {
+    "road": -2.4,
+    "sidewalk": -2.25,
+    "site": -2.3,
+    "lowerTerrace": -1.8,
+    "upperTerrace": -1.2,
+    "garage": -3.5,
+    "westYard": -0.03,
+    "backYard": -0.34,
+    "south": -1.5,
+    "riverBed": -5.5,
+    "water": -4.4
+  },
+  "openings": {
+    "door": { "y0": 0, "h": 2.3, "barricade": true, "gap": 0.19 },
+    "exterior_door": { "y0": 0, "h": 2.35, "barricade": true, "gap": 0.19 },
+    "arch": { "y0": 0, "h": 2.5, "barricade": false, "gap": 0 },
+    "window": { "y0": 0.95, "h": 1.4, "barricade": true, "gap": 0 },
+    "french": { "y0": 0.05, "h": 2.3, "barricade": true, "gap": 0 },
+    "open_window": { "y0": 0.95, "h": 1.4, "barricade": false, "gap": 0 },
+    "shutter": { "y0": 0, "h": 2.9, "barricade": false, "gap": 0 },
+    "vent": { "y0": 0, "h": 0.25, "barricade": false, "gap": 0 }
+  },
+  "bounds": { "x0": -42.12, "x1": 46.631, "z0": -50.752, "z1": 37.999 },
+  "houseRect": { "x0": -12.48, "z0": -9.815, "x1": 12.805, "z1": 8.775 },
+  "driveway": { "x0": 9.51, "x1": 18.369, "z0": -6.39, "z1": 5.057 },
+  "ventShaft": { "x0": -6.305, "z0": -10.465, "x1": -5.395, "z1": -9.77 },
+  "garageVentWell": { "x0": 12.76, "x1": 13.78, "z0": 5.057, "z1": 6.305 },
+  "deckSteps": [{ "x0": -9.425, "z0": 8.71, "x1": 6.695, "z1": 9.035 }]
+}

@@ -1,0 +1,15 @@
+{
+  "$schema": "../schema/gadget.schema.json",
+  "id": "cluster",
+  "name": "APM-6 Cluster Charge",
+  "class": "place",
+  "placeTime": 0.8,
+  "fuse": 2.5,
+  "bomblets": {
+    "count": 5,
+    "delay": 1.2,
+    "step": 0.35,
+    "blast": { "radius": 3.2, "damage": 70 }
+  },
+  "model": {}
+}

@@ -1,0 +1,9 @@
+{
+  "$schema": "../schema/gadget.schema.json",
+  "id": "gas",
+  "name": "Remote Gas Grenade",
+  "class": "throw",
+  "speed": 11.05,
+  "cloud": { "radius": 3, "duration": 10, "dps": 13 },
+  "model": {}
+}

@@ -1,0 +1,26 @@
+{
+  "$schema": "../schema/operator.schema.json",
+  "id": "thatcher",
+  "name": "Thatcher",
+  "order": 3,
+  "team": "attack",
+  "unit": "SAS",
+  "roles": ["support", "antiGadget"],
+  "armor": 2,
+  "speed": 2,
+  "loadout": {
+    "primary": "ar33",
+    "secondary": "p226",
+    "gadget": "emp",
+    "gadgetName": "EG Mk0-EMP Grenade",
+    "gadgetCount": 3,
+    "universal": "breach",
+    "universalCount": 2
+  },
+  "description": {
+    "en": "EMP disables electronics in 5 m for 12 s: Mute jammers, Bandit batteries, Jäger ADS, Pulse sensors.",
+    "ko": "EMP로 5 m 안 전자장비(교란기·배터리·ADS·펄스 센서)를 무력화합니다."
+  },
+  "look": { "headgear": "gasmask_beanie", "cloth": "#5f5b47", "accent": "#40402f" },
+  "model": {}
+}

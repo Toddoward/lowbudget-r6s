@@ -1,0 +1,8 @@
+{
+  "$schema": "../schema/gadget.schema.json",
+  "id": "turret",
+  "name": "RP-46 Mounted LMG",
+  "class": "place",
+  "placeTime": 1.2,
+  "model": {}
+}

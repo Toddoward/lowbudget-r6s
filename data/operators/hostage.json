@@ -1,0 +1,22 @@
+{
+  "$schema": "../schema/operator.schema.json",
+  "id": "hostage",
+  "name": "Hostage",
+  "order": 17,
+  "team": "hostage",
+  "unit": "Civilian",
+  "armor": 1,
+  "speed": 1,
+  "loadout": {
+    "primary": "p226",
+    "secondary": "p226",
+    "gadget": "none",
+    "gadgetName": "—",
+    "gadgetCount": 0,
+    "universal": "none",
+    "universalCount": 0
+  },
+  "description": { "en": "Keep alive. Escort to the extraction zone." },
+  "look": { "headgear": "civilian", "cloth": "#6a7f96", "accent": "#3d3d3d" },
+  "model": {}
+}

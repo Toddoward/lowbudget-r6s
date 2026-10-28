@@ -1,0 +1,139 @@
+{
+ "type": "object",
+ "title": "조준경",
+ "properties": {
+  "$schema": {
+   "type": "string",
+   "title": "스키마",
+   "description": "VS Code / 에디터용 스키마 경로"
+  },
+  "id": {
+   "type": "string",
+   "title": "ID",
+   "enum": [
+    "iron",
+    "reflex",
+    "holo",
+    "acog"
+   ]
+  },
+  "name": {
+   "type": "string",
+   "title": "표시 이름"
+  },
+  "zoom": {
+   "type": "number",
+   "title": "배율 (×)",
+   "description": "조준 시 월드 시야각 = 2·atan(tan(설정 FOV/2) / 배율)",
+   "minimum": 1
+  },
+  "eyeRelief": {
+   "type": "number",
+   "title": "아이릴리프 (m)",
+   "description": "조준 시 눈이 sight 앵커 뒤로 떨어진 거리"
+  },
+  "viewmodelFov": {
+   "type": "number",
+   "title": "조준 시 총 카메라 수직 FOV (°)",
+   "description": "1인칭 총을 그리는 카메라. Blender에서 Sensor Fit = Vertical"
+  },
+  "reticle": {
+   "title": "레티클",
+   "description": "무한 거리 오버레이. 없으면 null",
+   "oneOf": [
+    {
+     "type": "null"
+    },
+    {
+     "type": "object",
+     "title": "레티클",
+     "properties": {
+      "texture": {
+       "type": "string",
+       "title": "모양",
+       "enum": [
+        "dot",
+        "holo",
+        "acog"
+       ]
+      },
+      "angle": {
+       "type": "number",
+       "title": "각 크기 (rad)",
+       "description": "텍스처 전체 폭의 각도"
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "texture",
+      "angle"
+     ]
+    }
+   ]
+  },
+  "lens": {
+   "title": "렌즈",
+   "description": "lens 앵커의 투명 렌즈 (레티클이 보이는 영역). 없으면 null",
+   "oneOf": [
+    {
+     "type": "null"
+    },
+    {
+     "type": "object",
+     "title": "렌즈",
+     "properties": {
+      "shape": {
+       "type": "string",
+       "title": "모양",
+       "enum": [
+        "circle",
+        "rect"
+       ]
+      },
+      "size": {
+       "type": "array",
+       "title": "크기 (m) [폭, 높이]",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 2,
+       "maxItems": 2
+      },
+      "tint": {
+       "type": "string",
+       "title": "틴트 색",
+       "description": "#rrggbb 또는 #rgb",
+       "pattern": "^#([0-9a-fA-F]{3}){1,2}$"
+      },
+      "tintOpacity": {
+       "type": "number",
+       "title": "틴트 불투명도",
+       "minimum": 0,
+       "maximum": 1
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "shape",
+      "size",
+      "tint",
+      "tintOpacity"
+     ]
+    }
+   ]
+  }
+ },
+ "additionalProperties": false,
+ "description": "data/optics/<id>.json — 배율, 조준 카메라, 레티클, 렌즈",
+ "required": [
+  "id",
+  "name",
+  "zoom",
+  "eyeRelief",
+  "viewmodelFov",
+  "reticle",
+  "lens"
+ ],
+ "$id": "optic",
+ "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

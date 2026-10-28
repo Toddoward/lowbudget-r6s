@@ -1,18 +1,18 @@
-// Hand-made GLBs (public/assets/models/handmade/): loadable as the game loads them (no Draco / extensions, transforms
-// applied, parts named body / mag / body_glow, vertex colours), and the anchors measured on the model really sit on it:
-// the sight axis runs free through the hollow scope, the lens stencil fits inside the tube, the muzzle is the barrel's end.
+// Hand-made GLBs linked from the data (`model.glb` in data/weapons …): loadable as the game loads them (no Draco /
+// extensions, transforms applied, named parts, vertex colours), and a gun's anchors (data/weapons/<id>.json) really sit
+// on its model: the sight axis runs free through the optic, the lens stencil fits inside it, the muzzle is the barrel end.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { HANDMADE_ANCHORS } from '../../src/assets/handmade.ts';
-import { weaponSpec } from '../../src/game/weapons.ts';
+import { OPTICS, WEAPONS } from '../../src/game/weapons.ts';
 import { OPERATORS } from '../../src/game/operators.ts';
+import { linkedModels } from '../../src/assets/library.ts';
 
 const DIR = 'public/assets/models/';
-const manifest = JSON.parse(readFileSync(`${DIR}manifest.json`, 'utf8')).assets as Record<string, { file: string; category: string; handmade?: boolean; bytes: number }>;
-const handmade = Object.entries(manifest).filter(([, a]) => a.handmade);
+const links = Object.entries(linkedModels());
+const guns = Object.values(WEAPONS).filter((w) => w.model.glb);
 
 function gltfJson(buf: Buffer) {
   const n = buf.readUInt32LE(12);
@@ -26,71 +26,65 @@ async function meshes(file: string): Promise<Record<string, THREE.Mesh>> {
   return out;
 }
 
-test('every hand-made manifest entry has its file, and every hand-made anchor set has its entry', () => {
-  assert.ok(handmade.length >= 1);
-  for (const [id, a] of handmade) {
-    assert.ok(a.file.startsWith('handmade/') && existsSync(`${DIR}${a.file}`), `${id}: ${a.file}`);
-    assert.equal(readFileSync(`${DIR}${a.file}`).length, a.bytes, `${id}: manifest bytes`);
-  }
-  for (const id of Object.keys(HANDMADE_ANCHORS)) assert.ok(manifest[id]?.handmade, `${id} in the manifest as handmade`);
+test('every model the data links exists under public/assets/models/', () => {
+  assert.ok(links.length >= 1);
+  for (const [id, file] of links) assert.ok(existsSync(`${DIR}${file}`), `${id}: ${file}`);
 });
 
-test('the hand-made GLBs load as the game loads them: no compression, transforms applied, named parts, vertex colours', () => {
-  for (const [id, a] of handmade) {
-    const j = gltfJson(readFileSync(`${DIR}${a.file}`));
+test('the linked GLBs load as the game loads them: no compression, transforms applied, named parts, vertex colours', () => {
+  for (const [id, file] of links) {
+    const j = gltfJson(readFileSync(`${DIR}${file}`));
     assert.equal(j.extensionsUsed, undefined, `${id}: extensions (Draco …) the loader can't read`);
-    for (const n of j.nodes) {
-      for (const k of ['translation', 'rotation', 'scale', 'matrix']) assert.equal(n[k], undefined, `${id}: node ${n.name} has ${k} (apply transforms: the game drops node transforms)`);
-      assert.ok(['body', 'body_glow', 'mag'].includes(n.name), `${id}: unexpected part ${n.name}`);
+    for (const n of j.nodes) for (const k of ['translation', 'rotation', 'scale', 'matrix']) assert.equal(n[k], undefined, `${id}: node ${n.name} has ${k} (apply transforms: the game drops node transforms)`);
+    if (id.startsWith('weapon_')) {
+      for (const n of j.nodes) assert.ok(['body', 'body_glow', 'mag'].includes(n.name), `${id}: unexpected part ${n.name}`);
+      assert.deepEqual(j.nodes.filter((n: { mesh?: number; name: string }) => n.mesh !== undefined && n.name !== 'body_glow').map((n: { name: string }) => n.name).sort(), ['body', 'mag'], `${id}: body + mag`);
     }
-    assert.deepEqual(j.nodes.filter((n: { mesh?: number }) => n.mesh !== undefined).map((n: { name: string }) => n.name).filter((s: string) => s !== 'body_glow').sort(), ['body', 'mag'], `${id}: body + mag`);
     for (const m of j.meshes) for (const p of m.primitives) assert.ok('COLOR_0' in p.attributes, `${id}: ${m.name} vertex colours`);
   }
 });
 
-test('hand-made gun models carry their lens caps (body_glow: drawn in 3P only), and the caps close the sight axis — why 1P hides them', async () => {
-  for (const [id, a] of handmade.filter(([, a]) => a.category === 'weapon')) {
-    const parts = await meshes(a.file);
-    assert.ok(parts.body_glow && parts.body_glow.geometry.getAttribute('position').count > 0, `${id}: body_glow geometry`);
-    const an = HANDMADE_ANCHORS[id];
-    const rc = new THREE.Raycaster(new THREE.Vector3(0, an.sight![1], an.lens![2] - 0.1), new THREE.Vector3(0, 0, 1), 0, an.sight![2] - an.lens![2] + 0.2);
-    assert.ok(rc.intersectObject(parts.body_glow, false).length > 0, `${id}: caps on the sight axis`);
+test('hand-made guns carry their lens caps (body_glow: drawn in 3P only), and the caps close the sight axis — why 1P hides them', async () => {
+  for (const w of guns) {
+    const parts = await meshes(w.model.glb!);
+    assert.ok(parts.body_glow && parts.body_glow.geometry.getAttribute('position').count > 0, `${w.id}: body_glow geometry`);
+    const { sight, lens } = w.model.anchors;
+    const rc = new THREE.Raycaster(new THREE.Vector3(0, sight[1], lens[2] - 0.1), new THREE.Vector3(0, 0, 1), 0, sight[2] - lens[2] + 0.2);
+    assert.ok(rc.intersectObject(parts.body_glow, false).length > 0, `${w.id}: caps on the sight axis`);
   }
 });
 
-test('L85A2 anchors sit on the model: a free sight line through the scope, the lens stencil inside the tube, the muzzle at the barrel end', async () => {
-  for (const id of ['l85a2']) {
-    const spec = weaponSpec(id);
-    assert.deepEqual(spec.anchors!.sight, HANDMADE_ANCHORS[spec.id].sight, `${id}: hand-made anchors override the procedural ones`);
-    const { body } = await meshes(manifest[spec.id].file);
-    const [, sy, sz] = spec.anchors!.sight!;
-    const [, ly, lz] = spec.anchors!.lens!;
-    assert.equal(sy, ly, 'sight axis level');
-    // from in front of the objective to behind the eyepiece nothing of the body is on the axis (nor 1 cm around it)
+test('hand-made guns: anchors sit on the model — a free sight line, the lens stencil inside the optic, the muzzle at the barrel end', async () => {
+  for (const w of guns) {
+    const { body } = await meshes(w.model.glb!);
+    const [, sy, sz] = w.model.anchors.sight;
+    const [, ly, lz] = w.model.anchors.lens;
+    assert.equal(sy, ly, `${w.id}: sight axis level`);
     for (const [dx, dy] of [[0, 0], [0.01, 0], [-0.01, 0], [0, 0.01], [0, -0.01]]) {
       const rc = new THREE.Raycaster(new THREE.Vector3(dx, sy + dy, lz - 0.05), new THREE.Vector3(0, 0, 1), 0, sz - lz + 0.1);
-      assert.deepEqual(rc.intersectObject(body, false).map((h) => +h.point.z.toFixed(3)), [], `${id}: sight line (${dx}, ${dy}) blocked`);
+      assert.deepEqual(rc.intersectObject(body, false).map((h) => +h.point.z.toFixed(3)), [], `${w.id}: sight line (${dx}, ${dy}) blocked`);
     }
-    // the ACOG lens stencil (Ø 42 mm, ViewModel) fits inside the objective tube at the lens anchor
-    let r = Infinity;
-    for (let k = 0; k < 24; k++) {
-      const t = (k / 24) * Math.PI * 2;
-      const rc = new THREE.Raycaster(new THREE.Vector3(0, ly, lz), new THREE.Vector3(Math.cos(t), Math.sin(t), 0), 0, 0.1);
-      r = Math.min(r, rc.intersectObject(body, false)[0]?.distance ?? Infinity);
+    const optic = OPTICS[w.style.optic];
+    if (optic.lens) {
+      let r = Infinity;
+      for (let k = 0; k < 24; k++) {
+        const t = (k / 24) * Math.PI * 2;
+        const rc = new THREE.Raycaster(new THREE.Vector3(0, ly, lz), new THREE.Vector3(Math.cos(t), Math.sin(t), 0), 0, 0.1);
+        r = Math.min(r, rc.intersectObject(body, false)[0]?.distance ?? Infinity);
+      }
+      assert.ok(r >= optic.lens.size[0] / 2, `${w.id}: tube radius at the lens ${r.toFixed(4)} < the ${optic.id} lens ${optic.lens.size[0] / 2}`);
     }
-    assert.ok(r >= 0.021 && r < 0.03, `${id}: tube radius at the lens ${r.toFixed(4)}`);
-    // the eyepiece ends just behind the sight anchor (the eye sits eyeRelief behind it, outside the tube)
     const box = new THREE.Box3().setFromObject(body);
-    const [, my, mz] = spec.anchors!.muzzle!;
-    assert.ok(Math.abs(mz - box.min.z) < 0.005, `${id}: muzzle z ${mz} vs front ${box.min.z.toFixed(4)}`);
+    const [, my, mz] = w.model.anchors.muzzle;
+    assert.ok(Math.abs(mz - box.min.z) < 0.005, `${w.id}: muzzle z ${mz} vs front ${box.min.z.toFixed(4)}`);
     const front: number[] = [];
     const p = body.geometry.getAttribute('position');
     for (let i = 0; i < p.count; i++) if (p.getZ(i) < box.min.z + 0.003) front.push(p.getY(i));
-    assert.ok(my > Math.min(...front) && my < Math.max(...front), `${id}: muzzle y ${my} inside the barrel end`);
+    assert.ok(my > Math.min(...front) && my < Math.max(...front), `${w.id}: muzzle y ${my} inside the barrel end`);
   }
 });
 
 test('Sledge carries the hand-made L85A2', () => {
   assert.equal(OPERATORS.sledge.primary, 'l85a2');
-  assert.ok(manifest[weaponSpec('l85a2').id].handmade);
+  assert.equal(WEAPONS.l85a2.model.glb, 'handmade/weapon_l85a2.glb');
 });

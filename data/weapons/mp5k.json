@@ -1,0 +1,24 @@
+{
+  "$schema": "../schema/weapon.schema.json",
+  "id": "mp5k",
+  "name": "MP5K",
+  "class": "SMG",
+  "order": 6,
+  "damage": { "base": 30, "falloffStart": 12, "falloffEnd": 25, "min": 0.55 },
+  "fire": { "rpm": 800, "mode": "auto" },
+  "ammo": { "mag": 30, "reserve": 180, "reload": 2.1, "reloadEmpty": 2.7 },
+  "spread": { "hip": 1.7, "ads": 0.42 },
+  "recoil": { "vertical": 0.38, "horizontal": 0.24, "recover": 8.5 },
+  "penetration": { "budget": 1, "wallDamage": 0.8 },
+  "optic": "reflex",
+  "model": {
+    "anchors": {
+      "sight": [0, 0.162, -0.12],
+      "lens": [0, 0.162, -0.162],
+      "muzzle": [0, 0.065, -0.46],
+      "grip": [0, -0.03, 0],
+      "fore": [0, 0.03, -0.29]
+    },
+    "procedural": { "layout": "smg", "body": "#1f2022", "accent": "#28292c", "length": 0.4, "foldStock": true }
+  }
+}
