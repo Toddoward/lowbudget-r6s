@@ -1,0 +1,24 @@
+{
+  "$schema": "../schema/weapon.schema.json",
+  "id": "fmg9",
+  "name": "FMG-9",
+  "class": "SMG",
+  "order": 5,
+  "damage": { "base": 34, "falloffStart": 12, "falloffEnd": 25, "min": 0.55 },
+  "fire": { "rpm": 800, "mode": "auto" },
+  "ammo": { "mag": 30, "reserve": 180, "reload": 2, "reloadEmpty": 2.6 },
+  "spread": { "hip": 1.8, "ads": 0.45 },
+  "recoil": { "vertical": 0.45, "horizontal": 0.28, "recover": 8 },
+  "penetration": { "budget": 1, "wallDamage": 0.8 },
+  "optic": "reflex",
+  "model": {
+    "anchors": {
+      "sight": [0, 0.162, -0.12],
+      "lens": [0, 0.162, -0.162],
+      "muzzle": [0, 0.065, -0.47],
+      "grip": [0, -0.03, 0],
+      "fore": [0, 0.03, -0.29]
+    },
+    "procedural": { "layout": "smg", "body": "#222326", "accent": "#2c2d30", "length": 0.42, "foldStock": true }
+  }
+}

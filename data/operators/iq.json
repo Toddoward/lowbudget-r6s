@@ -1,0 +1,26 @@
+{
+  "$schema": "../schema/operator.schema.json",
+  "id": "iq",
+  "name": "IQ",
+  "order": 13,
+  "team": "attack",
+  "unit": "GSG 9",
+  "roles": ["intel", "antiGadget"],
+  "armor": 1,
+  "speed": 3,
+  "loadout": {
+    "primary": "aug_a2",
+    "secondary": "p12",
+    "gadget": "scanner",
+    "gadgetName": "RED Mk III Spectre",
+    "gadgetCount": 1,
+    "universal": "breach",
+    "universalCount": 2
+  },
+  "description": {
+    "en": "[G] equip the detector, hold LMB: marks enemy electronics (jammers, batteries, ADS, EDDs, cameras, bombs) through walls within 20 m.",
+    "ko": "[G]로 탐지기를 들고 좌클릭 유지: 20 m 안 적 전자장비(교란기·배터리·ADS·EDD·카메라·폭탄)를 벽 너머로 표시합니다."
+  },
+  "look": { "headgear": "cap_headset", "cloth": "#4a4d42", "accent": "#2d2f29" },
+  "model": {}
+}

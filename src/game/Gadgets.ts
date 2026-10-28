@@ -9,6 +9,7 @@ import type { Soldier, SoldierInput } from './Soldier.ts';
 import type { World } from './World.ts';
 import type { Panel } from '../world/Destruction.ts';
 import { Stance } from './types.ts';
+import { dataDir } from '../data/index.ts';
 
 /**
  * Operator & universal gadgets. Every gadget instance is owned by the client
@@ -22,15 +23,21 @@ export type GadgetType =
   | 'jammer' | 'ads' | 'battery' | 'drone' | 'defuser' | 'edd' | 'turret';
 
 type GadgetClass = 'tool' | 'place' | 'throw' | 'active';
-const GADGET_CLASS: Record<string, GadgetClass> = {
-  hammer: 'tool', heartbeat: 'tool', ash_round: 'tool', scanner: 'tool',
-  breach: 'place', thermite: 'place', cluster: 'place', battery: 'place', castle: 'place', jammer: 'place', ads: 'place', edd: 'place', turret: 'place',
-  emp: 'throw', gas: 'throw',
-  shield_ext: 'active', flash_shield: 'active',
-};
+interface Blast { radius: number; damage: number }
+/** data/gadgets/<id>.json: how a gadget is used (class, hold-to-place time) and what it does (s, m, m/s, damage) */
+export interface GadgetData {
+  id: string; name: string; class: GadgetClass;
+  placeTime?: number; cooldown?: number; speed?: number; gravity?: number; fuse?: number; burn?: number;
+  reach?: number; range?: number; radius?: number; charges?: number; cone?: number;
+  blast?: Blast; melee?: { range: number; damage: number };
+  bomblets?: { count: number; delay: number; step: number; blast: Blast };
+  cloud?: { radius: number; duration: number; dps: number };
+  blind?: { facing: number; away: number };
+}
+export const GADGETS = dataDir<GadgetData>('gadgets');
+const G = GADGETS;
 /** a press shorter than this is a tap (detonate), longer is a hold (place) */
 const TAP_TIME = 0.25;
-const PLACE_TIME: Record<string, number> = { breach: 0.6, thermite: 1.0, cluster: 0.8, battery: 0.6, castle: 1.5, jammer: 0.4, ads: 0.4, edd: 1.0, turret: 1.2 };
 
 export interface Gadget {
   id: string;
@@ -52,7 +59,6 @@ export interface Gadget {
   data: Record<string, unknown>;
 }
 
-const THROW_SPEED = 13;
 export const DRONE_R = 0.085;
 /** KCC skin: small enough that the 17 cm ball still rolls under a 19 cm barricade gap */
 const DRONE_SKIN = 0.004;
@@ -89,7 +95,7 @@ export class Gadgets {
   isScanning(s: Soldier) { return this.scanning.has(s.id); }
   inToxicGas(p: THREE.Vector3) { return this.toxic.some((g) => g.until > this.world.time && g.p.distanceTo(p) < g.r); }
   jammedAt(p: THREE.Vector3, enemyOf?: string): boolean {
-    for (const g of this.list.values()) if (g.type === 'jammer' && g.state !== 'done' && g.pos.distanceTo(p) < 2.5 && (!enemyOf || g.team !== enemyOf)) return true;
+    for (const g of this.list.values()) if (g.type === 'jammer' && g.state !== 'done' && g.pos.distanceTo(p) < G.jammer.radius! && (!enemyOf || g.team !== enemyOf)) return true;
     return false;
   }
   electrifiedActive(panel: Panel) {
@@ -132,11 +138,11 @@ export class Gadgets {
       return;
     }
     if (kind === 'hammer') {
-      if (inp.fire && hcd <= 0 && s.gadgetLeft > 0) { this.hammerCd.set(s.id, 1.05); this.hammer(s); }
+      if (inp.fire && hcd <= 0 && s.gadgetLeft > 0) { this.hammerCd.set(s.id, G.hammer.cooldown!); this.hammer(s); }
       return;
     }
     if (kind === 'ash_round') {
-      if (inp.firePressed && s.gadgetLeft > 0 && this.launch(s, 'ash_round', 38, 0.15)) { s.gadgetLeft--; if (s.gadgetLeft <= 0) s.switchSlot(0); }
+      if (inp.firePressed && s.gadgetLeft > 0 && this.launch(s, 'ash_round', G.ash_round.speed!, G.ash_round.gravity!)) { s.gadgetLeft--; if (s.gadgetLeft <= 0) s.switchSlot(0); }
       return;
     }
     // agents: slot + LMB = instant use
@@ -153,8 +159,8 @@ export class Gadgets {
   private useNow(s: Soldier, kind: string): boolean {
     switch (kind) {
       case 'breach': case 'thermite': case 'cluster': case 'battery': return this.plant(s, kind);
-      case 'emp': return this.launch(s, 'emp', THROW_SPEED, 1);
-      case 'gas': return this.launch(s, 'gas', THROW_SPEED * 0.85, 1);
+      case 'emp': return this.launch(s, 'emp', G.emp.speed!, 1);
+      case 'gas': return this.launch(s, 'gas', G.gas.speed!, 1);
       case 'jammer': case 'ads': return this.deploy(s, kind);
       case 'edd': return this.placeEdd(s);
       case 'turret': return this.placeTurret(s);
@@ -179,7 +185,7 @@ export class Gadgets {
     const spend = () => {
       if (which === 'op') s.gadgetLeft--; else s.universalLeft--;
     };
-    const cls = GADGET_CLASS[kind] ?? 'place';
+    const cls = G[kind]?.class ?? 'place';
     if (cls === 'tool') {
       if (pressed) s.switchSlot(s.slot === 2 && which === 'op' ? 0 : 2);
       return held ? '' : `gadget.equip|${keyAction}|${name}`;
@@ -190,7 +196,7 @@ export class Gadgets {
         return '';
       }
       if (kind === 'flash_shield') {
-        if (pressed && left > 0 && s.flashCd <= 0 && !s.shieldBack) { spend(); s.flashCd = 1.2; this.blitzFlash(s); }
+        if (pressed && left > 0 && s.flashCd <= 0 && !s.shieldBack) { spend(); s.flashCd = G.flash_shield.cooldown!; this.blitzFlash(s); }
         return left > 0 ? `gadget.fire|${keyAction}|${name}` : 'gadget.none';
       }
       return '';
@@ -205,7 +211,7 @@ export class Gadgets {
     }
     // placeables: HOLD on a valid target to place · TAP to detonate what you own (even while still looking at the wall)
     const valid = left > 0 && this.validTarget(s, kind);
-    const dur = PLACE_TIME[kind] ?? 0.6;
+    const dur = G[kind]?.placeTime ?? 0.6;
     const detonatable = this.ownsArmed(s, kind);
     if (pressed) this.pressAt.set(holdKey, this.world.time);
     const tap = !held && this.pressAt.has(holdKey) && this.world.time - this.pressAt.get(holdKey)! < TAP_TIME;
@@ -280,10 +286,10 @@ export class Gadgets {
     const out: THREE.Vector3[] = [];
     for (const g of this.list.values()) {
       if (g.team === s.side || g.state === 'done' || g.type === 'bomblet') continue;
-      if (g.pos.distanceTo(s.pos) < 20) out.push(g.pos.clone());
+      if (g.pos.distanceTo(s.pos) < G.scanner.range!) out.push(g.pos.clone());
     }
-    for (const c of this.world.house.cameras) if (c.alive && s.side === 'attack' && c.pos.distanceTo(s.pos) < 20) out.push(c.pos.clone());
-    for (const b of this.world.objectives.bombs) if (b.pos.distanceTo(s.pos) < 20) out.push(b.pos.clone().add(new THREE.Vector3(0, 0.3, 0)));
+    for (const c of this.world.house.cameras) if (c.alive && s.side === 'attack' && c.pos.distanceTo(s.pos) < G.scanner.range!) out.push(c.pos.clone());
+    for (const b of this.world.objectives.bombs) if (b.pos.distanceTo(s.pos) < G.scanner.range!) out.push(b.pos.clone().add(new THREE.Vector3(0, 0.3, 0)));
     this.iqContacts.set(s.id, out);
   }
 
@@ -304,12 +310,12 @@ export class Gadgets {
       const head = a.eye();
       const to = head.clone().sub(origin);
       const d = to.length();
-      if (d > 6.5) continue;
-      if (to.normalize().dot(dir) < Math.cos(THREE.MathUtils.degToRad(32))) continue;
+      if (d > G.flash_shield.range!) continue;
+      if (to.normalize().dot(dir) < Math.cos(THREE.MathUtils.degToRad(G.flash_shield.cone!))) continue;
       if (!this.world.physics.clearLine(origin, head)) continue;
       // facing the flash = full effect, back turned = short
       const facing = new THREE.Vector3(-Math.sin(a.yaw), 0, -Math.cos(a.yaw)).dot(to.clone().negate().setY(0).normalize());
-      a.blindUntil = Math.max(a.blindUntil, this.world.time + (facing > 0.3 ? 4 : 1.5) * (1 - d / 9));
+      a.blindUntil = Math.max(a.blindUntil, this.world.time + (facing > 0.3 ? G.flash_shield.blind!.facing : G.flash_shield.blind!.away) * (1 - d / 9));
     }
   }
 
@@ -378,7 +384,7 @@ export class Gadgets {
     const g: Gadget = {
       id: id ?? `${owner.id}:${type}:${++seq}:${Math.floor(Math.random() * 1e4)}`,
       type, owner: owner.id, team: owner.side, pos: pos.clone(), normal: normal.clone(), vel: new THREE.Vector3(),
-      panelId: null, state: 'stuck', t: 0, fuse: 0, charges: type === 'ads' ? 2 : 0, cooldown: 0,
+      panelId: null, state: 'stuck', t: 0, fuse: 0, charges: type === 'ads' ? G.ads.charges! : 0, cooldown: 0,
       mesh: this.meshFor(type), collider: null, local, data: {},
     };
     g.mesh.position.copy(pos);
@@ -429,7 +435,7 @@ export class Gadgets {
     g.panelId = panel?.id ?? null;
     g.state = 'armed';
     if (type === 'battery' && panel) panel.electrified++;
-    if (type === 'cluster') { g.fuse = 2.5; g.state = 'burning'; }
+    if (type === 'cluster') { g.fuse = G.cluster.fuse!; g.state = 'burning'; }
     // Bandit: thermite / breach on an electrified panel is fried immediately
     if ((type === 'thermite' || type === 'breach') && panel && this.electrifiedActive(panel)) {
       this.world.effects.spark(g.pos);
@@ -464,7 +470,7 @@ export class Gadgets {
     if (type !== 'ash_round') g.vel.y += 2.5;
     g.state = 'flying';
     g.data.grav = gravScale;
-    g.fuse = type === 'emp' ? 2.0 : type === 'ash_round' ? 1.5 : 0;
+    g.fuse = type === 'emp' ? G.emp.fuse! : type === 'ash_round' ? G.ash_round.fuse! : 0;
     this.broadcastSpawn(g);
     this.world.sound({ type: type === 'ash_round' ? 'gunshot' : 'gadget', pos: p.clone(), radius: type === 'ash_round' ? 35 : 8, source: s.id, intensity: 0.6, label: `launch_${type}` });
     return true;
@@ -475,12 +481,12 @@ export class Gadgets {
     const o = s.eye();
     const d = s.aimDir();
     s.gadgetLeft--;
-    const hit = this.world.physics.raycast(o, d, 2.1, G_WORLD | G_GADGET);
+    const hit = this.world.physics.raycast(o, d, G.hammer.reach!, G_WORLD | G_GADGET);
     this.world.sound({ type: 'breach', pos: o.clone(), radius: 28, source: s.id, intensity: 0.8, label: 'hammer' });
     for (const a of this.world.actors.values()) {
       if (a.id === s.id || !this.world.targetable(a)) continue;
       const head = a.pos.clone().add(new THREE.Vector3(0, 1.0, 0));
-      if (head.distanceTo(o) < 1.8 && head.clone().sub(o).normalize().dot(d) > 0.8) this.world.damageActor(a, 100, s.id, false, d);
+      if (head.distanceTo(o) < G.hammer.melee!.range && head.clone().sub(o).normalize().dot(d) > 0.8) this.world.damageActor(a, G.hammer.melee!.damage, s.id, false, d);
     }
     if (!hit) return;
     if (hit.tag?.kind === 'gadget') { this.shootGadget(hit.tag.gadgetId, s.id); return; }
@@ -500,7 +506,7 @@ export class Gadgets {
         any = true;
       } else if (g.type === 'thermite' && g.state === 'armed') {
         g.state = 'burning';
-        g.fuse = 4.0;
+        g.fuse = G.thermite.burn!;
         this.world.emit({ t: 'gadget', op: 'trigger', id: g.id });
         any = true;
       } else if (g.type === 'gas' && g.state === 'stuck') {
@@ -516,7 +522,7 @@ export class Gadgets {
     const panel = g.panelId !== null ? this.world.destruction.get(g.panelId) ?? null : null;
     const res = this.world.destruction.impactAndApply('breach', g.pos.clone().addScaledVector(g.normal, -0.1), panel);
     this.world.combat.emitCells(res.events);
-    this.boom(g, 2.6, 75, 'breach');
+    this.boom(g, G.breach.blast!.radius, G.breach.blast!.damage, 'breach');
     this.remove(g, true);
   }
 
@@ -529,8 +535,9 @@ export class Gadgets {
 
   private releaseGas(g: Gadget) {
     g.state = 'done';
-    this.toxic.push({ p: g.pos.clone(), r: 3, until: this.world.time + 10, owner: g.owner });
-    this.world.effects.gas(g.pos, 3, 10);
+    const cloud = G.gas.cloud!;
+    this.toxic.push({ p: g.pos.clone(), r: cloud.radius, until: this.world.time + cloud.duration, owner: g.owner });
+    this.world.effects.gas(g.pos, cloud.radius, cloud.duration);
     this.world.sound({ type: 'gadget', pos: g.pos.clone(), radius: 18, source: g.owner, intensity: 0.6, label: 'gas' });
     this.world.emit({ t: 'gadget', op: 'trigger', id: g.id, p: g.pos.toArray() });
     this.remove(g, true);
@@ -539,8 +546,8 @@ export class Gadgets {
   private emp(g: Gadget) {
     this.world.effects.explosion(g.pos, 1.2, 'emp');
     this.world.sound({ type: 'explosion', pos: g.pos.clone(), radius: 25, source: g.owner, intensity: 0.6, label: 'emp' });
-    this.world.emit({ t: 'emp', p: g.pos.toArray(), r: 5, by: g.owner });
-    this.applyEmp(g.pos, 5, g.team);
+    this.world.emit({ t: 'emp', p: g.pos.toArray(), r: G.emp.radius!, by: g.owner });
+    this.applyEmp(g.pos, G.emp.radius!, g.team);
     this.remove(g, true);
   }
 
@@ -562,7 +569,7 @@ export class Gadgets {
     for (const a of this.world.actors.values()) {
       if (!this.world.targetable(a) || a.id === s.id || a.side === s.side) continue;
       const d = a.pos.distanceTo(s.pos);
-      if (d > 9) continue;
+      if (d > G.heartbeat.range!) continue;
       const dir = a.pos.clone().add(new THREE.Vector3(0, 1.2, 0)).sub(eye);
       out.push({ dir: dir.normalize(), dist: d, dy: a.pos.y - s.pos.y });
     }
@@ -585,10 +592,10 @@ export class Gadgets {
   private adsIntercept(proj: Gadget): boolean {
     for (const a of this.list.values()) {
       if (a.type !== 'ads' || a.state === 'done' || a.team === proj.team || a.charges <= 0 || a.cooldown > 0) continue;
-      if (a.pos.distanceTo(proj.pos) > 3) continue;
+      if (a.pos.distanceTo(proj.pos) > G.ads.range!) continue;
       if (!this.world.physics.clearLine(a.pos.clone().add(new THREE.Vector3(0, 0.1, 0)), proj.pos)) continue;
       a.charges--;
-      a.cooldown = 1;
+      a.cooldown = G.ads.cooldown!;
       this.world.effects.tracer(a.pos.clone().add(new THREE.Vector3(0, 0.15, 0)), proj.pos, false);
       this.world.effects.explosion(proj.pos, 0.3, 'small');
       this.world.sound({ type: 'gadget', pos: a.pos.clone(), radius: 18, source: a.owner, intensity: 0.6, label: 'ads' });
@@ -652,7 +659,7 @@ export class Gadgets {
             if (g.fuse <= 0) {
               const res = w.destruction.impactAndApply('thermite', g.pos.clone().addScaledVector(g.normal, -0.1), panel ?? null);
               w.combat.emitCells(res.events);
-              this.boom(g, 1.8, 40, 'thermite');
+              this.boom(g, G.thermite.blast!.radius, G.thermite.blast!.damage, 'thermite');
               this.remove(g, true);
             }
           }
@@ -666,7 +673,7 @@ export class Gadgets {
             const panel = w.destruction.panelsNear(g.pos, 0.6)[0] ?? null;
             const res = w.destruction.impactAndApply('cluster', g.pos, panel);
             w.combat.emitCells(res.events);
-            this.boom(g, 3.2, 70, 'small');
+            this.boom(g, G.cluster.bomblets!.blast.radius, G.cluster.bomblets!.blast.damage, 'small');
             this.remove(g, true);
           } else if (g.t > 4) this.remove(g, true);
           break;
@@ -675,10 +682,10 @@ export class Gadgets {
     // toxic gas damage to locally simulated soldiers
     for (const z of this.toxic) {
       if (z.until < w.time) continue;
-      for (const s of w.soldiers.values()) if (s.alive && s.pos.distanceTo(z.p) < z.r && s.stance !== Stance.Rappel) w.damageActor(s, 13 * dt, z.owner, false);
+      for (const s of w.soldiers.values()) if (s.alive && s.pos.distanceTo(z.p) < z.r && s.stance !== Stance.Rappel) w.damageActor(s, G.gas.cloud!.dps * dt, z.owner, false);
       for (const id of w.objectives.hostageIds()) {
         const h = w.actors.get(id);
-        if (h && h.alive && w.isLocal(id) && h.pos.distanceTo(z.p) < z.r) w.damageActor(h, 13 * dt, z.owner, false);
+        if (h && h.alive && w.isLocal(id) && h.pos.distanceTo(z.p) < z.r) w.damageActor(h, G.gas.cloud!.dps * dt, z.owner, false);
       }
     }
     this.toxic = this.toxic.filter((z) => z.until > w.time);
@@ -712,7 +719,7 @@ export class Gadgets {
       const t = THREE.MathUtils.clamp(feet.clone().sub(a).dot(ab), 0, L);
       const closest = a.clone().addScaledVector(ab, t);
       if (closest.distanceTo(feet) < 0.28 && Math.abs(actor.pos.y + 0.3 - a.y) < 0.6) {
-        this.boom(g, 2.2, 75, 'small');
+        this.boom(g, G.edd.blast!.radius, G.edd.blast!.damage, 'small');
         this.remove(g, true);
         return;
       }
@@ -723,7 +730,7 @@ export class Gadgets {
     const panel = g.panelId !== null ? this.world.destruction.get(g.panelId) ?? null : null;
     const res = this.world.destruction.impactAndApply('ash', g.pos.clone().addScaledVector(g.normal, -0.1), panel);
     this.world.combat.emitCells(res.events);
-    this.boom(g, 2.2, 55, 'ash');
+    this.boom(g, G.ash_round.blast!.radius, G.ash_round.blast!.damage, 'ash');
     this.remove(g, true);
   }
 
@@ -734,13 +741,14 @@ export class Gadgets {
     const through = panel ? panel.thickness + 0.25 : 0.4;
     const origin = g.pos.clone().addScaledVector(into, through);
     this.world.sound({ type: 'explosion', pos: g.pos.clone(), radius: 30, source: g.owner, intensity: 0.6, label: 'cluster_launch' });
-    for (let i = 0; i < 5; i++) {
+    const bl = G.cluster.bomblets!;
+    for (let i = 0; i < bl.count; i++) {
       const b = this.make('bomblet', { id: g.owner, side: g.team }, origin, new THREE.Vector3(), true);
       const spread = new THREE.Vector3((Math.random() - 0.5) * 1.4, Math.random() * 0.8, (Math.random() - 0.5) * 1.4);
       b.vel.copy(into).multiplyScalar(5 + Math.random() * 4).add(spread.multiplyScalar(4));
       b.state = 'flying';
       b.data.grav = 1;
-      b.data.delay = 1.2 + i * 0.35;
+      b.data.delay = bl.delay + i * bl.step;
       this.broadcastSpawn(b);
     }
     this.remove(g, true);

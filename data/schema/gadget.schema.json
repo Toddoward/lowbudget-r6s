@@ -1,0 +1,222 @@
+{
+ "type": "object",
+ "title": "가젯",
+ "properties": {
+  "$schema": {
+   "type": "string",
+   "title": "스키마",
+   "description": "VS Code / 에디터용 스키마 경로"
+  },
+  "id": {
+   "type": "string",
+   "title": "ID"
+  },
+  "name": {
+   "type": "string",
+   "title": "표시 이름"
+  },
+  "class": {
+   "type": "string",
+   "title": "사용 방식",
+   "description": "tool: 들고 사용 · place: 길게 눌러 설치 · throw: 투척 · active: 즉시 발동",
+   "enum": [
+    "tool",
+    "place",
+    "throw",
+    "active"
+   ]
+  },
+  "placeTime": {
+   "type": "number",
+   "title": "설치 시간 (s)"
+  },
+  "cooldown": {
+   "type": "number",
+   "title": "재사용 대기 (s)"
+  },
+  "speed": {
+   "type": "number",
+   "title": "발사·투척 속도 (m/s)"
+  },
+  "gravity": {
+   "type": "number",
+   "title": "중력 배율"
+  },
+  "fuse": {
+   "type": "number",
+   "title": "신관 (s)"
+  },
+  "burn": {
+   "type": "number",
+   "title": "연소 시간 (s)"
+  },
+  "reach": {
+   "type": "number",
+   "title": "사거리 (m)"
+  },
+  "range": {
+   "type": "number",
+   "title": "탐지·효과 거리 (m)"
+  },
+  "radius": {
+   "type": "number",
+   "title": "효과 반경 (m)"
+  },
+  "charges": {
+   "type": "integer",
+   "title": "충전 수"
+  },
+  "cone": {
+   "type": "number",
+   "title": "원뿔 반각 (°)"
+  },
+  "blast": {
+   "type": "object",
+   "title": "폭발",
+   "properties": {
+    "radius": {
+     "type": "number",
+     "title": "반경 (m)"
+    },
+    "damage": {
+     "type": "number",
+     "title": "피해"
+    }
+   },
+   "additionalProperties": false,
+   "required": [
+    "radius",
+    "damage"
+   ]
+  },
+  "melee": {
+   "type": "object",
+   "title": "근접 피해",
+   "properties": {
+    "range": {
+     "type": "number",
+     "title": "거리 (m)"
+    },
+    "damage": {
+     "type": "number",
+     "title": "피해"
+    }
+   },
+   "additionalProperties": false,
+   "required": [
+    "range",
+    "damage"
+   ]
+  },
+  "bomblets": {
+   "type": "object",
+   "title": "자탄",
+   "properties": {
+    "count": {
+     "type": "integer",
+     "title": "개수"
+    },
+    "delay": {
+     "type": "number",
+     "title": "첫 폭발 (s)"
+    },
+    "step": {
+     "type": "number",
+     "title": "간격 (s)"
+    },
+    "blast": {
+     "type": "object",
+     "title": "폭발",
+     "properties": {
+      "radius": {
+       "type": "number",
+       "title": "반경 (m)"
+      },
+      "damage": {
+       "type": "number",
+       "title": "피해"
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "radius",
+      "damage"
+     ]
+    }
+   },
+   "additionalProperties": false,
+   "required": [
+    "count",
+    "delay",
+    "step",
+    "blast"
+   ]
+  },
+  "cloud": {
+   "type": "object",
+   "title": "가스 구름",
+   "properties": {
+    "radius": {
+     "type": "number",
+     "title": "반경 (m)"
+    },
+    "duration": {
+     "type": "number",
+     "title": "지속 (s)"
+    },
+    "dps": {
+     "type": "number",
+     "title": "초당 피해"
+    }
+   },
+   "additionalProperties": false,
+   "required": [
+    "radius",
+    "duration",
+    "dps"
+   ]
+  },
+  "blind": {
+   "type": "object",
+   "title": "실명 (s)",
+   "properties": {
+    "facing": {
+     "type": "number",
+     "title": "정면"
+    },
+    "away": {
+     "type": "number",
+     "title": "등진 경우"
+    }
+   },
+   "additionalProperties": false,
+   "required": [
+    "facing",
+    "away"
+   ]
+  },
+  "model": {
+   "type": "object",
+   "title": "모델",
+   "properties": {
+    "glb": {
+     "type": "string",
+     "title": "GLB 파일",
+     "description": "public/assets/models/ 기준 경로"
+    }
+   },
+   "additionalProperties": false,
+   "required": []
+  }
+ },
+ "additionalProperties": false,
+ "description": "data/gadgets/<id>.json — 사용 방식과 효과 수치",
+ "required": [
+  "id",
+  "name",
+  "class",
+  "model"
+ ],
+ "$id": "gadget",
+ "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

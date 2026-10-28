@@ -1,0 +1,24 @@
+{
+  "$schema": "../schema/weapon.schema.json",
+  "id": "ak12",
+  "name": "AK-12",
+  "class": "AR",
+  "order": 4,
+  "damage": { "base": 45, "falloffStart": 25, "falloffEnd": 42, "min": 0.6 },
+  "fire": { "rpm": 850, "mode": "auto" },
+  "ammo": { "mag": 30, "reserve": 150, "reload": 2.5, "reloadEmpty": 3.2 },
+  "spread": { "hip": 2.5, "ads": 0.3 },
+  "recoil": { "vertical": 0.7, "horizontal": 0.32, "recover": 6.5 },
+  "penetration": { "budget": 2, "wallDamage": 1 },
+  "optic": "holo",
+  "model": {
+    "anchors": {
+      "sight": [0, 0.172, -0.11],
+      "lens": [0, 0.172, -0.185],
+      "muzzle": [0, 0.065, -0.9],
+      "grip": [0, -0.03, 0],
+      "fore": [0, 0.03, -0.395]
+    },
+    "procedural": { "layout": "ak", "body": "#26272a", "accent": "#2d2e31", "length": 0.85, "curvedMag": true }
+  }
+}

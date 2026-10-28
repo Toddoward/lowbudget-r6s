@@ -1,0 +1,25 @@
+{
+  "$schema": "../schema/weapon.schema.json",
+  "id": "usg57",
+  "name": "5.7 USG",
+  "class": "Pistol",
+  "order": 13,
+  "damage": { "base": 42, "falloffStart": 12, "falloffEnd": 25, "min": 0.5 },
+  "fire": { "rpm": 460, "mode": "semi" },
+  "ammo": { "mag": 20, "reserve": 80, "reload": 1.8, "reloadEmpty": 2.2 },
+  "spread": { "hip": 1.4, "ads": 0.5 },
+  "recoil": { "vertical": 0.75, "horizontal": 0.2, "recover": 9 },
+  "penetration": { "budget": 1, "wallDamage": 0.8 },
+  "optic": "iron",
+  "model": {
+    "eyeRelief": 0.2,
+    "anchors": {
+      "sight": [0, 0.0905, 0.03],
+      "lens": [0, 0.0905, -0.153],
+      "muzzle": [0, 0.055, -0.19],
+      "grip": [0, -0.03, 0],
+      "fore": [0, -0.03, 0]
+    },
+    "procedural": { "layout": "pistol", "body": "#1c1d20", "accent": "#2a2b2e", "length": 0.2 }
+  }
+}

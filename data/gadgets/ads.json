@@ -1,0 +1,11 @@
+{
+  "$schema": "../schema/gadget.schema.json",
+  "id": "ads",
+  "name": "ADS-MK IV \"Magpie\"",
+  "class": "place",
+  "placeTime": 0.4,
+  "charges": 2,
+  "cooldown": 1,
+  "range": 3,
+  "model": {}
+}

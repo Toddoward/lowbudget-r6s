@@ -1,0 +1,312 @@
+{
+ "type": "object",
+ "title": "1인칭 뷰모델",
+ "properties": {
+  "$schema": {
+   "type": "string",
+   "title": "스키마",
+   "description": "VS Code / 에디터용 스키마 경로"
+  },
+  "hipFov": {
+   "type": "number",
+   "title": "비조준 총 카메라 수직 FOV (°)"
+  },
+  "holds": {
+   "type": "object",
+   "title": "자세",
+   "properties": {
+    "rifle": {
+     "type": "object",
+     "title": "소총",
+     "properties": {
+      "hip": {
+       "type": "array",
+       "title": "위치 (m)",
+       "description": "카메라 기준",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      },
+      "rot": {
+       "type": "array",
+       "title": "기울기 (rad)",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      },
+      "left": {
+       "title": "왼손",
+       "description": "'fore' (핸드가드 앵커) · 'cup' (권총 감싸기) · [x, y, z] · null",
+       "oneOf": [
+        {
+         "type": "null"
+        },
+        {
+         "type": "string",
+         "enum": [
+          "fore",
+          "cup"
+         ]
+        },
+        {
+         "type": "array",
+         "items": {
+          "type": "number"
+         },
+         "minItems": 3,
+         "maxItems": 3
+        }
+       ]
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "hip",
+      "rot",
+      "left"
+     ]
+    },
+    "pistol": {
+     "type": "object",
+     "title": "권총",
+     "properties": {
+      "hip": {
+       "type": "array",
+       "title": "위치 (m)",
+       "description": "카메라 기준",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      },
+      "rot": {
+       "type": "array",
+       "title": "기울기 (rad)",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      },
+      "left": {
+       "title": "왼손",
+       "description": "'fore' (핸드가드 앵커) · 'cup' (권총 감싸기) · [x, y, z] · null",
+       "oneOf": [
+        {
+         "type": "null"
+        },
+        {
+         "type": "string",
+         "enum": [
+          "fore",
+          "cup"
+         ]
+        },
+        {
+         "type": "array",
+         "items": {
+          "type": "number"
+         },
+         "minItems": 3,
+         "maxItems": 3
+        }
+       ]
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "hip",
+      "rot",
+      "left"
+     ]
+    },
+    "launcher": {
+     "type": "object",
+     "title": "발사기",
+     "properties": {
+      "hip": {
+       "type": "array",
+       "title": "위치 (m)",
+       "description": "카메라 기준",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      },
+      "rot": {
+       "type": "array",
+       "title": "기울기 (rad)",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      },
+      "left": {
+       "title": "왼손",
+       "description": "'fore' (핸드가드 앵커) · 'cup' (권총 감싸기) · [x, y, z] · null",
+       "oneOf": [
+        {
+         "type": "null"
+        },
+        {
+         "type": "string",
+         "enum": [
+          "fore",
+          "cup"
+         ]
+        },
+        {
+         "type": "array",
+         "items": {
+          "type": "number"
+         },
+         "minItems": 3,
+         "maxItems": 3
+        }
+       ]
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "hip",
+      "rot",
+      "left"
+     ]
+    },
+    "hammer": {
+     "type": "object",
+     "title": "해머",
+     "properties": {
+      "hip": {
+       "type": "array",
+       "title": "위치 (m)",
+       "description": "카메라 기준",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      },
+      "rot": {
+       "type": "array",
+       "title": "기울기 (rad)",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      },
+      "left": {
+       "title": "왼손",
+       "description": "'fore' (핸드가드 앵커) · 'cup' (권총 감싸기) · [x, y, z] · null",
+       "oneOf": [
+        {
+         "type": "null"
+        },
+        {
+         "type": "string",
+         "enum": [
+          "fore",
+          "cup"
+         ]
+        },
+        {
+         "type": "array",
+         "items": {
+          "type": "number"
+         },
+         "minItems": 3,
+         "maxItems": 3
+        }
+       ]
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "hip",
+      "rot",
+      "left"
+     ]
+    },
+    "held": {
+     "type": "object",
+     "title": "장비",
+     "properties": {
+      "hip": {
+       "type": "array",
+       "title": "위치 (m)",
+       "description": "카메라 기준",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      },
+      "rot": {
+       "type": "array",
+       "title": "기울기 (rad)",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      },
+      "left": {
+       "title": "왼손",
+       "description": "'fore' (핸드가드 앵커) · 'cup' (권총 감싸기) · [x, y, z] · null",
+       "oneOf": [
+        {
+         "type": "null"
+        },
+        {
+         "type": "string",
+         "enum": [
+          "fore",
+          "cup"
+         ]
+        },
+        {
+         "type": "array",
+         "items": {
+          "type": "number"
+         },
+         "minItems": 3,
+         "maxItems": 3
+        }
+       ]
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "hip",
+      "rot",
+      "left"
+     ]
+    }
+   },
+   "additionalProperties": false,
+   "required": [
+    "rifle",
+    "pistol",
+    "launcher",
+    "hammer",
+    "held"
+   ]
+  }
+ },
+ "additionalProperties": false,
+ "description": "data/rig/viewmodel.json — 비조준 시야각과 손에 든 물건의 자세",
+ "required": [
+  "hipFov",
+  "holds"
+ ],
+ "$id": "viewmodel",
+ "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

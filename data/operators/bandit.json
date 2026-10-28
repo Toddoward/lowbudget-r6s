@@ -1,0 +1,26 @@
+{
+  "$schema": "../schema/operator.schema.json",
+  "id": "bandit",
+  "name": "Bandit",
+  "order": 10,
+  "team": "defend",
+  "unit": "GSG 9",
+  "roles": ["antiGadget", "flank"],
+  "armor": 1,
+  "speed": 3,
+  "loadout": {
+    "primary": "mp7",
+    "secondary": "p12",
+    "gadget": "battery",
+    "gadgetName": "CED-1 Shock Wire",
+    "gadgetCount": 4,
+    "universal": "barricade",
+    "universalCount": 99
+  },
+  "description": {
+    "en": "Electrifies reinforced walls / barricades: destroys Thermite charges & gadgets, shocks melee.",
+    "ko": "강화벽·바리케이드에 전기를 흘려 써마이트 폭약과 가젯을 파괴하고 근접을 감전시킵니다."
+  },
+  "look": { "headgear": "beanie_goggles", "cloth": "#2e3338", "accent": "#3d3a34" },
+  "model": {}
+}

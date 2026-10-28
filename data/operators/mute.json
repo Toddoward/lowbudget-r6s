@@ -1,0 +1,26 @@
+{
+  "$schema": "../schema/operator.schema.json",
+  "id": "mute",
+  "name": "Mute",
+  "order": 6,
+  "team": "defend",
+  "unit": "SAS",
+  "roles": ["antiGadget"],
+  "armor": 2,
+  "speed": 2,
+  "loadout": {
+    "primary": "mp5k",
+    "secondary": "p226",
+    "gadget": "jammer",
+    "gadgetName": "GC90 Signal Disruptor",
+    "gadgetCount": 4,
+    "universal": "barricade",
+    "universalCount": 99
+  },
+  "description": {
+    "en": "Jams drones, breach charges and remote gadgets within 2.5 m.",
+    "ko": "2.5 m 안 드론·브리칭 차지·원격 가젯을 교란합니다."
+  },
+  "look": { "headgear": "mask_comms", "cloth": "#2b323b", "accent": "#1e2228" },
+  "model": {}
+}

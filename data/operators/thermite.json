@@ -1,0 +1,26 @@
+{
+  "$schema": "../schema/operator.schema.json",
+  "id": "thermite",
+  "name": "Thermite",
+  "order": 2,
+  "team": "attack",
+  "unit": "FBI SWAT",
+  "roles": ["hardBreacher"],
+  "armor": 2,
+  "speed": 2,
+  "loadout": {
+    "primary": "556xi",
+    "secondary": "usg57",
+    "gadget": "thermite",
+    "gadgetName": "Exothermic Charge",
+    "gadgetCount": 2,
+    "universal": "breach",
+    "universalCount": 1
+  },
+  "description": {
+    "en": "The only way through REINFORCED walls and hatches (unless Bandit electrifies them).",
+    "ko": "강화벽과 강화 해치를 뚫는 유일한 방법입니다 (밴딧 전기가 흐르면 불가)."
+  },
+  "look": { "headgear": "helmet_goggles", "cloth": "#56584b", "accent": "#2d2f2a" },
+  "model": {}
+}

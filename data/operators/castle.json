@@ -1,0 +1,26 @@
+{
+  "$schema": "../schema/operator.schema.json",
+  "id": "castle",
+  "name": "Castle",
+  "order": 7,
+  "team": "defend",
+  "unit": "FBI SWAT",
+  "roles": ["anchor", "support"],
+  "armor": 3,
+  "speed": 1,
+  "loadout": {
+    "primary": "ump45",
+    "secondary": "usg57",
+    "gadget": "castle",
+    "gadgetName": "Armor Panel",
+    "gadgetCount": 3,
+    "universal": "barricade",
+    "universalCount": 99
+  },
+  "description": {
+    "en": "Bullet-proof barricades on doors/windows. Melee 8× or explosives to break.",
+    "ko": "문·창문에 방탄 바리케이드를 칩니다. 근접 8회 또는 폭발물로만 부서집니다."
+  },
+  "look": { "headgear": "castle_helmet", "cloth": "#2c3540", "accent": "#1f262f" },
+  "model": {}
+}

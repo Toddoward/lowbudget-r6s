@@ -1,0 +1,24 @@
+{
+  "$schema": "../schema/weapon.schema.json",
+  "id": "416c",
+  "name": "416-C Carbine",
+  "class": "AR",
+  "order": 8,
+  "damage": { "base": 43, "falloffStart": 22, "falloffEnd": 40, "min": 0.6 },
+  "fire": { "rpm": 740, "mode": "auto" },
+  "ammo": { "mag": 30, "reserve": 150, "reload": 2.3, "reloadEmpty": 2.9 },
+  "spread": { "hip": 2.2, "ads": 0.28 },
+  "recoil": { "vertical": 0.52, "horizontal": 0.25, "recover": 7.5 },
+  "penetration": { "budget": 2, "wallDamage": 1 },
+  "optic": "holo",
+  "model": {
+    "anchors": {
+      "sight": [0, 0.172, -0.11],
+      "lens": [0, 0.172, -0.185],
+      "muzzle": [0, 0.065, -0.73],
+      "grip": [0, -0.03, 0],
+      "fore": [0, 0.03, -0.395]
+    },
+    "procedural": { "layout": "ar", "body": "#2a2b2d", "accent": "#35373b", "length": 0.68 }
+  }
+}

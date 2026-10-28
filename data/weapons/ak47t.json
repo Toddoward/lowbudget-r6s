@@ -1,0 +1,24 @@
+{
+  "$schema": "../schema/weapon.schema.json",
+  "id": "ak47t",
+  "name": "AK-47 (White Masks)",
+  "class": "AR",
+  "order": 19,
+  "damage": { "base": 41, "falloffStart": 25, "falloffEnd": 40, "min": 0.6 },
+  "fire": { "rpm": 600, "mode": "auto" },
+  "ammo": { "mag": 30, "reserve": 600, "reload": 2.6, "reloadEmpty": 3.2 },
+  "spread": { "hip": 2.6, "ads": 0.4 },
+  "recoil": { "vertical": 0.7, "horizontal": 0.35, "recover": 6 },
+  "penetration": { "budget": 2, "wallDamage": 1 },
+  "optic": "iron",
+  "model": {
+    "anchors": {
+      "sight": [0, 0.157, -0.06],
+      "lens": [0, 0.157, -0.51],
+      "muzzle": [0, 0.065, -0.9],
+      "grip": [0, -0.03, 0],
+      "fore": [0, 0.03, -0.395]
+    },
+    "procedural": { "layout": "ak", "body": "#2a2a2a", "accent": "#6b4a2b", "length": 0.85, "curvedMag": true }
+  }
+}

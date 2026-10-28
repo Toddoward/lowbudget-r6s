@@ -1,0 +1,358 @@
+{
+ "type": "object",
+ "title": "총기",
+ "properties": {
+  "$schema": {
+   "type": "string",
+   "title": "스키마",
+   "description": "VS Code / 에디터용 스키마 경로"
+  },
+  "id": {
+   "type": "string",
+   "title": "ID",
+   "description": "파일 이름과 같음 (operators의 loadout이 이 ID를 씀)"
+  },
+  "name": {
+   "type": "string",
+   "title": "표시 이름"
+  },
+  "class": {
+   "type": "string",
+   "title": "분류",
+   "enum": [
+    "AR",
+    "SMG",
+    "Shotgun",
+    "Pistol",
+    "DMR"
+   ]
+  },
+  "order": {
+   "type": "integer",
+   "title": "정렬 순서",
+   "description": "목록에서의 순서"
+  },
+  "damage": {
+   "type": "object",
+   "title": "피해",
+   "properties": {
+    "base": {
+     "type": "number",
+     "title": "기본 피해"
+    },
+    "pellets": {
+     "type": "integer",
+     "title": "펠릿 수",
+     "description": "산탄총: 한 발에 나가는 펠릿"
+    },
+    "falloffStart": {
+     "type": "number",
+     "title": "감쇠 시작 (m)"
+    },
+    "falloffEnd": {
+     "type": "number",
+     "title": "감쇠 끝 (m)"
+    },
+    "min": {
+     "type": "number",
+     "title": "최소 피해 배율",
+     "description": "감쇠 끝 이후 기본 피해에 곱함 (0~1)",
+     "minimum": 0,
+     "maximum": 1
+    }
+   },
+   "additionalProperties": false,
+   "required": [
+    "base",
+    "falloffStart",
+    "falloffEnd",
+    "min"
+   ]
+  },
+  "fire": {
+   "type": "object",
+   "title": "발사",
+   "properties": {
+    "rpm": {
+     "type": "number",
+     "title": "연사 속도 (발/분)"
+    },
+    "mode": {
+     "type": "string",
+     "title": "발사 방식",
+     "enum": [
+      "auto",
+      "semi"
+     ]
+    },
+    "suppressed": {
+     "type": "boolean",
+     "title": "소음기"
+    }
+   },
+   "additionalProperties": false,
+   "required": [
+    "rpm",
+    "mode"
+   ]
+  },
+  "ammo": {
+   "type": "object",
+   "title": "탄약",
+   "properties": {
+    "mag": {
+     "type": "integer",
+     "title": "탄창"
+    },
+    "reserve": {
+     "type": "integer",
+     "title": "예비탄"
+    },
+    "reload": {
+     "type": "number",
+     "title": "재장전 (s)"
+    },
+    "reloadEmpty": {
+     "type": "number",
+     "title": "빈 탄창 재장전 (s)"
+    }
+   },
+   "additionalProperties": false,
+   "required": [
+    "mag",
+    "reserve",
+    "reload",
+    "reloadEmpty"
+   ]
+  },
+  "spread": {
+   "type": "object",
+   "title": "탄퍼짐 (°)",
+   "properties": {
+    "hip": {
+     "type": "number",
+     "title": "비조준"
+    },
+    "ads": {
+     "type": "number",
+     "title": "조준"
+    }
+   },
+   "additionalProperties": false,
+   "required": [
+    "hip",
+    "ads"
+   ]
+  },
+  "recoil": {
+   "type": "object",
+   "title": "반동",
+   "properties": {
+    "vertical": {
+     "type": "number",
+     "title": "수직"
+    },
+    "horizontal": {
+     "type": "number",
+     "title": "수평"
+    },
+    "recover": {
+     "type": "number",
+     "title": "회복 속도"
+    }
+   },
+   "additionalProperties": false,
+   "required": [
+    "vertical",
+    "horizontal",
+    "recover"
+   ]
+  },
+  "penetration": {
+   "type": "object",
+   "title": "관통",
+   "properties": {
+    "budget": {
+     "type": "number",
+     "title": "관통력",
+     "description": "부드러운 표면을 뚫는 예산"
+    },
+    "wallDamage": {
+     "type": "number",
+     "title": "벽 셀 피해"
+    }
+   },
+   "additionalProperties": false,
+   "required": [
+    "budget",
+    "wallDamage"
+   ]
+  },
+  "optic": {
+   "type": "string",
+   "title": "조준경",
+   "description": "data/optics/<id>.json",
+   "enum": [
+    "iron",
+    "reflex",
+    "holo",
+    "acog"
+   ]
+  },
+  "model": {
+   "type": "object",
+   "title": "모델",
+   "properties": {
+    "glb": {
+     "type": "string",
+     "title": "GLB 파일",
+     "description": "public/assets/models/ 기준 경로 (예: handmade/weapon_l85a2.glb). 없으면 절차적 모델"
+    },
+    "eyeRelief": {
+     "type": "number",
+     "title": "아이릴리프 덮어쓰기 (m)",
+     "description": "조준 시 눈이 sight 앵커 뒤로 떨어진 거리. 없으면 조준경 값"
+    },
+    "anchors": {
+     "type": "object",
+     "title": "앵커",
+     "properties": {
+      "sight": {
+       "type": "array",
+       "title": "sight (접안부 끝)",
+       "description": "조준 시 이 점이 시선 축 정중앙에 고정됨. 모델 좌표 (m): +X 오른쪽, +Y 위, −Z 총구 방향 (Blender에서는 (x, −z, y))",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      },
+      "lens": {
+       "type": "array",
+       "title": "lens (대물렌즈)",
+       "description": "레티클이 보이는 렌즈 원의 중심. 모델 좌표 (m): +X 오른쪽, +Y 위, −Z 총구 방향 (Blender에서는 (x, −z, y))",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      },
+      "muzzle": {
+       "type": "array",
+       "title": "muzzle (총구)",
+       "description": "총구 화염·탄 시작점. 모델 좌표 (m): +X 오른쪽, +Y 위, −Z 총구 방향 (Blender에서는 (x, −z, y))",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      },
+      "grip": {
+       "type": "array",
+       "title": "grip (오른손)",
+       "description": "권총 손잡이. 모델 좌표 (m): +X 오른쪽, +Y 위, −Z 총구 방향 (Blender에서는 (x, −z, y))",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      },
+      "fore": {
+       "type": "array",
+       "title": "fore (왼손)",
+       "description": "핸드가드. 모델 좌표 (m): +X 오른쪽, +Y 위, −Z 총구 방향 (Blender에서는 (x, −z, y))",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "sight",
+      "lens",
+      "muzzle",
+      "grip",
+      "fore"
+     ]
+    },
+    "procedural": {
+     "type": "object",
+     "title": "절차적 모델 (GLB가 없을 때)",
+     "properties": {
+      "layout": {
+       "type": "string",
+       "title": "형태",
+       "enum": [
+        "ar",
+        "bullpup",
+        "smg",
+        "pistol",
+        "ak",
+        "shotgun"
+       ]
+      },
+      "body": {
+       "type": "string",
+       "title": "본체 색",
+       "description": "#rrggbb 또는 #rgb",
+       "pattern": "^#([0-9a-fA-F]{3}){1,2}$"
+      },
+      "accent": {
+       "type": "string",
+       "title": "보조 색",
+       "description": "#rrggbb 또는 #rgb",
+       "pattern": "^#([0-9a-fA-F]{3}){1,2}$"
+      },
+      "length": {
+       "type": "number",
+       "title": "길이 (m)"
+      },
+      "suppressor": {
+       "type": "boolean",
+       "title": "소음기 모양"
+      },
+      "curvedMag": {
+       "type": "boolean",
+       "title": "곡선 탄창"
+      },
+      "foldStock": {
+       "type": "boolean",
+       "title": "접이식 개머리"
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "layout",
+      "body",
+      "accent",
+      "length"
+     ]
+    }
+   },
+   "additionalProperties": false,
+   "required": [
+    "anchors",
+    "procedural"
+   ]
+  }
+ },
+ "additionalProperties": false,
+ "description": "data/weapons/<id>.json — 총 한 정의: 스탯, 조준경, 모델(GLB)과 앵커",
+ "required": [
+  "id",
+  "name",
+  "class",
+  "damage",
+  "fire",
+  "ammo",
+  "spread",
+  "recoil",
+  "penetration",
+  "optic",
+  "model"
+ ],
+ "$id": "weapon",
+ "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

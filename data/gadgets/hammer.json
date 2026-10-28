@@ -1,0 +1,10 @@
+{
+  "$schema": "../schema/gadget.schema.json",
+  "id": "hammer",
+  "name": "Tactical Breaching Hammer",
+  "class": "tool",
+  "cooldown": 1.05,
+  "reach": 2.1,
+  "melee": { "range": 1.8, "damage": 100 },
+  "model": {}
+}

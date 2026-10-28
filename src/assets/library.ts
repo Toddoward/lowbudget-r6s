@@ -1,6 +1,19 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { patchInterior, vcMaterial } from '../render/palette.ts';
+import { dataDir } from '../data/index.ts';
+
+/**
+ * Models linked from the data (`model.glb` in data/weapons, data/operators, data/gadgets): hand-made GLBs under
+ * public/assets/models/, keyed by the spec id they replace (`weapon_<id>`, `operator_<id>`, `gadget_<id>`).
+ */
+export function linkedModels(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [dir, prefix] of [['weapons', 'weapon'], ['operators', 'operator'], ['gadgets', 'gadget']] as const) {
+    for (const [id, d] of Object.entries(dataDir<{ model?: { glb?: string } }>(dir))) if (d.model?.glb) out[`${prefix}_${id}`] = d.model.glb;
+  }
+  return out;
+}
 
 /**
  * GLB assets produced by the CLI-Anything → Blender pipeline
@@ -16,7 +29,10 @@ export async function preloadGlbAssets(categories = ['weapon', 'operator', 'gadg
     const res = await fetch(`${base}manifest.json`, { cache: 'no-cache' });
     if (!res.ok) return;
     const manifest = (await res.json()) as { assets: Record<string, { file: string; category: string }> };
-    const entries = Object.entries(manifest.assets).filter(([, a]) => categories.includes(a.category));
+    // the data's hand-made models replace the pipeline's bakes of the same id
+    const links = linkedModels();
+    const linked = Object.entries(links).map(([id, file]) => [id, { file, category: id.split('_')[0] }] as const);
+    const entries = [...Object.entries(manifest.assets).filter(([id]) => !(id in links)), ...linked].filter(([, a]) => categories.includes(a.category));
     glbStats.available = entries.length;
     const loader = new GLTFLoader();
     await Promise.all(entries.map(async ([id, a]) => {

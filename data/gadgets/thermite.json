@@ -1,0 +1,10 @@
+{
+  "$schema": "../schema/gadget.schema.json",
+  "id": "thermite",
+  "name": "Exothermic Charge",
+  "class": "place",
+  "placeTime": 1,
+  "burn": 4,
+  "blast": { "radius": 1.8, "damage": 40 },
+  "model": {}
+}

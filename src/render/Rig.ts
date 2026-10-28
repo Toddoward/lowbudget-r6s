@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { buildBones } from '../assets/build.ts';
 import { ARM_FORE, ARM_UPPER, operatorSpec } from '../assets/operatorModels.ts';
+import { dataFile } from '../data/index.ts';
 import { OPERATORS } from '../game/operators.ts';
 import { buildAsset } from '../assets/build.ts';
 import { WEAPONS, weaponSpec } from '../game/weapons.ts';
@@ -18,12 +19,30 @@ export interface RigAction {
 }
 
 const DOWN = new THREE.Vector3(0, -1, 0);
-const SHOULDER_L = new THREE.Vector3(-0.21, 0.45, 0);
-const SHOULDER_R = new THREE.Vector3(0.21, 0.45, 0);
+type V3 = [number, number, number];
+/** data/rig/skeleton.json: the bone pivots (feet origin, facing −Z) and the arm lengths */
+const SK = dataFile<{ hips: V3; head: V3; shoulderL: V3; shoulderR: V3; armUpper: number; armFore: number; legL: V3; legR: V3 }>('rig/skeleton.json');
+/** data/rig/animation.json: stance poses, walk cycle, holds, sprint / rappel / reload / death (metres, radians) */
+interface RigAnimation {
+  blend: { stance: number; ads: number; sprint: number };
+  walk: { rate: number; proneRate: number; swing: number; proneSwing: number; fullSwingSpeed: number };
+  crouch: { hipsY: number; knee: number; torsoLean: number };
+  prone: { hipsY: number; hipsZ: number; hipsPitch: number; torsoRoll: number; headPitch: number; headFollow: number };
+  stand: { torsoRoll: number; headFollow: number };
+  sprint: { torsoLean: number; gunPitch: number; gunYaw: number; grip: V3 };
+  rappel: { legs: number; legSwing: number; torsoPitch: number };
+  hold: Record<'eye' | 'pocket' | 'rifle' | 'pistol' | 'pistolShielded' | 'shieldExtended' | 'leftOnFore' | 'leftOnPistol' | 'leftOnShield' | 'emptyLeft' | 'emptyRight' | 'cuffedLeft' | 'cuffedRight' | 'elbowPoleLeft' | 'elbowPoleRight', V3> & { adsEyeRelief: { rifle: number; pistol: number }; foreReach: number };
+  reload: { well: V3; pistolWell: V3 };
+  death: { fall: number; relax: number; hipsY: number; hipsPitch: number; sideRoll: number; legL: V3; legR: V3; legRSide: number; torsoSide: number; head: V3; armL: V3; armR: V3; foreL: V3; foreR: V3; dropAt: number };
+}
+const A = dataFile<RigAnimation>('rig/animation.json');
+const v3 = (v: V3) => new THREE.Vector3(...v);
+const SHOULDER_L = new THREE.Vector3(...SK.shoulderL);
+const SHOULDER_R = new THREE.Vector3(...SK.shoulderR);
 
 /**
  * Third-person operator rig. Pivots (relative to the feet origin, facing −Z):
- *   hips (0, 0.95) → torso (pelvis) → head (0, 0.5 above the pelvis)
+ *   hips → torso (pelvis) → head (data/rig/skeleton.json; poses and motion: data/rig/animation.json)
  *   armL / armR (upper arms) at the shoulders → foreL / foreR at the elbows · legL / legR at the hip joints
  * Poses: stand / crouch / prone / rappel (upright against the wall) / rappel-inverted (flipped, head down)
  * + lean roll + aim pitch + walk cycle. The hands are solved onto what is held (two-bone IK): the right hand on
@@ -79,10 +98,10 @@ export class Rig {
     attach('legL', this.legL);
     attach('legR', this.legR);
     this.root.add(this.hips);
-    this.hips.position.set(0, 0.95, 0);
+    this.hips.position.set(...SK.hips);
     this.hips.add(this.torso);
     this.torso.add(this.head);
-    this.head.position.set(0, 0.5, 0);
+    this.head.position.set(...SK.head);
     this.torso.add(this.armL, this.armR);
     this.armL.position.copy(SHOULDER_L);
     this.armR.position.copy(SHOULDER_R);
@@ -91,8 +110,8 @@ export class Rig {
     this.foreL.position.set(0, -ARM_UPPER, 0);
     this.foreR.position.set(0, -ARM_UPPER, 0);
     this.hips.add(this.legL, this.legR);
-    this.legL.position.set(-0.09, -0.02, 0);
-    this.legR.position.set(0.09, -0.02, 0);
+    this.legL.position.set(...SK.legL);
+    this.legR.position.set(...SK.legR);
     this.cuffed = def.team === 'hostage';
     this.plate = shieldPlateOf(def);
     if (weaponId) this.setWeapon(weaponId);
@@ -140,37 +159,37 @@ export class Rig {
     const crouch = stance === Stance.Crouch;
     const rappel = stance === Stance.Rappel;
     const target = prone ? 2 : crouch ? 1 : 0;
-    this.stanceBlend += (target - this.stanceBlend) * Math.min(1, dt * 10);
+    this.stanceBlend += (target - this.stanceBlend) * Math.min(1, dt * A.blend.stance);
     const sb = this.stanceBlend;
-    this.walk += dt * speed * (prone ? 2.5 : 5);
-    const swing = Math.sin(this.walk) * Math.min(1, speed / 3) * (prone ? 0.25 : 0.6);
-    this.adsK += ((act.ads ?? 0) - this.adsK) * Math.min(1, dt * 12);
-    this.sprintK += ((act.sprint ? 1 : 0) - this.sprintK) * Math.min(1, dt * 8);
+    this.walk += dt * speed * (prone ? A.walk.proneRate : A.walk.rate);
+    const swing = Math.sin(this.walk) * Math.min(1, speed / A.walk.fullSwingSpeed) * (prone ? A.walk.proneSwing : A.walk.swing);
+    this.adsK += ((act.ads ?? 0) - this.adsK) * Math.min(1, dt * A.blend.ads);
+    this.sprintK += ((act.sprint ? 1 : 0) - this.sprintK) * Math.min(1, dt * A.blend.sprint);
 
     this.root.rotation.z = inverted ? Math.PI : 0;
     if (rappel) {
-      this.hips.position.set(0, 0.95, 0);
+      this.hips.position.set(...SK.hips);
       this.hips.rotation.set(0, 0, 0);
-      this.legL.rotation.x = this.legR.rotation.x = -1.2 + swing * 0.3;
-      this.torso.rotation.set(0.15, 0, 0);
+      this.legL.rotation.x = this.legR.rotation.x = A.rappel.legs + swing * A.rappel.legSwing;
+      this.torso.rotation.set(A.rappel.torsoPitch, 0, 0);
     } else if (sb > 1) {
       // crouch → prone
       const k = sb - 1;
-      this.hips.position.set(0, THREE.MathUtils.lerp(0.62, 0.22, k), THREE.MathUtils.lerp(0, 0.35, k));
-      this.hips.rotation.x = THREE.MathUtils.lerp(0, -Math.PI / 2 + 0.08, k);
-      this.legL.rotation.x = THREE.MathUtils.lerp(-0.86, 0, k) + swing;
-      this.legR.rotation.x = THREE.MathUtils.lerp(0.86, 0, k) - swing;
-      this.torso.rotation.set(0, 0, lean * 0.15);
+      this.hips.position.set(0, THREE.MathUtils.lerp(A.crouch.hipsY, A.prone.hipsY, k), THREE.MathUtils.lerp(0, A.prone.hipsZ, k));
+      this.hips.rotation.x = THREE.MathUtils.lerp(0, A.prone.hipsPitch, k);
+      this.legL.rotation.x = THREE.MathUtils.lerp(-A.crouch.knee, 0, k) + swing;
+      this.legR.rotation.x = THREE.MathUtils.lerp(A.crouch.knee, 0, k) - swing;
+      this.torso.rotation.set(0, 0, lean * A.prone.torsoRoll);
     } else {
       // crouch: one knee forward, one back so both feet stay on the floor (leg ≈ 0.95 m, hips at 0.62 → 49°)
-      this.hips.position.set(0, THREE.MathUtils.lerp(0.95, 0.62, sb), 0);
+      this.hips.position.set(0, THREE.MathUtils.lerp(SK.hips[1], A.crouch.hipsY, sb), 0);
       this.hips.rotation.x = 0;
-      this.legL.rotation.x = -0.86 * sb + swing;
-      this.legR.rotation.x = 0.86 * sb - swing;
+      this.legL.rotation.x = -A.crouch.knee * sb + swing;
+      this.legR.rotation.x = A.crouch.knee * sb - swing;
       // crouched / sprinting the upper body leans forward (−X tips the torso's +Y toward −Z)
-      this.torso.rotation.set(-(sb * 0.25 + this.sprintK * 0.12), 0, -lean * 0.35);
+      this.torso.rotation.set(-(sb * A.crouch.torsoLean + this.sprintK * A.sprint.torsoLean), 0, -lean * A.stand.torsoRoll);
     }
-    this.head.rotation.x = THREE.MathUtils.clamp(prone ? pitch * 0.5 + Math.PI / 2 - 0.15 : pitch * 0.6 - this.torso.rotation.x, -1, 1.6);
+    this.head.rotation.x = THREE.MathUtils.clamp(prone ? pitch * A.prone.headFollow + A.prone.headPitch : pitch * A.stand.headFollow - this.torso.rotation.x, -1, 1.6);
     this.root.updateMatrix();
     this.hips.updateMatrix();
     this.torso.updateMatrix();
@@ -192,33 +211,31 @@ export class Rig {
     // --- the gun, held along the aim (body frame: x right, y up, −z ahead)
     const aim = new THREE.Vector3(0, Math.sin(pitch), -Math.cos(pitch));
     const shoulderR = toRoot(SHOULDER_R);
-    const eye = new THREE.Vector3(0, 0.15, -0.09).applyMatrix4(new THREE.Matrix4().multiplyMatrices(torsoM, this.head.matrix));
+    const eye = v3(A.hold.eye).applyMatrix4(new THREE.Matrix4().multiplyMatrices(torsoM, this.head.matrix));
     const shielded = !!sp && sp !== 'back';
     // hold point of the grip in the aim frame, from the right shoulder (rifle at the shoulder pocket; a pistol pushed out)
     // hold of the grip in the aim frame: a rifle pivots on the shoulder pocket (just in from the shoulder joint), a pistol is pushed out
-    const pocket = shoulderR.clone().add(new THREE.Vector3(-0.07, -0.05, -0.08));
-    const hold = this.pistol
-      ? shielded ? new THREE.Vector3(0.07, -0.09, -0.3) : new THREE.Vector3(-0.1, -0.05, -0.34)
-      : new THREE.Vector3(0, -0.07, -0.19);
+    const pocket = shoulderR.clone().add(v3(A.hold.pocket));
+    const hold = v3(this.pistol ? (shielded ? A.hold.pistolShielded : A.hold.pistol) : A.hold.rifle);
     let gunQ = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, -1), aim);
     const grip = new THREE.Vector3(...(this.gunAnchors.grip ?? [0, -0.03, 0]));
     const sight = new THREE.Vector3(...(this.gunAnchors.sight ?? [0, 0.08, 0.05]));
     const hipGrip = pocket.clone().add(hold.applyQuaternion(gunQ));
     // aiming: the sight on the eye line, eye relief behind it
-    const adsGrip = eye.clone().addScaledVector(aim, this.pistol ? 0.36 : 0.24).sub(sight.clone().sub(grip).applyQuaternion(gunQ));
+    const adsGrip = eye.clone().addScaledVector(aim, this.pistol ? A.hold.adsEyeRelief.pistol : A.hold.adsEyeRelief.rifle).sub(sight.clone().sub(grip).applyQuaternion(gunQ));
     const ext = sp === 'ext';
     let gripAt = hipGrip.lerp(adsGrip, ext ? 0 : this.adsK);
     // sprinting: low ready, muzzle down and across the body
     if (this.sprintK > 0.01 && !shielded) {
-      const low = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.75, 0.55, 0, 'YXZ'));
+      const low = new THREE.Quaternion().setFromEuler(new THREE.Euler(A.sprint.gunPitch, A.sprint.gunYaw, 0, 'YXZ'));
       gunQ = gunQ.slerp(low, this.sprintK);
-      gripAt = gripAt.lerp(shoulderR.clone().add(new THREE.Vector3(-0.1, -0.2, -0.16)), this.sprintK);
+      gripAt = gripAt.lerp(shoulderR.clone().add(v3(A.sprint.grip)), this.sprintK);
     }
-    if (ext) gripAt = shoulderR.clone().add(new THREE.Vector3(-0.02, -0.38, -0.12)); // Montagne extended: the pistol lowered behind it
+    if (ext) gripAt = shoulderR.clone().add(v3(A.hold.shieldExtended)); // Montagne extended: the pistol lowered behind it
     // where the left hand goes on the gun (gun-local), if it holds the gun
     const fore = new THREE.Vector3(...(this.gunAnchors.fore ?? [0, 0.02, -0.2]));
-    fore.z = Math.max(fore.z, grip.z - 0.27); // the rear of a long handguard: a natural reach ahead of the grip
-    const leftOnGun = this.gun && !shielded ? (this.pistol ? grip.clone().add(new THREE.Vector3(-0.045, -0.02, 0.02)) : fore.add(new THREE.Vector3(-0.01, -0.035, 0))) : null;
+    fore.z = Math.max(fore.z, grip.z - A.hold.foreReach); // the rear of a long handguard: a natural reach ahead of the grip
+    const leftOnGun = this.gun && !shielded ? (this.pistol ? grip.clone().add(v3(A.hold.leftOnPistol)) : fore.add(v3(A.hold.leftOnFore))) : null;
     // never further than the arms reach: slide the gun back along the aim until both hands are on it
     const shoulderL = toRoot(SHOULDER_L);
     const reach = ARM_UPPER + ARM_FORE - 0.01;
@@ -237,22 +254,22 @@ export class Rig {
     if (shielded && this.shield) {
       // the left hand on the shield's handle (plate-local (0, −0.02, 0.035))
       this.shield.updateMatrix();
-      leftT = new THREE.Vector3(0, -0.02, 0.06).applyMatrix4(this.shield.matrix);
+      leftT = v3(A.hold.leftOnShield).applyMatrix4(this.shield.matrix);
     } else if (this.gun && leftOnGun) {
       // the left hand under the handguard / cupping the pistol grip
       leftT = this.gun.position.clone().add(leftOnGun.clone().applyQuaternion(gunQ));
     } else if (this.cuffed) {
-      leftT = toRoot(new THREE.Vector3(-0.04, 0.12, -0.2));
+      leftT = toRoot(v3(A.hold.cuffedLeft));
     } else {
       // nothing in hand: hands low in front
-      leftT = toRoot(new THREE.Vector3(-0.16, 0.08, -0.16));
+      leftT = toRoot(v3(A.hold.emptyLeft));
     }
     let rightHand = rightT;
-    if (!this.gun) rightHand = this.cuffed ? toRoot(new THREE.Vector3(0.04, 0.12, -0.2)) : toRoot(new THREE.Vector3(0.16, 0.08, -0.16));
+    if (!this.gun) rightHand = toRoot(v3(this.cuffed ? A.hold.cuffedRight : A.hold.emptyRight));
     // reloading: the left hand goes to the magazine well and back
     const rk = act.reload ?? -1;
     if (rk >= 0 && this.gun && !shielded) {
-      const well = this.gun.position.clone().add(new THREE.Vector3(0, -0.1, this.pistol ? 0.02 : -0.06).applyQuaternion(gunQ));
+      const well = this.gun.position.clone().add(v3(this.pistol ? A.reload.pistolWell : A.reload.well).applyQuaternion(gunQ));
       leftT = leftT.lerp(well, Math.sin(Math.min(1, rk) * Math.PI));
     }
     this.targets.left.copy(leftT);
@@ -260,8 +277,8 @@ export class Rig {
 
     // --- arms: two-bone IK in torso space, elbows out and down
     const inv = torsoM.clone().invert();
-    solveArm(this.armR, this.foreR, SHOULDER_R, rightHand.clone().applyMatrix4(inv), new THREE.Vector3(0.7, -1, 0.35));
-    solveArm(this.armL, this.foreL, SHOULDER_L, leftT.clone().applyMatrix4(inv), new THREE.Vector3(-0.7, -1, 0.35));
+    solveArm(this.armR, this.foreR, SHOULDER_R, rightHand.clone().applyMatrix4(inv), v3(A.hold.elbowPoleRight));
+    solveArm(this.armL, this.foreL, SHOULDER_L, leftT.clone().applyMatrix4(inv), v3(A.hold.elbowPoleLeft));
   }
 
   /** world position of a hand's centre (tests) */
@@ -293,10 +310,11 @@ export class Rig {
   /** collapse from whatever pose the body was in (walking, crouched, rappelling) to lying flat, limbs relaxed */
   private deathPose(dt: number) {
     const was = this.deathT;
-    this.deathT = Math.min(1, this.deathT + dt * 1.9);
+    const D = A.death;
+    this.deathT = Math.min(1, this.deathT + dt * D.fall);
     if (was >= 1) return;
     const e = 1 - (1 - this.deathT) ** 3; // the fall
-    const k = Math.min(1, dt * 7); // limbs relax toward the lying pose
+    const k = Math.min(1, dt * D.relax); // limbs relax toward the lying pose
     const f = this.fallFwd ? -1 : 1;
     const ap = (o: THREE.Object3D, x: number, y: number, z: number) => {
       o.rotation.x += (x - o.rotation.x) * k;
@@ -305,22 +323,22 @@ export class Rig {
     };
     this.root.rotation.z = 0; // a rappeller upside down falls the right way up
     // lying on the back (+π/2 about X: legs forward, torso back) or face down (−π/2), hips on the floor
-    this.hips.position.y += (0.14 - this.hips.position.y) * e;
+    this.hips.position.y += (D.hipsY - this.hips.position.y) * e;
     this.hips.position.z += (0 - this.hips.position.z) * k;
-    this.hips.rotation.x += (f * (Math.PI / 2 - 0.04) - this.hips.rotation.x) * e;
+    this.hips.rotation.x += (f * D.hipsPitch - this.hips.rotation.x) * e;
     this.hips.rotation.y += (0 - this.hips.rotation.y) * k;
-    this.hips.rotation.z += (this.fallSide * 0.25 - this.hips.rotation.z) * e;
+    this.hips.rotation.z += (this.fallSide * D.sideRoll - this.hips.rotation.z) * e;
     // legs straight out, a little apart; torso flat; head turned aside; arms flung out, elbows loose
-    ap(this.legL, -0.06, 0, -0.16);
-    ap(this.legR, 0.04, 0, 0.12 + this.fallSide * 0.1);
-    ap(this.torso, 0, 0, this.fallSide * -0.12);
-    ap(this.head, f * 0.15, (this.fallSide >= 0 ? 1 : -1) * 0.9, 0);
-    ap(this.armL, -0.35 * f, 0, -1.25);
-    ap(this.armR, -0.6 * f, 0, 1.05);
-    ap(this.foreL, 0.2, 0, 0);
-    ap(this.foreR, 0.25, 0, 0);
-    if (this.gun && this.deathT > 0.25) this.gun.visible = false; // dropped
-    if (this.shield && this.deathT > 0.25) this.shield.visible = false;
+    ap(this.legL, ...D.legL);
+    ap(this.legR, D.legR[0], D.legR[1], D.legR[2] + this.fallSide * D.legRSide);
+    ap(this.torso, 0, 0, this.fallSide * D.torsoSide);
+    ap(this.head, f * D.head[0], (this.fallSide >= 0 ? 1 : -1) * D.head[1], D.head[2]);
+    ap(this.armL, D.armL[0] * f, D.armL[1], D.armL[2]);
+    ap(this.armR, D.armR[0] * f, D.armR[1], D.armR[2]);
+    ap(this.foreL, ...D.foreL);
+    ap(this.foreR, ...D.foreR);
+    if (this.gun && this.deathT > D.dropAt) this.gun.visible = false; // dropped
+    if (this.shield && this.deathT > D.dropAt) this.shield.visible = false;
   }
 
   dispose() {
